@@ -186,15 +186,15 @@ class ImageProcessor:
         
         # Create a temporary file for the input image
         with tempfile.NamedTemporaryFile(suffix=f".{output_format}", delete=False) as temp_input_file:
-            # Convert base64 to binary
-            image_data = base64.b64decode(base64_image)
-            temp_input_file.write(image_data)
-            temp_input_file.flush()
-            
             try:
+                # Convert base64 to binary
+                image_data = base64.b64decode(base64_image)
+                temp_input_file.write(image_data)
+                temp_input_file.flush()
+                
                 # Prepare input parameters for Clarity Upscaler
                 input_params = {
-                    "image": open(temp_input_file.name, "rb"),  # Open file in binary mode
+                    "image": temp_input_file.name,  # Pass the file path instead of file handle
                     "model": selected_model,
                     "scale": scale_factor,
                     "dynamic": dynamic,
@@ -212,7 +212,7 @@ class ImageProcessor:
                     None,
                     lambda: replicate.run(
                         model_version,
-                        input={"image": temp_input_file.name}  # Pass the file path instead of file handle
+                        input=input_params
                     )
                 )
                 
@@ -232,7 +232,7 @@ class ImageProcessor:
                     response = await client.get(output_url)
                     response.raise_for_status()
                     return response.content
-                
+                    
             finally:
                 # Clean up the temporary file
                 try:
