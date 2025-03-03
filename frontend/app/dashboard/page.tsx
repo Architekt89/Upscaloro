@@ -53,22 +53,20 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
-        <div className="flex items-center space-x-4">
-          <div className="text-sm text-gray-500 dark:text-gray-300">
-            <span className="font-medium text-gray-900 dark:text-white">{userSubscription.charAt(0).toUpperCase() + userSubscription.slice(1)} Plan</span>
-            <span className="mx-2">•</span>
-            <span>{imagesProcessedThisMonth} / {maxImagesPerMonth} images</span>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600"
-          >
-            Logout
-          </button>
+    <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            {userSubscription === 'pro' ? 'Pro Plan' : 'Free Plan'} • {imagesProcessedThisMonth} / {maxImagesPerMonth} images
+          </p>
         </div>
+        <button
+          onClick={handleLogout}
+          className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600"
+        >
+          Logout
+        </button>
       </div>
       
       <ImageUploader

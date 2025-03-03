@@ -211,14 +211,37 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
       console.error('Error processing image:', error);
       
       if (axios.isAxiosError(error)) {
-        const errorData = error.response?.data;
-        const errorMessage = typeof errorData === 'string' ? errorData : 
-                           errorData?.detail || error.message;
+        // Extract error message from response
+        let errorMessage = 'Error processing image. Please try again.';
+        
+        if (error.response?.data) {
+          // Try to extract the error message from the response
+          if (error.response.data instanceof Blob) {
+            try {
+              // Convert blob to text
+              const blobText = await error.response.data.text();
+              const errorData = JSON.parse(blobText);
+              errorMessage = errorData.detail || errorMessage;
+            } catch (e) {
+              console.error('Error parsing error blob:', e);
+            }
+          } else if (typeof error.response.data === 'object') {
+            errorMessage = error.response.data.detail || errorMessage;
+          } else if (typeof error.response.data === 'string') {
+            try {
+              const errorData = JSON.parse(error.response.data);
+              errorMessage = errorData.detail || errorMessage;
+            } catch (e) {
+              errorMessage = error.response.data;
+            }
+          }
+        }
         
         console.error('Axios error details:', {
           status: error.response?.status,
           statusText: error.response?.statusText,
           data: error.response?.data,
+          errorMessage,
           headers: error.response?.headers,
           config: {
             url: error.config?.url,
@@ -229,7 +252,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
         
         // Provide more user-friendly error messages
         if (error.response?.status === 500) {
-          toast.error('The AI service encountered an error. Please try again or use a different image.');
+          toast.error(errorMessage || 'The AI service encountered an error. Please try again or use a different image.');
         } else if (error.response?.status === 403) {
           toast.error(errorMessage || 'You need to upgrade your plan to use this feature.');
         } else if (error.response?.status === 401) {
@@ -242,6 +265,9 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
       } else {
         toast.error('Error processing image. Please try again.');
       }
+      
+      // Always dismiss the loading toast
+      toast.dismiss();
     } finally {
       setIsProcessing(false);
     }
@@ -259,275 +285,180 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto p-4">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold mb-2">Upload Image</h2>
-        <p className="text-gray-600 dark:text-gray-300">
-          {imagesProcessedThisMonth} / {maxImagesPerMonth} images processed this month
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="grid grid-cols-2 gap-8">
+      {/* Left Section - Parameters and Upload */}
+      <div className="space-y-6 p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
         <div>
+          <h2 className="text-xl font-semibold mb-2">Upload Image</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            {imagesProcessedThisMonth} / {maxImagesPerMonth} images processed this month
+          </p>
+          
+          {/* Upload Area */}
           <div
             {...getRootProps()}
-            className={`border-2 border-dashed rounded-lg p-6 cursor-pointer transition-colors ${
-              isDragActive
-                ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
-                : 'border-gray-300 hover:border-primary-500'
-            }`}
+            className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center cursor-pointer hover:border-primary-500 transition-colors"
           >
             <input {...getInputProps()} />
             {preview ? (
-              <div className="relative w-full aspect-square">
-                <Image
-                  src={preview}
-                  alt="Preview"
-                  fill
-                  className="object-contain"
-                />
-              </div>
+              <Image
+                src={preview}
+                alt="Preview"
+                width={200}
+                height={200}
+                className="mx-auto object-contain"
+              />
             ) : (
-              <div className="text-center">
-                <svg
-                  className="mx-auto h-12 w-12 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  aria-hidden="true"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                  />
-                </svg>
-                <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                  Drag & drop an image here, or click to select
-                </p>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  PNG, JPG, WEBP up to 10MB
-                </p>
+              <div className="space-y-2">
+                <div className="flex justify-center">
+                  <svg
+                    className="w-12 h-12 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                    />
+                  </svg>
+                </div>
+                <p>Drag & drop an image here, or click to select</p>
+                <p className="text-sm text-gray-500">PNG, JPG, WEBP up to 10MB</p>
               </div>
             )}
-          </div>
-
-          <div className="mt-4 space-y-4">
-            {/* Mode Selection */}
-            <div>
-              <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Mode
-              </Label>
-              <Select
-                value={mode}
-                onValueChange={(value) => setMode(value)}
-              >
-                <SelectTrigger className="w-full mt-1">
-                  <SelectValue placeholder="Select Mode" />
-                </SelectTrigger>
-                <SelectContent>
-                  {VALID_MODES.map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {MODE_NAMES[m as keyof typeof MODE_NAMES]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                {modeDescriptions[mode] || 
-                  "Block Mode: General purpose, Face Mode: Optimized for faces, Waifu Mode: Optimized for anime"}
-              </p>
-            </div>
-
-            {/* Scale Factor */}
-            <div>
-              <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Scale Factor
-              </Label>
-              <Select
-                value={scaleFactor.toString()}
-                onValueChange={(value) => setScaleFactor(parseInt(value))}
-                disabled={userSubscription !== 'pro' && parseInt(scaleFactor.toString()) !== 2}
-              >
-                <SelectTrigger className="w-full mt-1">
-                  <SelectValue placeholder="Select Scale Factor" />
-                </SelectTrigger>
-                <SelectContent>
-                  {VALID_SCALE_FACTORS.map((sf) => (
-                    <SelectItem 
-                      key={sf} 
-                      value={sf.toString()}
-                      disabled={userSubscription !== 'pro' && sf !== 2}
-                    >
-                      {sf}x
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {userSubscription !== 'pro' && (
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Scale factors above 2x are only available on the Pro plan
-                </p>
-              )}
-            </div>
-
-            {/* Output Format */}
-            <div>
-              <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Output Format
-              </Label>
-              <Select
-                value={outputFormat}
-                onValueChange={(value) => setOutputFormat(value)}
-              >
-                <SelectTrigger className="w-full mt-1">
-                  <SelectValue placeholder="Select Output Format" />
-                </SelectTrigger>
-                <SelectContent>
-                  {VALID_OUTPUT_FORMATS.map((format) => (
-                    <SelectItem key={format} value={format}>
-                      {format.toUpperCase()}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Dynamic Range */}
-            <div>
-              <div className="flex justify-between">
-                <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Dynamic Range
-                </Label>
-                <span className="text-sm text-gray-500">{dynamic}</span>
-              </div>
-              <Slider
-                value={[dynamic]}
-                min={1}
-                max={50}
-                step={1}
-                onValueChange={(value) => setDynamic(value[0])}
-                className="mt-2"
-              />
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                {options?.dynamic_range?.description || "Controls the dynamic range of the output image"}
-              </p>
-            </div>
-
-            {/* Creativity */}
-            <div>
-              <div className="flex justify-between">
-                <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Creativity
-                </Label>
-                <span className="text-sm text-gray-500">{creativity.toFixed(1)}</span>
-              </div>
-              <Slider
-                value={[creativity]}
-                min={0}
-                max={1}
-                step={0.1}
-                onValueChange={(value) => setCreativity(value[0])}
-                className="mt-2"
-              />
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                {options?.creativity?.description || "Controls the creativity level of the AI"}
-              </p>
-            </div>
-
-            {/* Resemblance */}
-            <div>
-              <div className="flex justify-between">
-                <Label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Resemblance
-                </Label>
-                <span className="text-sm text-gray-500">{resemblance.toFixed(1)}</span>
-              </div>
-              <Slider
-                value={[resemblance]}
-                min={0}
-                max={3}
-                step={0.1}
-                onValueChange={(value) => setResemblance(value[0])}
-                className="mt-2"
-              />
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                {options?.resemblance?.description || "Controls how closely the output resembles the input"}
-              </p>
-            </div>
-
-            {/* Handfix */}
-            <div className="flex items-center">
-              <Switch
-                id="handfix"
-                checked={handfix}
-                onCheckedChange={setHandfix}
-              />
-              <Label
-                htmlFor="handfix"
-                className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300"
-              >
-                Improve Hand Details
-              </Label>
-            </div>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {options?.handfix?.description || "Improves the quality of hands in the output image"}
-            </p>
-
-            <button
-              type="button"
-              onClick={handleProcess}
-              disabled={!file || isProcessing || imagesProcessedThisMonth >= maxImagesPerMonth}
-              className={`w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 ${
-                (!file || isProcessing || imagesProcessedThisMonth >= maxImagesPerMonth)
-                  ? 'opacity-50 cursor-not-allowed'
-                  : ''
-              }`}
-            >
-              {isProcessing ? 'Processing...' : 'Process Image'}
-            </button>
           </div>
         </div>
 
-        <div>
-          <h3 className="text-lg font-medium mb-2">Result</h3>
-          <div className="border-2 border-gray-300 rounded-lg p-6">
-            {processedImage && preview ? (
-              <div className="space-y-4 w-full">
-                <ImageComparisonSlider
-                  beforeImage={preview}
-                  afterImage={processedImage}
-                  className="w-full"
-                />
-                <button
-                  onClick={handleDownload}
-                  className="w-full mt-4 py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
-                >
-                  Download Result
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center h-64 text-gray-400">
-                {isProcessing ? (
-                  <div className="flex flex-col items-center space-y-2">
-                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-600"></div>
-                    <p>Processing with AI...</p>
-                  </div>
-                ) : (
-                  <p>Processed image will appear here</p>
-                )}
-              </div>
+        {/* Parameters */}
+        <div className="space-y-4">
+          <div>
+            <Label>Mode</Label>
+            <Select value={mode} onValueChange={setMode}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select mode" />
+              </SelectTrigger>
+              <SelectContent>
+                {VALID_MODES.map((m) => (
+                  <SelectItem key={m} value={m}>
+                    {MODE_NAMES[m as keyof typeof MODE_NAMES]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {modeDescriptions[mode] && (
+              <p className="text-sm text-gray-500 mt-1">{modeDescriptions[mode]}</p>
             )}
           </div>
+
+          <div>
+            <Label>Scale Factor</Label>
+            <Select value={scaleFactor.toString()} onValueChange={(v) => setScaleFactor(Number(v))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select scale factor" />
+              </SelectTrigger>
+              <SelectContent>
+                {VALID_SCALE_FACTORS.map((factor) => (
+                  <SelectItem
+                    key={factor}
+                    value={factor.toString()}
+                    disabled={userSubscription === 'free' && factor > 2}
+                  >
+                    {factor}x {userSubscription === 'free' && factor > 2 && '(Pro)'}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label>Output Format</Label>
+            <Select value={outputFormat} onValueChange={setOutputFormat}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select output format" />
+              </SelectTrigger>
+              <SelectContent>
+                {VALID_OUTPUT_FORMATS.map((format) => (
+                  <SelectItem key={format} value={format}>
+                    {format.toUpperCase()}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label>Dynamic Range ({dynamic})</Label>
+            <Slider
+              value={[dynamic]}
+              onValueChange={([value]) => setDynamic(value)}
+              min={1}
+              max={50}
+              step={1}
+              className="mt-2"
+            />
+          </div>
+
+          <div>
+            <Label>Creativity ({creativity})</Label>
+            <Slider
+              value={[creativity]}
+              onValueChange={([value]) => setCreativity(value)}
+              min={0}
+              max={1}
+              step={0.1}
+              className="mt-2"
+            />
+          </div>
+
+          <div>
+            <Label>Resemblance ({resemblance})</Label>
+            <Slider
+              value={[resemblance]}
+              onValueChange={([value]) => setResemblance(value)}
+              min={0}
+              max={3}
+              step={0.1}
+              className="mt-2"
+            />
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Switch
+              checked={handfix}
+              onCheckedChange={setHandfix}
+              id="handfix"
+            />
+            <Label htmlFor="handfix">Improve hand details</Label>
+          </div>
+
+          <button
+            onClick={handleProcess}
+            disabled={!file || isProcessing}
+            className="w-full py-2 px-4 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isProcessing ? 'Processing...' : 'Process Image'}
+          </button>
         </div>
       </div>
 
-      {options?.powered_by && (
-        <div className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
-          Powered by {options.powered_by} {options.api_version && `v${options.api_version}`}
-        </div>
-      )}
+      {/* Right Section - Result */}
+      <div className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
+        <h2 className="text-xl font-semibold mb-4">Result</h2>
+        {preview && processedImage ? (
+          <ImageComparisonSlider
+            beforeImage={preview}
+            afterImage={processedImage}
+            className="w-full h-[600px] rounded-lg overflow-hidden"
+          />
+        ) : (
+          <div className="h-[600px] flex items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
+            <p className="text-gray-500">Processed image will appear here</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
