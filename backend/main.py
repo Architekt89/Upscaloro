@@ -5,9 +5,18 @@ from fastapi.responses import JSONResponse, Response
 from typing import Optional, List, Dict, Any
 import os
 import logging
-from image_processor import ImageProcessor, VALID_MODES, VALID_SCALE_FACTORS, VALID_OUTPUT_FORMATS, MODE_TO_MODEL
-from auth import get_current_active_user, User
-from database import DatabaseHandler
+import sys
+
+# Try relative imports first
+try:
+    from .image_processor import ImageProcessor, VALID_MODES, VALID_SCALE_FACTORS, VALID_OUTPUT_FORMATS, MODE_TO_MODEL
+    from .auth import get_current_active_user, User
+    from .database import DatabaseHandler
+except ImportError as e:
+    # Fall back to absolute imports
+    from backend.image_processor import ImageProcessor, VALID_MODES, VALID_SCALE_FACTORS, VALID_OUTPUT_FORMATS, MODE_TO_MODEL
+    from backend.auth import get_current_active_user, User
+    from backend.database import DatabaseHandler
 
 # Load environment variables
 load_dotenv()

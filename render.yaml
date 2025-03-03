@@ -13,4 +13,6 @@ services:
         value: False
       - key: CORS_ORIGINS
         value: https://upscaloro.vercel.app,https://*.vercel.app
+      - key: PYTHONPATH
+        value: .
     healthCheckPath: /health 
