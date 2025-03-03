@@ -1,0 +1,4 @@
+backend/venv/
+frontend/node_modules/
+*.dylib # Exclude large .dylib files
+.env
