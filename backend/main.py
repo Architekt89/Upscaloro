@@ -5,9 +5,9 @@ from fastapi.responses import JSONResponse, Response
 from typing import Optional, List, Dict, Any
 import os
 import logging
-from backend.image_processor import ImageProcessor, VALID_MODES, VALID_SCALE_FACTORS, VALID_OUTPUT_FORMATS, MODE_TO_MODEL
-from backend.auth import get_current_active_user, User
-from backend.database import DatabaseHandler
+from image_processor import ImageProcessor, VALID_MODES, VALID_SCALE_FACTORS, VALID_OUTPUT_FORMATS, MODE_TO_MODEL
+from auth import get_current_active_user, User
+from database import DatabaseHandler
 
 # Load environment variables
 load_dotenv()
@@ -158,7 +158,14 @@ async def upscale_image(
             logger.error(f"Error processing image with Replicate API: {error}")
             raise HTTPException(
                 status_code=500,
-                detail=error
+                detail=f"AI service error: {error}. Please try again or use a different image."
+            )
+        
+        if not processed_image or len(processed_image) == 0:
+            logger.error("Processed image is empty or None")
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to process the image. The AI service returned an empty result."
             )
         
         # Log success
