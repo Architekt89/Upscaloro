@@ -285,8 +285,8 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   };
 
   return (
-    <div className="grid grid-cols-2 gap-8">
-      {/* Left Section - Parameters and Upload */}
+    <div className="grid grid-cols-4 gap-8">
+      {/* Left Section - Parameters and Upload (1/4 width) */}
       <div className="space-y-6 p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
         <div>
           <h2 className="text-xl font-semibold mb-2">Upload Image</h2>
@@ -444,17 +444,25 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
         </div>
       </div>
 
-      {/* Right Section - Result */}
-      <div className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
+      {/* Right Section - Result (3/4 width) */}
+      <div className="col-span-3 p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
         <h2 className="text-xl font-semibold mb-4">Result</h2>
         {preview && processedImage ? (
-          <ImageComparisonSlider
-            beforeImage={preview}
-            afterImage={processedImage}
-            className="w-full h-[600px] rounded-lg overflow-hidden"
-          />
+          <div className="space-y-4">
+            <ImageComparisonSlider
+              beforeImage={preview}
+              afterImage={processedImage}
+              className="w-full h-[700px] rounded-lg overflow-hidden"
+            />
+            <button
+              onClick={handleDownload}
+              className="py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
+            >
+              Download Result
+            </button>
+          </div>
         ) : (
-          <div className="h-[600px] flex items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
+          <div className="h-[700px] flex items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
             <p className="text-gray-500">Processed image will appear here</p>
           </div>
         )}

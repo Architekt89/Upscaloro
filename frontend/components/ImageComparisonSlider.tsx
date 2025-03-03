@@ -73,14 +73,13 @@ const ImageComparisonSlider: React.FC<ImageComparisonSliderProps> = ({
     <div
       ref={containerRef}
       className={`relative select-none overflow-hidden rounded-lg ${className}`}
-      style={{ height: '400px' }}
     >
       {/* Before Image */}
       <div className="absolute inset-0">
         <img
           src={beforeImage}
           alt="Before"
-          className="h-full w-full object-cover"
+          className="h-full w-full object-contain"
         />
       </div>
 
@@ -94,13 +93,13 @@ const ImageComparisonSlider: React.FC<ImageComparisonSliderProps> = ({
         <img
           src={afterImage}
           alt="After"
-          className="h-full w-full object-cover"
+          className="h-full w-full object-contain"
         />
       </div>
 
       {/* Slider Handle */}
       <div
-        className="absolute inset-y-0"
+        className="absolute inset-y-0 cursor-ew-resize"
         style={{ left: `${position}%` }}
         onMouseDown={() => setIsResizing(true)}
         onTouchStart={() => setIsResizing(true)}
