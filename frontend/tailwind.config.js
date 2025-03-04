@@ -8,6 +8,9 @@ module.exports = {
   darkMode: 'class',
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['var(--font-poppins)', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+      },
       colors: {
         primary: {
           50: '#fff7ed',
@@ -52,7 +55,27 @@ module.exports = {
         '700': '700ms',
         '1000': '1000ms',
       },
+      textShadow: {
+        sm: '0 0 2px rgba(255,255,255,0.3)',
+        DEFAULT: '0 0 4px rgba(255,255,255,0.4)',
+        lg: '0 0 8px rgba(255,255,255,0.5)',
+      },
     },
   },
-  plugins: [],
+  plugins: [
+    function ({ addUtilities }) {
+      const newUtilities = {
+        '.text-shadow-sm': {
+          textShadow: '0 0 2px rgba(255,255,255,0.3)',
+        },
+        '.text-shadow': {
+          textShadow: '0 0 4px rgba(255,255,255,0.4)',
+        },
+        '.text-shadow-lg': {
+          textShadow: '0 0 8px rgba(255,255,255,0.5)',
+        },
+      }
+      addUtilities(newUtilities)
+    }
+  ],
 }; 

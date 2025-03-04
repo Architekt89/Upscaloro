@@ -4,7 +4,7 @@ import ClientHeader from '@/components/ClientHeader';
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen flex flex-col bg-gray-950">
+    <div className="min-h-screen flex flex-col bg-gray-950 font-sans">
       <ClientHeader />
       <main className="flex-grow">
         {/* Hero Section */}
@@ -15,6 +15,12 @@ export default function HomePage() {
             <div className="absolute -left-20 top-1/4 w-96 h-96 bg-orange-500/10 rounded-full blur-[128px] animate-pulse-subtle"></div>
             <div className="absolute right-0 top-1/3 w-[500px] h-[500px] bg-orange-600/10 rounded-full blur-[128px] animate-pulse-subtle delay-700"></div>
             <div className="absolute left-1/3 -bottom-32 w-[600px] h-[600px] bg-orange-500/5 rounded-full blur-[128px] animate-pulse-subtle delay-1000"></div>
+            
+            {/* Corner glow effects */}
+            <div className="absolute -top-20 -left-20 w-64 h-64 bg-orange-500/15 rounded-full blur-[100px]"></div>
+            <div className="absolute -top-20 -right-20 w-64 h-64 bg-orange-500/15 rounded-full blur-[100px]"></div>
+            <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-orange-500/15 rounded-full blur-[100px]"></div>
+            <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-orange-500/15 rounded-full blur-[100px]"></div>
             
             {/* Smaller accent glows */}
             <div className="absolute top-20 right-32 w-24 h-24 bg-orange-400/20 rounded-full blur-2xl"></div>
@@ -29,14 +35,14 @@ export default function HomePage() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32">
               <div className="text-center">
                 <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tight mb-6 drop-shadow-2xl">
-                  <span className="text-orange-500 inline-block bg-clip-text text-transparent bg-gradient-to-r from-orange-400 to-orange-600">
+                  <span className="text-orange-500 inline-block bg-clip-text text-transparent bg-gradient-to-r from-orange-400 to-orange-600 text-5xl md:text-7xl lg:text-8xl">
                     Enhance Your
                   </span>{' '}
                   <span className="text-white">
                     Images with AI-Powered Upscaling
                   </span>
                 </h1>
-                <p className="max-w-2xl mx-auto text-lg md:text-xl text-gray-200 mb-12 drop-shadow-lg font-medium">
+                <p className="max-w-2xl mx-auto text-lg md:text-xl text-gray-200 mb-12 tracking-wide font-medium drop-shadow-lg text-shadow-sm">
                   Transform low-resolution images into stunning high-definition visuals with our cutting-edge AI technology.
                 </p>
                 <Link
