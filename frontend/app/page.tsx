@@ -3,6 +3,7 @@ import Footer from '@/components/Footer';
 import ClientHeader from '@/components/ClientHeader';
 import CTASection from '@/components/CTASection';
 import FAQSection from '@/components/FAQSection';
+import PricingSection from '@/components/PricingSection';
 
 export default function HomePage() {
   return (
@@ -143,6 +144,9 @@ export default function HomePage() {
             </div>
           </div>
         </div>
+
+        {/* Pricing Section */}
+        <PricingSection />
 
         {/* FAQ Section */}
         <FAQSection />
