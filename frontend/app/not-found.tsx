@@ -2,6 +2,8 @@ import Link from 'next/link';
 import ClientHeader from '@/components/ClientHeader';
 import Footer from '@/components/Footer';
 
+export const dynamic = "force-dynamic"; // Add this line
+
 export default function NotFound() {
   return (
     <div className="min-h-screen flex flex-col">
