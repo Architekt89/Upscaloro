@@ -34,11 +34,11 @@ export default function HomePage() {
           <div className="relative w-full">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32">
               <div className="text-center">
-                <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tight mb-6 drop-shadow-2xl">
-                  <span className="text-orange-500 inline-block bg-clip-text text-transparent bg-gradient-to-r from-orange-400 to-orange-600 text-5xl md:text-7xl lg:text-8xl">
+                <h1 className="flex flex-col items-center font-extrabold tracking-tight mb-8 drop-shadow-2xl leading-tight">
+                  <span className="text-orange-500 bg-clip-text text-transparent bg-gradient-to-r from-orange-400 to-orange-600 text-5xl md:text-7xl lg:text-8xl tracking-wider mb-2">
                     Enhance Your
-                  </span>{' '}
-                  <span className="text-white">
+                  </span>
+                  <span className="text-white text-4xl md:text-6xl lg:text-7xl">
                     Images with AI-Powered Upscaling
                   </span>
                 </h1>
@@ -47,11 +47,18 @@ export default function HomePage() {
                 </p>
                 <Link
                   href="/auth/signup"
-                  className="inline-block px-10 py-5 text-lg font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 rounded-full 
-                  shadow-[0_0_30px_-5px_rgba(249,115,22,0.4)] hover:shadow-[0_0_45px_-5px_rgba(249,115,22,0.6)] 
+                  className="inline-block px-10 py-5 text-lg font-semibold text-white 
+                  bg-gradient-to-r from-orange-500 to-orange-600 
+                  rounded-full 
+                  shadow-[0_0_40px_-5px_rgba(249,115,22,0.5)] 
+                  hover:shadow-[0_0_60px_-5px_rgba(249,115,22,0.7)] 
                   hover:bg-gradient-to-r hover:from-orange-400 hover:to-orange-600 
                   transition-all duration-300 ease-out hover:scale-105 
-                  animate-pulse-subtle backdrop-blur-sm"
+                  animate-pulse-subtle 
+                  border border-orange-500/20
+                  backdrop-blur-sm
+                  relative
+                  before:content-[''] before:absolute before:inset-0 before:bg-white/10 before:rounded-full before:opacity-0 before:hover:opacity-20 before:transition-opacity"
                 >
                   Get Started For Free
                 </Link>
