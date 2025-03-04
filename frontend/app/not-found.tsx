@@ -4,6 +4,7 @@ import Link from 'next/link';
 import ClientHeader from '@/components/ClientHeader';
 import Footer from '@/components/Footer';
 import CTASection from '@/components/CTASection';
+import FAQSection from '@/components/FAQSection';
 
 export const dynamic = "force-dynamic"; // Add this line
 
@@ -30,6 +31,9 @@ export default function NotFound() {
             </div>
           </div>
         </div>
+        
+        {/* FAQ Section */}
+        <FAQSection />
         
         {/* CTA Section */}
         <CTASection />

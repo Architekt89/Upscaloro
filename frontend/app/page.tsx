@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Footer from '@/components/Footer';
 import ClientHeader from '@/components/ClientHeader';
 import CTASection from '@/components/CTASection';
+import FAQSection from '@/components/FAQSection';
 
 export default function HomePage() {
   return (
@@ -142,6 +143,9 @@ export default function HomePage() {
             </div>
           </div>
         </div>
+
+        {/* FAQ Section */}
+        <FAQSection />
 
         {/* CTA Section */}
         <CTASection />
