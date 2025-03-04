@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Footer from '@/components/Footer';
 import ClientHeader from '@/components/ClientHeader';
+import CTASection from '@/components/CTASection';
 
 export default function HomePage() {
   return (
@@ -143,25 +144,8 @@ export default function HomePage() {
         </div>
 
         {/* CTA Section */}
-        <div className="bg-primary-700">
-          <div className="max-w-2xl mx-auto text-center py-16 px-4 sm:py-20 sm:px-6 lg:px-8">
-            <h2 className="text-3xl font-extrabold text-white sm:text-4xl">
-              <span className="block">Ready to enhance your images?</span>
-              <span className="block">Start using Upscalor today.</span>
-            </h2>
-            <p className="mt-4 text-lg leading-6 text-primary-200">
-              Join thousands of professionals who trust our AI technology for their image upscaling needs.
-            </p>
-            <Link
-              href="/dashboard"
-              className="mt-8 w-full inline-flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-primary-600 bg-white hover:bg-primary-50 sm:w-auto"
-            >
-              Get started
-            </Link>
-          </div>
-        </div>
+        <CTASection />
       </main>
-      
       <Footer />
     </div>
   );
