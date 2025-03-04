@@ -8,34 +8,30 @@ export default function HomePage() {
       <ClientHeader />
       <main className="flex-grow">
         {/* Hero Section */}
-        <div className="bg-white dark:bg-gray-900">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
+        <div className="relative overflow-hidden">
+          {/* Background Effects */}
+          <div className="absolute inset-0 overflow-hidden">
+            <div className="absolute -left-10 top-1/4 w-72 h-72 bg-orange-500/10 rounded-full blur-3xl"></div>
+            <div className="absolute right-0 top-1/2 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl"></div>
+            <div className="absolute left-1/3 bottom-0 w-64 h-64 bg-orange-500/10 rounded-full blur-3xl"></div>
+          </div>
+
+          {/* Content */}
+          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-32 pb-20">
             <div className="text-center">
-              <h1 className="text-4xl tracking-tight font-extrabold text-gray-900 dark:text-white sm:text-5xl md:text-6xl">
-                <span className="block">Enhance Your Images with</span>
-                <span className="block text-primary-600">AI-Powered Upscaling</span>
+              <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tight mb-6">
+                <span className="text-orange-500 inline-block">Enhance Your</span>{' '}
+                <span className="text-white">Images with AI-Powered Upscaling</span>
               </h1>
-              <p className="mt-3 max-w-md mx-auto text-base text-gray-500 dark:text-gray-400 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl">
+              <p className="max-w-2xl mx-auto text-lg md:text-xl text-gray-300 mb-10">
                 Transform low-resolution images into stunning high-definition visuals with our cutting-edge AI technology.
               </p>
-              <div className="mt-5 max-w-md mx-auto sm:flex sm:justify-center md:mt-8">
-                <div className="rounded-md shadow">
-                  <Link
-                    href="/dashboard"
-                    className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 md:py-4 md:text-lg md:px-10"
-                  >
-                    Get Started
-                  </Link>
-                </div>
-                <div className="mt-3 rounded-md shadow sm:mt-0 sm:ml-3">
-                  <Link
-                    href="/models"
-                    className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-primary-600 bg-white hover:bg-gray-50 dark:bg-gray-800 dark:text-primary-400 dark:hover:bg-gray-700 md:py-4 md:text-lg md:px-10"
-                  >
-                    View AI Models
-                  </Link>
-                </div>
-              </div>
+              <Link
+                href="/auth/signup"
+                className="inline-block px-8 py-4 text-lg font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 rounded-full shadow-lg shadow-orange-500/30 hover:shadow-orange-500/50 hover:brightness-110 transition-all duration-300 animate-pulse-subtle"
+              >
+                Get Started For Free
+              </Link>
             </div>
           </div>
         </div>
