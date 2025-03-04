@@ -4,34 +4,52 @@ import ClientHeader from '@/components/ClientHeader';
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-gray-950">
       <ClientHeader />
       <main className="flex-grow">
         {/* Hero Section */}
-        <div className="relative overflow-hidden">
+        <div className="relative overflow-hidden bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-gray-950 to-black min-h-[90vh] flex items-center">
           {/* Background Effects */}
           <div className="absolute inset-0 overflow-hidden">
-            <div className="absolute -left-10 top-1/4 w-72 h-72 bg-orange-500/10 rounded-full blur-3xl"></div>
-            <div className="absolute right-0 top-1/2 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl"></div>
-            <div className="absolute left-1/3 bottom-0 w-64 h-64 bg-orange-500/10 rounded-full blur-3xl"></div>
+            {/* Large glow effects */}
+            <div className="absolute -left-20 top-1/4 w-96 h-96 bg-orange-500/10 rounded-full blur-[128px] animate-pulse-subtle"></div>
+            <div className="absolute right-0 top-1/3 w-[500px] h-[500px] bg-orange-600/10 rounded-full blur-[128px] animate-pulse-subtle delay-700"></div>
+            <div className="absolute left-1/3 -bottom-32 w-[600px] h-[600px] bg-orange-500/5 rounded-full blur-[128px] animate-pulse-subtle delay-1000"></div>
+            
+            {/* Smaller accent glows */}
+            <div className="absolute top-20 right-32 w-24 h-24 bg-orange-400/20 rounded-full blur-2xl"></div>
+            <div className="absolute bottom-40 left-1/4 w-32 h-32 bg-orange-400/20 rounded-full blur-3xl"></div>
+            
+            {/* Grain effect overlay */}
+            <div className="absolute inset-0 bg-[url('/noise.png')] opacity-[0.02] mix-blend-overlay"></div>
           </div>
 
           {/* Content */}
-          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-32 pb-20">
-            <div className="text-center">
-              <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tight mb-6">
-                <span className="text-orange-500 inline-block">Enhance Your</span>{' '}
-                <span className="text-white">Images with AI-Powered Upscaling</span>
-              </h1>
-              <p className="max-w-2xl mx-auto text-lg md:text-xl text-gray-300 mb-10">
-                Transform low-resolution images into stunning high-definition visuals with our cutting-edge AI technology.
-              </p>
-              <Link
-                href="/auth/signup"
-                className="inline-block px-8 py-4 text-lg font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 rounded-full shadow-lg shadow-orange-500/30 hover:shadow-orange-500/50 hover:brightness-110 transition-all duration-300 animate-pulse-subtle"
-              >
-                Get Started For Free
-              </Link>
+          <div className="relative w-full">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32">
+              <div className="text-center">
+                <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tight mb-6 drop-shadow-2xl">
+                  <span className="text-orange-500 inline-block bg-clip-text text-transparent bg-gradient-to-r from-orange-400 to-orange-600">
+                    Enhance Your
+                  </span>{' '}
+                  <span className="text-white">
+                    Images with AI-Powered Upscaling
+                  </span>
+                </h1>
+                <p className="max-w-2xl mx-auto text-lg md:text-xl text-gray-200 mb-12 drop-shadow-lg font-medium">
+                  Transform low-resolution images into stunning high-definition visuals with our cutting-edge AI technology.
+                </p>
+                <Link
+                  href="/auth/signup"
+                  className="inline-block px-10 py-5 text-lg font-semibold text-white bg-gradient-to-r from-orange-500 to-orange-600 rounded-full 
+                  shadow-[0_0_30px_-5px_rgba(249,115,22,0.4)] hover:shadow-[0_0_45px_-5px_rgba(249,115,22,0.6)] 
+                  hover:bg-gradient-to-r hover:from-orange-400 hover:to-orange-600 
+                  transition-all duration-300 ease-out hover:scale-105 
+                  animate-pulse-subtle backdrop-blur-sm"
+                >
+                  Get Started For Free
+                </Link>
+              </div>
             </div>
           </div>
         </div>

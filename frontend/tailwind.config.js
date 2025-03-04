@@ -44,9 +44,13 @@ module.exports = {
             opacity: '1',
           },
           '50%': {
-            opacity: '0.9',
+            opacity: '0.8',
           },
         },
+      },
+      delay: {
+        '700': '700ms',
+        '1000': '1000ms',
       },
     },
   },
