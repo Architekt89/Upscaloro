@@ -49,14 +49,13 @@ export default function FAQSection() {
       {/* Content container */}
       <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
         <div className="text-center mb-12 md:mb-16">
-          <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-wider uppercase mb-2 leading-tight">
-            <span className="bg-gradient-to-r from-orange-500 via-orange-400 to-white bg-clip-text text-transparent">GET ANSWERS</span>
-            <br />
-            <span className="bg-gradient-to-r from-orange-500 via-orange-400 to-white bg-clip-text text-transparent">TO YOUR TOP QUESTIONS</span>
+          <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-wider uppercase leading-tight">
+            <span className="bg-gradient-to-r from-orange-500 via-orange-400 to-white bg-clip-text text-transparent inline-block">GET ANSWERS</span>
+            <span className="bg-gradient-to-r from-orange-500 via-orange-400 to-white bg-clip-text text-transparent inline-block ml-2">TO YOUR TOP QUESTIONS</span>
           </h2>
         </div>
         
-        <div className="bg-gray-900/60 backdrop-blur-sm rounded-3xl p-6 md:p-8 shadow-xl border border-gray-800/50">
+        <div className="bg-[#0D0D0D] rounded-3xl p-6 md:p-8 shadow-xl border border-gray-800/50">
           <div className="divide-y divide-gray-800">
             {faqs.map((faq, index) => (
               <div key={index} className="py-5">
