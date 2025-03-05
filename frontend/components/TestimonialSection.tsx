@@ -39,10 +39,18 @@ const testimonials: Testimonial[] = [
 export default function TestimonialSection() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const carouselRef = useRef<HTMLDivElement>(null);
+
+  // Handle client-side mounting to prevent hydration errors
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Check if mobile on mount and window resize
   useEffect(() => {
+    if (!isMounted) return;
+    
     const checkIfMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };
@@ -53,7 +61,7 @@ export default function TestimonialSection() {
     return () => {
       window.removeEventListener('resize', checkIfMobile);
     };
-  }, []);
+  }, [isMounted]);
 
   const nextSlide = () => {
     setActiveIndex((prevIndex) => 
@@ -68,13 +76,30 @@ export default function TestimonialSection() {
   };
 
   useEffect(() => {
+    if (!isMounted) return;
+    
     if (carouselRef.current && isMobile) {
       carouselRef.current.scrollTo({
         left: activeIndex * carouselRef.current.offsetWidth,
         behavior: 'smooth'
       });
     }
-  }, [activeIndex, isMobile]);
+  }, [activeIndex, isMobile, isMounted]);
+
+  // If not mounted yet (server-side), render a placeholder
+  if (!isMounted) {
+    return (
+      <section className="relative bg-[#0D0D0D] overflow-hidden py-16 md:py-24">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
+          <div className="text-center mb-12 md:mb-16">
+            <div className="inline-block px-4 py-1 rounded-full border border-white/30 text-white text-sm font-medium mb-6">
+              Testimonials
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="relative bg-[#0D0D0D] overflow-hidden py-16 md:py-24">

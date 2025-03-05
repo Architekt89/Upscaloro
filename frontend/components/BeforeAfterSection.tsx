@@ -8,8 +8,14 @@ export default function BeforeAfterSection() {
   const [sliderPosition, setSliderPosition] = useState(50);
   const [isDragging, setIsDragging] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const sliderRef = useRef<HTMLDivElement>(null);
+
+  // Handle client-side mounting to prevent hydration errors
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Handle mouse events for slider
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -65,6 +71,8 @@ export default function BeforeAfterSection() {
 
   // Set up intersection observer for fade-in effect
   useEffect(() => {
+    if (!isMounted) return;
+    
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
@@ -83,10 +91,12 @@ export default function BeforeAfterSection() {
         observer.unobserve(containerRef.current);
       }
     };
-  }, []);
+  }, [isMounted]);
 
   // Add and remove event listeners
   useEffect(() => {
+    if (!isMounted) return;
+    
     const handleGlobalMouseUp = () => {
       setIsDragging(false);
     };
@@ -98,7 +108,20 @@ export default function BeforeAfterSection() {
       document.removeEventListener('mouseup', handleGlobalMouseUp);
       document.removeEventListener('touchend', handleGlobalMouseUp);
     };
-  }, []);
+  }, [isMounted]);
+
+  // If not mounted yet (server-side), render a placeholder
+  if (!isMounted) {
+    return (
+      <section className="relative bg-[#0D0D0D] overflow-hidden py-16 md:py-24 -mt-16 md:-mt-24">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
+          <div className="w-full max-w-5xl mx-auto rounded-xl overflow-hidden shadow-2xl" style={{ aspectRatio: '16/9' }}>
+            <div className="w-full h-full bg-gray-900/60"></div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="relative bg-[#0D0D0D] overflow-hidden py-16 md:py-24 -mt-16 md:-mt-24">
