@@ -4,6 +4,7 @@ import { Poppins } from 'next/font/google';
 import { Providers } from './providers';
 import { AuthProvider } from '@/context/AuthContext';
 import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 
 const poppins = Poppins({ 
   weight: ['300', '400', '500', '600', '700', '800'],
@@ -31,6 +32,7 @@ export default function RootLayout({
             <main className="pt-20 md:pt-24">
               {children}
             </main>
+            <Footer />
           </AuthProvider>
         </Providers>
       </body>

@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import Footer from '@/components/Footer';
 import CTASection from '@/components/CTASection';
 import FAQSection from '@/components/FAQSection';
 import PricingSection from '@/components/PricingSection';
@@ -160,7 +159,6 @@ export default function HomePage() {
         {/* CTA Section */}
         <CTASection />
       </main>
-      <Footer />
     </div>
   );
 } 

@@ -95,7 +95,7 @@ export default function Footer() {
           <Link href="/" className="group">
             <div className="relative h-10 w-40 transition-all duration-300 group-hover:opacity-90">
               <Image 
-                src="/logo.png" 
+                src="/Images/logo.png" 
                 alt="Upscaloro Logo" 
                 fill
                 className="object-contain group-hover:drop-shadow-[0_0_8px_rgba(249,115,22,0.5)] transition-all duration-300"
