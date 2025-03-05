@@ -7,6 +7,7 @@ import CTASection from '@/components/CTASection';
 import FAQSection from '@/components/FAQSection';
 import PricingSection from '@/components/PricingSection';
 import TestimonialSection from '@/components/TestimonialSection';
+import BeforeAfterSection from '@/components/BeforeAfterSection';
 
 export const dynamic = "force-dynamic"; // Add this line
 
@@ -33,6 +34,9 @@ export default function NotFound() {
             </div>
           </div>
         </div>
+        
+        {/* Before/After Comparison Section */}
+        <BeforeAfterSection />
         
         {/* Testimonial Section */}
         <TestimonialSection />

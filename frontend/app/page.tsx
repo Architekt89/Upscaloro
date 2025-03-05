@@ -5,6 +5,7 @@ import CTASection from '@/components/CTASection';
 import FAQSection from '@/components/FAQSection';
 import PricingSection from '@/components/PricingSection';
 import TestimonialSection from '@/components/TestimonialSection';
+import BeforeAfterSection from '@/components/BeforeAfterSection';
 
 export default function HomePage() {
   return (
@@ -70,6 +71,9 @@ export default function HomePage() {
             </div>
           </div>
         </div>
+
+        {/* Before/After Comparison Section */}
+        <BeforeAfterSection />
 
         {/* Features Section */}
         <div className="py-12 bg-gray-50 dark:bg-gray-800">
