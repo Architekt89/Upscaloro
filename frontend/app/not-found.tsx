@@ -6,6 +6,7 @@ import Footer from '@/components/Footer';
 import CTASection from '@/components/CTASection';
 import FAQSection from '@/components/FAQSection';
 import PricingSection from '@/components/PricingSection';
+import TestimonialSection from '@/components/TestimonialSection';
 
 export const dynamic = "force-dynamic"; // Add this line
 
@@ -32,6 +33,9 @@ export default function NotFound() {
             </div>
           </div>
         </div>
+        
+        {/* Testimonial Section */}
+        <TestimonialSection />
         
         {/* Pricing Section */}
         <PricingSection />

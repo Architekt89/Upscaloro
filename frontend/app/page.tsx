@@ -4,6 +4,7 @@ import ClientHeader from '@/components/ClientHeader';
 import CTASection from '@/components/CTASection';
 import FAQSection from '@/components/FAQSection';
 import PricingSection from '@/components/PricingSection';
+import TestimonialSection from '@/components/TestimonialSection';
 
 export default function HomePage() {
   return (
@@ -144,6 +145,9 @@ export default function HomePage() {
             </div>
           </div>
         </div>
+
+        {/* Testimonial Section */}
+        <TestimonialSection />
 
         {/* Pricing Section */}
         <PricingSection />
