@@ -108,8 +108,8 @@ export default function TestimonialSection() {
           {testimonials.map((testimonial) => (
             <div 
               key={testimonial.id}
-              className="relative rounded-2xl p-6 bg-gray-900/60 backdrop-blur-sm border border-gray-800 
-                shadow-xl transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl group"
+              className="relative rounded-2xl p-6 bg-[#0D0D0D] border border-gray-800/30 
+                shadow-xl transition-all duration-300 hover:scale-[1.02] hover:border-orange-500/20 group"
             >
               {/* Quote Icon */}
               <div className="text-6xl text-orange-500 opacity-70 group-hover:opacity-100 group-hover:text-orange-400 
@@ -153,7 +153,7 @@ export default function TestimonialSection() {
                 key={testimonial.id}
                 className={`min-w-full px-4 snap-center`}
               >
-                <div className="relative rounded-2xl p-6 bg-gray-900/60 backdrop-blur-sm border border-gray-800 
+                <div className="relative rounded-2xl p-6 bg-[#0D0D0D] border border-gray-800/30 
                   shadow-xl transition-all duration-300">
                   {/* Quote Icon */}
                   <div className="text-5xl text-orange-500 opacity-70 absolute -top-2 left-4">
@@ -189,7 +189,7 @@ export default function TestimonialSection() {
           <div className="flex justify-center items-center mt-8 space-x-4">
             <button 
               onClick={prevSlide}
-              className="p-2 rounded-full bg-gray-800 text-white hover:bg-orange-500 transition-colors duration-300"
+              className="p-2 rounded-full bg-gray-900 text-white hover:bg-orange-500 transition-colors duration-300"
               aria-label="Previous testimonial"
             >
               <ChevronLeft size={20} />
@@ -211,7 +211,7 @@ export default function TestimonialSection() {
             
             <button 
               onClick={nextSlide}
-              className="p-2 rounded-full bg-gray-800 text-white hover:bg-orange-500 transition-colors duration-300"
+              className="p-2 rounded-full bg-gray-900 text-white hover:bg-orange-500 transition-colors duration-300"
               aria-label="Next testimonial"
             >
               <ChevronRight size={20} />
