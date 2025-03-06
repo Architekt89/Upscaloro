@@ -16,15 +16,15 @@ export default function CTASection() {
         <div className="bg-gray-900/60 backdrop-blur-sm rounded-3xl p-8 md:p-12 shadow-xl border border-gray-800/50">
           <div className="text-center">
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-tight mb-4 leading-tight">
-              <span className="text-white drop-shadow-md">Ready to enhance your images?</span>
+              <span className="text-white drop-shadow-md">Ready to create stunning,</span>
               <br />
               <span className="bg-gradient-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent">
-                Start using Upscalor today.
+              high-resolution images without tedious edits?.
               </span>
             </h2>
             
             <p className="max-w-2xl mx-auto text-gray-300 text-lg md:text-xl mb-8 tracking-wide">
-              Join thousands of professionals who trust our AI technology for their image upscaling needs.
+            Start your free trial of picluxe now and transform your visuals into powerful statements.
             </p>
             
             <Link 

@@ -10,7 +10,7 @@ export default function HomePage() {
     <div className="min-h-screen flex flex-col bg-gray-950 font-sans">
       <main className="flex-grow">
         {/* Hero Section */}
-        <div className="relative overflow-hidden bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-gray-950 to-black min-h-screen flex items-center">
+        <div className="relative overflow-hidden bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-gray-950 to-black min-h-[90vh] flex items-center">
           {/* Background Effects */}
           <div className="absolute inset-0 overflow-hidden">
             {/* Large glow effects */}
@@ -34,43 +34,50 @@ export default function HomePage() {
 
           {/* Content */}
           <div className="relative w-full">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
               <div className="text-center">
                 <h1 className="flex flex-col items-center font-extrabold tracking-tight mb-8 drop-shadow-2xl leading-tight">
-                  <span className="text-orange-500 bg-clip-text text-transparent bg-gradient-to-r from-orange-400 to-orange-600 text-5xl md:text-7xl lg:text-8xl tracking-wider mb-2">
-                    Enhance Your
+                  <span className="text-orange-500 bg-clip-text text-transparent bg-gradient-to-r from-orange-400 to-orange-600 text-3xl md:text-4xl lg:text-5xl tracking-wider mb-4">
+                  Stop settling for blurred pixels.
                   </span>
-                  <span className="text-white text-4xl md:text-6xl lg:text-7xl">
-                    Images with AI-Powered Upscaling
+                  <span className="text-white text-4xl md:text-5xl lg:text-6xl">
+                  Present images that command attention at every scale.
                   </span>
                 </h1>
-                <p className="max-w-2xl mx-auto text-lg md:text-xl text-gray-200 mb-12 tracking-wide font-medium drop-shadow-lg text-shadow-sm">
-                  Transform low-resolution images into stunning high-definition visuals with our cutting-edge AI technology.
+                <p className="max-w-2xl mx-auto text-md md:text-md text-gray-200 mb-10 tracking-wide font-medium drop-shadow-lg text-shadow-sm">
+                picluxe adds vivid detail and depth to your images, so you can showcase them with absolute confidence—no complex editing required.
                 </p>
-                <Link
-                  href="/auth/signup"
-                  className="inline-block px-10 py-5 text-lg font-semibold text-white 
-                  bg-gradient-to-r from-orange-500 to-orange-600 
-                  rounded-full 
-                  shadow-[0_0_40px_-5px_rgba(249,115,22,0.5)] 
-                  hover:shadow-[0_0_60px_-5px_rgba(249,115,22,0.7)] 
-                  hover:bg-gradient-to-r hover:from-orange-400 hover:to-orange-600 
-                  transition-all duration-300 ease-out hover:scale-105 
-                  animate-pulse-subtle 
-                  border border-orange-500/20
-                  backdrop-blur-sm
-                  relative
-                  before:content-[''] before:absolute before:inset-0 before:bg-white/10 before:rounded-full before:opacity-0 before:hover:opacity-20 before:transition-opacity"
-                >
-                  Get Started For Free
-                </Link>
+                <div className="flex flex-col items-center">
+                  <Link
+                    href="/auth/signup"
+                    className="inline-block px-10 py-5 text-lg font-semibold text-white 
+                    bg-gradient-to-r from-orange-500 to-orange-600 
+                    rounded-full 
+                    shadow-[0_0_40px_-5px_rgba(249,115,22,0.5)] 
+                    hover:shadow-[0_0_60px_-5px_rgba(249,115,22,0.7)] 
+                    hover:bg-gradient-to-r hover:from-orange-400 hover:to-orange-600 
+                    transition-all duration-300 ease-out hover:scale-105 
+                    animate-pulse-subtle 
+                    border border-orange-500/20
+                    backdrop-blur-sm
+                    relative
+                    before:content-[''] before:absolute before:inset-0 before:bg-white/10 before:rounded-full before:opacity-0 before:hover:opacity-20 before:transition-opacity"
+                  >
+                    Get Started For Free
+                  </Link>
+                  <p className="mt-4 text-gray-400 text-sm font-medium">
+                    No credit card required
+                  </p>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Before/After Comparison Section */}
-        <BeforeAfterSection />
+        {/* Before/After Comparison Section - No dividing line */}
+        <div className="bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-gray-950 to-black">
+          <BeforeAfterSection />
+        </div>
 
         {/* Features Section */}
         <div className="py-24 bg-gray-900">
