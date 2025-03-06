@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import dynamic from 'next/dynamic';
 
 interface PortraitSlide {
   id: string;
@@ -10,6 +11,101 @@ interface PortraitSlide {
   afterImage: string;
   alt: string;
 }
+
+// Define a type for the slider positions
+interface SliderPositions {
+  [key: string]: number;
+}
+
+// Create a client-side only component
+const PortraitSlider = ({ 
+  portrait, 
+  position, 
+  onDragStart 
+}: { 
+  portrait: PortraitSlide; 
+  position: number; 
+  onDragStart: (e: React.MouseEvent | React.TouchEvent, id: string) => void;
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  return (
+    <div 
+      ref={containerRef}
+      className="relative rounded-xl overflow-visible shadow-2xl select-none"
+      style={{ aspectRatio: '4/5', maxWidth: '100%' }}
+    >
+      {/* Before Image (Left Side) */}
+      <div className="absolute inset-0 brightness-90 filter">
+        <Image
+          src={portrait.beforeImage}
+          alt={`Before ${portrait.alt}`}
+          fill
+          className="object-cover"
+          sizes="(max-width: 768px) 100vw, 50vw"
+          priority
+        />
+        
+        {/* Before Label */}
+        <div className="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-1 rounded-full text-sm font-medium backdrop-blur-sm transition-all duration-300 hover:bg-black/70">
+          Before
+        </div>
+      </div>
+      
+      {/* After Image (Right Side) */}
+      <div 
+        className="absolute inset-0 brightness-110 filter"
+        style={{ 
+          clipPath: `polygon(${position}% 0, 100% 0, 100% 100%, ${position}% 100%)` 
+        }}
+      >
+        <Image
+          src={portrait.afterImage}
+          alt={`After ${portrait.alt}`}
+          fill
+          className="object-cover"
+          sizes="(max-width: 768px) 100vw, 50vw"
+          priority
+        />
+        
+        {/* After Label */}
+        <div className="absolute bottom-4 right-4 bg-black/50 text-white px-3 py-1 rounded-full text-sm font-medium backdrop-blur-sm transition-all duration-300 hover:bg-black/70">
+          After
+        </div>
+      </div>
+      
+      {/* Slider Handle */}
+      <div
+        className="absolute inset-y-0 cursor-ew-resize z-50"
+        style={{ left: `${position}%`, transform: 'translateX(-50%)' }}
+        onMouseDown={(e) => {
+          console.log('Mouse down on slider handle');
+          onDragStart(e, portrait.id);
+        }}
+        onTouchStart={(e) => {
+          console.log('Touch start on slider handle');
+          onDragStart(e, portrait.id);
+        }}
+      >
+        <div className="absolute inset-y-0 -left-px w-0.5 bg-white">
+          <div className="absolute left-1/2 top-1/2 h-9 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-black/40 backdrop-blur">
+            <div className="flex h-full items-center justify-center">
+              <div className="flex items-center justify-center">
+                <ChevronLeft className="h-4 w-4 text-white" />
+                <ChevronRight className="h-4 w-4 text-white" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Use dynamic import for client-side only rendering
+const DynamicPortraitSlider = dynamic(() => Promise.resolve(PortraitSlider), {
+  ssr: false
+});
 
 export default function PortraitsSection() {
   // Portrait slides data
@@ -29,7 +125,7 @@ export default function PortraitsSection() {
   ];
 
   // State for slider positions (one for each slider)
-  const [sliderPositions, setSliderPositions] = useState<{ [key: string]: number }>({
+  const [sliderPositions, setSliderPositions] = useState<SliderPositions>({
     papau: 50,
     sadhu: 50
   });
@@ -42,16 +138,16 @@ export default function PortraitsSection() {
   const [isMobile, setIsMobile] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
+  const [isCarouselScrolling, setIsCarouselScrolling] = useState(false);
   
   // Refs for container elements
   const containerRef = useRef<HTMLDivElement>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
-  const sliderRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
-  const imageContainerRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   // Handle client-side mounting to prevent hydration errors
   useEffect(() => {
     setIsMounted(true);
+    console.log('Component mounted');
     
     // Check if mobile on mount and on resize
     const checkIfMobile = () => {
@@ -90,103 +186,104 @@ export default function PortraitsSection() {
     };
   }, [isMounted]);
 
-  // Handle mouse events for sliders
-  const handleMouseDown = (e: React.MouseEvent, id: string) => {
-    e.preventDefault();
-    setDraggingId(id);
-    
-    // Immediately update position on click
-    updateSliderPosition(e.clientX, id);
-  };
-
-  const handleMouseUp = () => {
-    setDraggingId(null);
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (draggingId && imageContainerRefs.current[draggingId]) {
-      updateSliderPosition(e.clientX, draggingId);
-    }
-  };
-
-  // Update slider position based on mouse or touch position
-  const updateSliderPosition = (clientX: number, id: string) => {
-    const containerRect = imageContainerRefs.current[id]?.getBoundingClientRect();
-    if (!containerRect) return;
-    
-    const containerWidth = containerRect.width;
-    const offsetX = clientX - containerRect.left;
-    
-    // Calculate percentage position (0-100)
-    let newPosition = (offsetX / containerWidth) * 100;
-    
-    // Clamp the value between 0 and 100
-    newPosition = Math.max(0, Math.min(100, newPosition));
-    
-    setSliderPositions(prev => ({
-      ...prev,
-      [id]: newPosition
-    }));
-  };
-
-  // Handle touch events for mobile
-  const handleTouchStart = (e: React.TouchEvent, id: string) => {
-    if (e.touches.length === 1) {
-      e.preventDefault();
-      setDraggingId(id);
-      
-      // Immediately update position on touch
-      updateSliderPosition(e.touches[0].clientX, id);
-    }
-  };
-
-  const handleTouchEnd = () => {
-    setDraggingId(null);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (draggingId && e.touches.length === 1 && imageContainerRefs.current[draggingId]) {
-      e.preventDefault();
-      updateSliderPosition(e.touches[0].clientX, draggingId);
-    }
-  };
-
-  // Add and remove event listeners for global mouse/touch events
+  // Handle mouse events for slider dragging
   useEffect(() => {
     if (!isMounted) return;
     
-    const handleGlobalMouseMove = (e: MouseEvent) => {
-      if (draggingId && imageContainerRefs.current[draggingId]) {
-        updateSliderPosition(e.clientX, draggingId);
-      }
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!draggingId) return;
+      console.log('Mouse move', draggingId);
+      
+      const container = document.getElementById(`slider-container-${draggingId}`);
+      if (!container) return;
+      
+      const rect = container.getBoundingClientRect();
+      const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+      const percentage = (x / rect.width) * 100;
+      
+      console.log('Setting position to', percentage);
+      setSliderPositions(prev => ({
+        ...prev,
+        [draggingId]: percentage
+      }));
     };
-    
-    const handleGlobalTouchMove = (e: TouchEvent) => {
-      if (draggingId && e.touches.length === 1 && imageContainerRefs.current[draggingId]) {
-        updateSliderPosition(e.touches[0].clientX, draggingId);
-      }
-    };
-    
-    const handleGlobalMouseUp = () => {
+
+    const handleMouseUp = () => {
+      console.log('Mouse up, stopping drag');
       setDraggingId(null);
     };
 
-    // Add global event listeners when dragging
-    if (draggingId) {
-      document.addEventListener('mousemove', handleGlobalMouseMove);
-      document.addEventListener('touchmove', handleGlobalTouchMove, { passive: false });
-    }
+    // Add event listeners
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
     
-    document.addEventListener('mouseup', handleGlobalMouseUp);
-    document.addEventListener('touchend', handleGlobalMouseUp);
-
     return () => {
-      document.removeEventListener('mousemove', handleGlobalMouseMove);
-      document.removeEventListener('touchmove', handleGlobalTouchMove);
-      document.removeEventListener('mouseup', handleGlobalMouseUp);
-      document.removeEventListener('touchend', handleGlobalMouseUp);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
     };
   }, [isMounted, draggingId]);
+
+  // Handle touch events for slider dragging
+  useEffect(() => {
+    if (!isMounted) return;
+    
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!draggingId) return;
+      
+      // Prevent carousel scrolling when dragging the slider
+      if (isMobile) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      
+      console.log('Touch move', draggingId);
+      
+      const container = document.getElementById(`slider-container-${draggingId}`);
+      if (!container) return;
+      
+      const rect = container.getBoundingClientRect();
+      const x = Math.max(0, Math.min(e.touches[0].clientX - rect.left, rect.width));
+      const percentage = (x / rect.width) * 100;
+      
+      console.log('Setting position to', percentage);
+      setSliderPositions(prev => ({
+        ...prev,
+        [draggingId]: percentage
+      }));
+    };
+
+    const handleTouchEnd = () => {
+      console.log('Touch end, stopping drag');
+      setDraggingId(null);
+      
+      // Allow carousel scrolling again after a short delay
+      setTimeout(() => {
+        setIsCarouselScrolling(false);
+      }, 100);
+    };
+
+    // Add event listeners
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchend', handleTouchEnd);
+    
+    return () => {
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isMounted, draggingId, isMobile]);
+
+  // Start dragging
+  const handleDragStart = (e: React.MouseEvent | React.TouchEvent, id: string) => {
+    console.log('Starting drag for', id);
+    e.preventDefault();
+    
+    // Prevent carousel scrolling when starting to drag
+    if (isMobile) {
+      setIsCarouselScrolling(true);
+    }
+    
+    setDraggingId(id);
+  };
 
   // Handle carousel navigation
   const goToSlide = (index: number) => {
@@ -201,6 +298,9 @@ export default function PortraitsSection() {
 
   // Handle carousel scroll
   const handleCarouselScroll = () => {
+    // Don't update active slide while dragging
+    if (isCarouselScrolling) return;
+    
     if (carouselRef.current) {
       const scrollPosition = carouselRef.current.scrollLeft;
       const slideWidth = carouselRef.current.offsetWidth;
@@ -210,15 +310,6 @@ export default function PortraitsSection() {
         setActiveSlide(newActiveSlide);
       }
     }
-  };
-
-  // Ref callbacks
-  const setSliderRef = (id: string) => (el: HTMLDivElement | null) => {
-    sliderRefs.current[id] = el;
-  };
-  
-  const setImageContainerRef = (id: string) => (el: HTMLDivElement | null) => {
-    imageContainerRefs.current[id] = el;
   };
 
   // If not mounted yet (server-side), render a placeholder
@@ -237,10 +328,10 @@ export default function PortraitsSection() {
   return (
     <section 
       ref={containerRef}
-      className="relative bg-[#0D0D0D] overflow-hidden py-16 md:py-24"
+      className="relative bg-[#0D0D0D] py-16 md:py-24"
     >
       {/* Background glow effects */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      <div className="absolute inset-0 pointer-events-none">
         <div className="absolute -top-20 -left-20 w-64 h-64 bg-orange-500/10 rounded-full blur-[100px]"></div>
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-orange-500/5 rounded-full blur-[150px]"></div>
         <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-orange-500/10 rounded-full blur-[100px]"></div>
@@ -272,68 +363,16 @@ export default function PortraitsSection() {
           {portraits.map((portrait) => (
             <div 
               key={portrait.id}
-              ref={setImageContainerRef(portrait.id)}
-              className="relative rounded-xl overflow-hidden shadow-2xl cursor-ew-resize"
-              style={{ aspectRatio: '4/5' }}
-              onMouseDown={(e) => handleMouseDown(e, portrait.id)}
-              onMouseUp={handleMouseUp}
-              onTouchStart={(e) => handleTouchStart(e, portrait.id)}
-              onTouchEnd={handleTouchEnd}
+              id={`slider-container-${portrait.id}`}
+              className="relative"
             >
-              {/* Before Image (Left Side) */}
-              <div className="absolute inset-0 brightness-90 filter">
-                <Image
-                  src={portrait.beforeImage}
-                  alt={`Before ${portrait.alt}`}
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 768px) 100vw, 50vw"
-                  priority
+              {isMounted && (
+                <DynamicPortraitSlider
+                  portrait={portrait}
+                  position={sliderPositions[portrait.id]}
+                  onDragStart={handleDragStart}
                 />
-                
-                {/* Before Label */}
-                <div className="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-1 rounded-full text-sm font-medium backdrop-blur-sm transition-all duration-300 hover:bg-black/70">
-                  Before
-                </div>
-              </div>
-              
-              {/* After Image (Right Side) */}
-              <div 
-                className="absolute inset-0 brightness-110 filter"
-                style={{ 
-                  clipPath: `polygon(${sliderPositions[portrait.id]}% 0, 100% 0, 100% 100%, ${sliderPositions[portrait.id]}% 100%)` 
-                }}
-              >
-                <Image
-                  src={portrait.afterImage}
-                  alt={`After ${portrait.alt}`}
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 768px) 100vw, 50vw"
-                  priority
-                />
-                
-                {/* After Label */}
-                <div className="absolute bottom-4 right-4 bg-black/50 text-white px-3 py-1 rounded-full text-sm font-medium backdrop-blur-sm transition-all duration-300 hover:bg-black/70">
-                  After
-                </div>
-              </div>
-              
-              {/* Slider Handle */}
-              <div 
-                ref={setSliderRef(portrait.id)}
-                className="absolute top-0 bottom-0 w-0.5 bg-white/80 cursor-ew-resize group z-10"
-                style={{ left: `${sliderPositions[portrait.id]}%`, transform: 'translateX(-50%)' }}
-              >
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 
-                  flex items-center justify-center shadow-lg
-                  transition-all duration-300 group-hover:scale-110 group-hover:shadow-orange-500/50 group-hover:shadow-lg">
-                  <div className="flex items-center justify-center">
-                    <ChevronLeft className="h-4 w-4 text-gray-800" />
-                    <ChevronRight className="h-4 w-4 text-gray-800" />
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
           ))}
         </div>
@@ -342,8 +381,12 @@ export default function PortraitsSection() {
         <div className={`md:hidden transition-all duration-1000 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
           <div 
             ref={carouselRef}
-            className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide touch-pan-y"
+            style={{ 
+              scrollbarWidth: 'none', 
+              msOverflowStyle: 'none',
+              touchAction: isCarouselScrolling ? 'none' : 'pan-x' 
+            }}
             onScroll={handleCarouselScroll}
           >
             {portraits.map((portrait, index) => (
@@ -353,67 +396,17 @@ export default function PortraitsSection() {
                 style={{ scrollSnapAlign: 'center' }}
               >
                 <div 
-                  ref={setImageContainerRef(portrait.id)}
-                  className="relative mx-auto rounded-xl overflow-hidden shadow-2xl cursor-ew-resize"
-                  style={{ aspectRatio: '4/5', maxWidth: '90vw' }}
-                  onMouseDown={(e) => handleMouseDown(e, portrait.id)}
-                  onMouseUp={handleMouseUp}
-                  onTouchStart={(e) => handleTouchStart(e, portrait.id)}
-                  onTouchEnd={handleTouchEnd}
+                  id={`slider-container-${portrait.id}`}
+                  className="relative mx-auto"
+                  style={{ maxWidth: '90vw' }}
                 >
-                  {/* Before Image (Left Side) */}
-                  <div className="absolute inset-0 brightness-90 filter">
-                    <Image
-                      src={portrait.beforeImage}
-                      alt={`Before ${portrait.alt}`}
-                      fill
-                      className="object-cover"
-                      sizes="100vw"
-                      priority
+                  {isMounted && (
+                    <DynamicPortraitSlider
+                      portrait={portrait}
+                      position={sliderPositions[portrait.id]}
+                      onDragStart={handleDragStart}
                     />
-                    
-                    {/* Before Label */}
-                    <div className="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-1 rounded-full text-sm font-medium backdrop-blur-sm">
-                      Before
-                    </div>
-                  </div>
-                  
-                  {/* After Image (Right Side) */}
-                  <div 
-                    className="absolute inset-0 brightness-110 filter"
-                    style={{ 
-                      clipPath: `polygon(${sliderPositions[portrait.id]}% 0, 100% 0, 100% 100%, ${sliderPositions[portrait.id]}% 100%)` 
-                    }}
-                  >
-                    <Image
-                      src={portrait.afterImage}
-                      alt={`After ${portrait.alt}`}
-                      fill
-                      className="object-cover"
-                      sizes="100vw"
-                      priority
-                    />
-                    
-                    {/* After Label */}
-                    <div className="absolute bottom-4 right-4 bg-black/50 text-white px-3 py-1 rounded-full text-sm font-medium backdrop-blur-sm">
-                      After
-                    </div>
-                  </div>
-                  
-                  {/* Slider Handle */}
-                  <div 
-                    ref={setSliderRef(portrait.id)}
-                    className="absolute top-0 bottom-0 w-0.5 bg-white/80 cursor-ew-resize z-10"
-                    style={{ left: `${sliderPositions[portrait.id]}%`, transform: 'translateX(-50%)' }}
-                  >
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/90 
-                      flex items-center justify-center shadow-lg">
-                      <div className="flex items-center justify-center">
-                        <ChevronLeft className="h-4 w-4 text-gray-800" />
-                        <ChevronRight className="h-4 w-4 text-gray-800" />
-                      </div>
-                    </div>
-                  </div>
+                  )}
                 </div>
               </div>
             ))}
