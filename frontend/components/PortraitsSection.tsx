@@ -21,19 +21,29 @@ interface SliderPositions {
 const PortraitSlider = ({ 
   portrait, 
   position, 
-  onDragStart 
+  onDragStart,
+  onSliderClick
 }: { 
   portrait: PortraitSlide; 
   position: number; 
   onDragStart: (e: React.MouseEvent | React.TouchEvent, id: string) => void;
+  onSliderClick: (e: React.MouseEvent | React.TouchEvent, id: string) => void;
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleContainerClick = (e: React.MouseEvent | React.TouchEvent) => {
+    if (containerRef.current) {
+      onSliderClick(e, portrait.id);
+    }
+  };
 
   return (
     <div 
       ref={containerRef}
       className="relative rounded-xl overflow-visible shadow-2xl select-none"
       style={{ aspectRatio: '4/5', maxWidth: '100%' }}
+      onClick={handleContainerClick}
+      onTouchEnd={handleContainerClick}
     >
       {/* Before Image (Left Side) */}
       <div className="absolute inset-0 brightness-90 filter">
@@ -79,11 +89,11 @@ const PortraitSlider = ({
         className="absolute inset-y-0 cursor-ew-resize z-50"
         style={{ left: `${position}%`, transform: 'translateX(-50%)' }}
         onMouseDown={(e) => {
-          console.log('Mouse down on slider handle');
+          e.stopPropagation(); // Prevent container click
           onDragStart(e, portrait.id);
         }}
         onTouchStart={(e) => {
-          console.log('Touch start on slider handle');
+          e.stopPropagation(); // Prevent container touch
           onDragStart(e, portrait.id);
         }}
       >
@@ -138,7 +148,6 @@ export default function PortraitsSection() {
   const [isMobile, setIsMobile] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
-  const [isCarouselScrolling, setIsCarouselScrolling] = useState(false);
   
   // Refs for container elements
   const containerRef = useRef<HTMLDivElement>(null);
@@ -147,7 +156,6 @@ export default function PortraitsSection() {
   // Handle client-side mounting to prevent hydration errors
   useEffect(() => {
     setIsMounted(true);
-    console.log('Component mounted');
     
     // Check if mobile on mount and on resize
     const checkIfMobile = () => {
@@ -188,12 +196,9 @@ export default function PortraitsSection() {
 
   // Handle mouse events for slider dragging
   useEffect(() => {
-    if (!isMounted) return;
+    if (!isMounted || !draggingId) return;
     
     const handleMouseMove = (e: MouseEvent) => {
-      if (!draggingId) return;
-      console.log('Mouse move', draggingId);
-      
       const container = document.getElementById(`slider-container-${draggingId}`);
       if (!container) return;
       
@@ -201,7 +206,6 @@ export default function PortraitsSection() {
       const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
       const percentage = (x / rect.width) * 100;
       
-      console.log('Setting position to', percentage);
       setSliderPositions(prev => ({
         ...prev,
         [draggingId]: percentage
@@ -209,7 +213,6 @@ export default function PortraitsSection() {
     };
 
     const handleMouseUp = () => {
-      console.log('Mouse up, stopping drag');
       setDraggingId(null);
     };
 
@@ -225,18 +228,11 @@ export default function PortraitsSection() {
 
   // Handle touch events for slider dragging
   useEffect(() => {
-    if (!isMounted) return;
+    if (!isMounted || !draggingId) return;
     
     const handleTouchMove = (e: TouchEvent) => {
-      if (!draggingId) return;
-      
-      // Prevent carousel scrolling when dragging the slider
-      if (isMobile) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-      
-      console.log('Touch move', draggingId);
+      // Always prevent default to stop scrolling
+      e.preventDefault();
       
       const container = document.getElementById(`slider-container-${draggingId}`);
       if (!container) return;
@@ -245,7 +241,6 @@ export default function PortraitsSection() {
       const x = Math.max(0, Math.min(e.touches[0].clientX - rect.left, rect.width));
       const percentage = (x / rect.width) * 100;
       
-      console.log('Setting position to', percentage);
       setSliderPositions(prev => ({
         ...prev,
         [draggingId]: percentage
@@ -253,13 +248,7 @@ export default function PortraitsSection() {
     };
 
     const handleTouchEnd = () => {
-      console.log('Touch end, stopping drag');
       setDraggingId(null);
-      
-      // Allow carousel scrolling again after a short delay
-      setTimeout(() => {
-        setIsCarouselScrolling(false);
-      }, 100);
     };
 
     // Add event listeners
@@ -270,19 +259,43 @@ export default function PortraitsSection() {
       document.removeEventListener('touchmove', handleTouchMove);
       document.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [isMounted, draggingId, isMobile]);
+  }, [isMounted, draggingId]);
 
   // Start dragging
   const handleDragStart = (e: React.MouseEvent | React.TouchEvent, id: string) => {
-    console.log('Starting drag for', id);
     e.preventDefault();
+    setDraggingId(id);
+  };
+
+  // Handle slider click (for mobile and desktop)
+  const handleSliderClick = (e: React.MouseEvent | React.TouchEvent, id: string) => {
+    // Only handle clicks when not dragging
+    if (draggingId) return;
     
-    // Prevent carousel scrolling when starting to drag
-    if (isMobile) {
-      setIsCarouselScrolling(true);
+    const container = document.getElementById(`slider-container-${id}`);
+    if (!container) return;
+    
+    // Get the click/touch position
+    let clientX = 0;
+    if ('clientX' in e) {
+      // Mouse event
+      clientX = e.clientX;
+    } else if (e.touches && e.touches.length > 0) {
+      // Touch event
+      clientX = e.touches[0].clientX;
+    } else if (e.changedTouches && e.changedTouches.length > 0) {
+      // Touch end event
+      clientX = e.changedTouches[0].clientX;
     }
     
-    setDraggingId(id);
+    const rect = container.getBoundingClientRect();
+    const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+    const percentage = (x / rect.width) * 100;
+    
+    setSliderPositions(prev => ({
+      ...prev,
+      [id]: percentage
+    }));
   };
 
   // Handle carousel navigation
@@ -298,9 +311,6 @@ export default function PortraitsSection() {
 
   // Handle carousel scroll
   const handleCarouselScroll = () => {
-    // Don't update active slide while dragging
-    if (isCarouselScrolling) return;
-    
     if (carouselRef.current) {
       const scrollPosition = carouselRef.current.scrollLeft;
       const slideWidth = carouselRef.current.offsetWidth;
@@ -371,6 +381,7 @@ export default function PortraitsSection() {
                   portrait={portrait}
                   position={sliderPositions[portrait.id]}
                   onDragStart={handleDragStart}
+                  onSliderClick={handleSliderClick}
                 />
               )}
             </div>
@@ -381,11 +392,11 @@ export default function PortraitsSection() {
         <div className={`md:hidden transition-all duration-1000 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
           <div 
             ref={carouselRef}
-            className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide touch-pan-y"
+            className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide"
             style={{ 
               scrollbarWidth: 'none', 
               msOverflowStyle: 'none',
-              touchAction: isCarouselScrolling ? 'none' : 'pan-x' 
+              touchAction: draggingId ? 'none' : 'pan-x'
             }}
             onScroll={handleCarouselScroll}
           >
@@ -405,6 +416,7 @@ export default function PortraitsSection() {
                       portrait={portrait}
                       position={sliderPositions[portrait.id]}
                       onDragStart={handleDragStart}
+                      onSliderClick={handleSliderClick}
                     />
                   )}
                 </div>
