@@ -15,6 +15,27 @@ const ImageComparisonSlider: React.FC<ImageComparisonSliderProps> = ({
   const [position, setPosition] = useState(50);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Function to handle clicks/taps on the container to move the slider
+  const handleContainerClick = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!containerRef.current) return;
+    
+    const rect = containerRef.current.getBoundingClientRect();
+    let clientX: number;
+    
+    // Handle both mouse and touch events
+    if ('clientX' in e) {
+      clientX = e.clientX;
+    } else if (e.touches && e.touches.length > 0) {
+      clientX = e.touches[0].clientX;
+    } else {
+      return;
+    }
+    
+    const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+    const percentage = (x / rect.width) * 100;
+    setPosition(percentage);
+  };
+
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizing || !containerRef.current) return;
@@ -73,6 +94,13 @@ const ImageComparisonSlider: React.FC<ImageComparisonSliderProps> = ({
     <div
       ref={containerRef}
       className={`relative select-none overflow-hidden rounded-lg ${className}`}
+      onClick={handleContainerClick}
+      onTouchEnd={(e) => {
+        // Only handle touch end if not resizing (to avoid conflicts with drag)
+        if (!isResizing) {
+          handleContainerClick(e);
+        }
+      }}
     >
       {/* Before Image */}
       <div className="absolute inset-0">
@@ -101,11 +129,17 @@ const ImageComparisonSlider: React.FC<ImageComparisonSliderProps> = ({
       <div
         className="absolute inset-y-0 cursor-ew-resize"
         style={{ left: `${position}%` }}
-        onMouseDown={() => setIsResizing(true)}
-        onTouchStart={() => setIsResizing(true)}
+        onMouseDown={(e) => {
+          e.stopPropagation(); // Prevent container click when dragging handle
+          setIsResizing(true);
+        }}
+        onTouchStart={(e) => {
+          e.stopPropagation(); // Prevent container click when dragging handle
+          setIsResizing(true);
+        }}
       >
         <div className="absolute inset-y-0 -left-px w-0.5 bg-white">
-          <div className="absolute left-1/2 top-1/2 h-9 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-black/40 backdrop-blur">
+          <div className="absolute left-1/2 top-1/2 h-9 w-9 md:h-10 md:w-10 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-black/40 backdrop-blur shadow-lg">
             <div className="flex h-full items-center justify-center">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -127,10 +161,10 @@ const ImageComparisonSlider: React.FC<ImageComparisonSliderProps> = ({
       </div>
 
       {/* Labels */}
-      <div className="absolute bottom-4 left-4 rounded bg-black/40 px-2 py-1 text-sm text-white backdrop-blur">
+      <div className="absolute bottom-2 md:bottom-4 left-2 md:left-4 rounded bg-black/40 px-2 py-1 text-xs md:text-sm text-white backdrop-blur">
         Before
       </div>
-      <div className="absolute bottom-4 right-4 rounded bg-black/40 px-2 py-1 text-sm text-white backdrop-blur">
+      <div className="absolute bottom-2 md:bottom-4 right-2 md:right-4 rounded bg-black/40 px-2 py-1 text-xs md:text-sm text-white backdrop-blur">
         After
       </div>
     </div>

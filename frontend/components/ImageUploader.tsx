@@ -285,51 +285,65 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   };
 
   return (
-    <div className="grid grid-cols-4 gap-8">
-      {/* Left Section - Parameters and Upload (1/4 width) */}
-      <div className="space-y-6 p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
-        <div>
-          <h2 className="text-xl font-semibold mb-2">Upload Image</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            {imagesProcessedThisMonth} / {maxImagesPerMonth} images processed this month
-          </p>
-          
-          {/* Upload Area */}
-          <div
-            {...getRootProps()}
-            className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center cursor-pointer hover:border-primary-500 transition-colors"
-          >
-            <input {...getInputProps()} />
-            {preview ? (
-              <Image
-                src={preview}
-                alt="Preview"
-                width={200}
-                height={200}
-                className="mx-auto object-contain"
-              />
-            ) : (
-              <div className="space-y-2">
-                <div className="flex justify-center">
-                  <svg
-                    className="w-12 h-12 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                    />
-                  </svg>
-                </div>
-                <p>Drag & drop an image here, or click to select</p>
-                <p className="text-sm text-gray-500">PNG, JPG, WEBP up to 10MB</p>
-              </div>
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-8">
+      {/* Left Section - Parameters and Upload (full width on mobile, 1/4 width on desktop) */}
+      <div className="space-y-6 p-4 md:p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
+        <div className="flex flex-col space-y-2">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold">Upload Image</h2>
+            {userSubscription === 'free' && (
+              <a 
+                href="/pricing" 
+                className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-full text-white 
+                bg-gradient-to-r from-orange-500 to-orange-600 
+                hover:from-orange-400 hover:to-orange-600
+                shadow-[0_0_10px_rgba(249,115,22,0.2)]
+                transition-all duration-300 hover:scale-105"
+              >
+                Upgrade to Pro
+              </a>
             )}
           </div>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {imagesProcessedThisMonth} / {maxImagesPerMonth} images processed this month
+          </p>
+        </div>
+        
+        {/* Upload Area */}
+        <div
+          {...getRootProps()}
+          className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 md:p-6 text-center cursor-pointer hover:border-primary-500 transition-colors"
+        >
+          <input {...getInputProps()} />
+          {preview ? (
+            <Image
+              src={preview}
+              alt="Preview"
+              width={200}
+              height={200}
+              className="mx-auto object-contain max-h-[150px] md:max-h-[200px] w-auto"
+            />
+          ) : (
+            <div className="space-y-2">
+              <div className="flex justify-center">
+                <svg
+                  className="w-8 h-8 md:w-12 md:h-12 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                  />
+                </svg>
+              </div>
+              <p className="text-sm md:text-base">Drag & drop an image here, or click to select</p>
+              <p className="text-xs md:text-sm text-gray-500">PNG, JPG, WEBP up to 10MB</p>
+            </div>
+          )}
         </div>
 
         {/* Parameters */}
@@ -349,7 +363,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
               </SelectContent>
             </Select>
             {modeDescriptions[mode] && (
-              <p className="text-sm text-gray-500 mt-1">{modeDescriptions[mode]}</p>
+              <p className="text-xs md:text-sm text-gray-500 mt-1">{modeDescriptions[mode]}</p>
             )}
           </div>
 
@@ -444,25 +458,27 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
         </div>
       </div>
 
-      {/* Right Section - Result (3/4 width) */}
-      <div className="col-span-3 p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
+      {/* Right Section - Result (full width on mobile, 3/4 width on desktop) */}
+      <div className="col-span-1 md:col-span-3 p-4 md:p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
         <h2 className="text-xl font-semibold mb-4">Result</h2>
         {preview && processedImage ? (
           <div className="space-y-4">
             <ImageComparisonSlider
               beforeImage={preview}
               afterImage={processedImage}
-              className="w-full h-[700px] rounded-lg overflow-hidden"
+              className="w-full h-[300px] md:h-[500px] lg:h-[700px] rounded-lg overflow-hidden"
             />
-            <button
-              onClick={handleDownload}
-              className="py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
-            >
-              Download Result
-            </button>
+            <div className="flex justify-center">
+              <button
+                onClick={handleDownload}
+                className="py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
+              >
+                Download Result
+              </button>
+            </div>
           </div>
         ) : (
-          <div className="h-[700px] flex items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
+          <div className="h-[300px] md:h-[500px] lg:h-[700px] flex items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
             <p className="text-gray-500">Processed image will appear here</p>
           </div>
         )}
