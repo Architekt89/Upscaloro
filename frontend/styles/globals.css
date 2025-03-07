@@ -1,0 +1,20 @@
+body {
+  /* Make sure the background color is consistent */
+  background-color: #000; /* Or whatever your dark background color is */
+  margin: 0;
+  padding: 0;
+}
+
+/* Remove any dividers or borders between sections */
+.hero-section, 
+.image-transformation-section {
+  background-color: #000; /* Same as body */
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* If there's a specific divider element */
+.section-divider {
+  display: none; /* Hide it completely */
+} 

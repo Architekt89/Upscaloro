@@ -1,8 +1,8 @@
-# Upscalor - AI Image Upscaling SaaS
+# picluxe - AI Image Upscaling SaaS
 
-![Upscalor Logo](frontend/public/logo.png)
+![picluxe Logo](frontend/public/logo.png)
 
-Upscalor is a SaaS application that uses AI to upscale and enhance images. It provides a user-friendly interface for image upscaling and batch processing, along with a robust API for developers.
+picluxe is a SaaS application that uses AI to upscale and enhance images. It provides a user-friendly interface for image upscaling and batch processing, along with a robust API for developers.
 
 ## Features
 
