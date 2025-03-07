@@ -193,7 +193,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
     });
 
     try {
-      const loadingToast = toast.loading('Sending image to Replicate AI for processing. This may take a minute...');
+      const loadingToast = toast.loading('Processing... Meanwhile, grab a snack. Or two. Maybe a whole meal.');
       
       const response = await uploadFile('/upscale', formData);
       console.log('Upload response received:', {
@@ -274,13 +274,58 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   };
 
   const handleDownload = () => {
-    if (processedImage) {
-      const link = document.createElement('a');
-      link.href = processedImage;
-      link.download = `upscaled_${file?.name || 'image'}`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+    if (processedImage && file) {
+      // Get the original file extension
+      const originalName = file.name;
+      const baseName = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
+      
+      // Use the selected output format for the downloaded file
+      const extension = outputFormat.toLowerCase();
+      const fileName = `upscaled_${baseName}.${extension}`;
+      
+      // Create a fetch request to get the blob with the correct type
+      fetch(processedImage)
+        .then(response => response.blob())
+        .then(blob => {
+          // Create a new blob with the correct MIME type based on the output format
+          let mimeType;
+          switch (extension) {
+            case 'jpg':
+            case 'jpeg':
+              mimeType = 'image/jpeg';
+              break;
+            case 'webp':
+              mimeType = 'image/webp';
+              break;
+            case 'png':
+            default:
+              mimeType = 'image/png';
+              break;
+          }
+          
+          // Create a new blob with the correct MIME type
+          const newBlob = new Blob([blob], { type: mimeType });
+          const blobUrl = URL.createObjectURL(newBlob);
+          
+          // Create download link
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.download = fileName;
+          document.body.appendChild(link);
+          link.click();
+          
+          // Clean up
+          document.body.removeChild(link);
+          URL.revokeObjectURL(blobUrl);
+          
+          toast.success(`Image downloaded as ${extension.toUpperCase()}`);
+        })
+        .catch(error => {
+          console.error('Error downloading image:', error);
+          toast.error('Failed to download image');
+        });
+    } else {
+      toast.error('No processed image available to download');
     }
   };
 

@@ -44,15 +44,6 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-2 pb-8">
-      <div className="mb-4">
-        <h1 className="text-2xl md:text-3xl font-bold text-white">Dashboard</h1>
-        <p className="mt-1 text-sm text-gray-400">
-          <span className={userSubscription === 'pro' ? 'text-orange-400' : 'text-gray-400'}>
-            {userSubscription === 'pro' ? 'Pro Plan' : 'Free Plan'}
-          </span> • {imagesProcessedThisMonth} / {maxImagesPerMonth} images
-        </p>
-      </div>
-      
       <ImageUploader
         userSubscription={userSubscription}
         imagesProcessedThisMonth={imagesProcessedThisMonth}
