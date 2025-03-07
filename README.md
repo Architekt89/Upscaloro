@@ -14,7 +14,7 @@ picluxe is a SaaS application that uses AI to upscale and enhance images. It pro
 - **Advanced Controls**: Fine-tune your results with dynamic, creativity, resemblance, and handfix parameters
 - **Multiple Output Formats**: Save your upscaled images in JPEG, PNG, JPG, or WEBP formats
 - **User-Friendly Interface**: Drag-and-drop interface for easy image uploading
-- **Subscription Plans**: Free and Pro tiers with different feature sets
+- **Subscription Plans**: Basic Plan, Pro Plan, and Enterprise Plan with different feature sets
 - **API Access**: RESTful API for developers to integrate image upscaling into their applications
 - **Secure Authentication**: User authentication and authorization using Supabase
 - **Payment Processing**: Subscription and pay-as-you-go billing using Stripe

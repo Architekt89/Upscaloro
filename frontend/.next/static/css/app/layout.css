@@ -801,6 +801,9 @@ video {
 .mb-3 {
   margin-bottom: 0.75rem;
 }
+.mb-1 {
+  margin-bottom: 0.25rem;
+}
 .block {
   display: block;
 }
@@ -1496,6 +1499,9 @@ video {
 .bg-gray-900\/40 {
   background-color: rgb(17 24 39 / 0.4);
 }
+.bg-gray-800\/60 {
+  background-color: rgb(31 41 55 / 0.6);
+}
 .bg-\[radial-gradient\(ellipse_at_top\2c _var\(--tw-gradient-stops\)\)\] {
   background-image: radial-gradient(ellipse at top, var(--tw-gradient-stops));
 }
@@ -1667,6 +1673,10 @@ video {
 .py-8 {
   padding-top: 2rem;
   padding-bottom: 2rem;
+}
+.py-0\.5 {
+  padding-top: 0.125rem;
+  padding-bottom: 0.125rem;
 }
 .pb-12 {
   padding-bottom: 3rem;

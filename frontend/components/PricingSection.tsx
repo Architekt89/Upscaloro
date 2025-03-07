@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Check } from 'lucide-react';
 import Link from 'next/link';
 
@@ -10,7 +11,8 @@ interface PricingFeature {
 
 interface PricingPlan {
   name: string;
-  price: string;
+  monthlyPrice: string;
+  annualPrice?: string;
   description: string;
   buttonText: string;
   buttonLink: string;
@@ -21,7 +23,8 @@ interface PricingPlan {
 const pricingPlans: PricingPlan[] = [
   {
     name: "Basic Plan",
-    price: "$0",
+    monthlyPrice: "$0",
+    annualPrice: "$0",
     description: "Perfect for individuals and small projects",
     buttonText: "Get Started",
     buttonLink: "/auth/signup",
@@ -38,7 +41,8 @@ const pricingPlans: PricingPlan[] = [
   },
   {
     name: "Professional Plan",
-    price: "$15",
+    monthlyPrice: "$15",
+    annualPrice: "$144", // $15 * 12 months * 0.8 (20% discount) = $144
     description: "Ideal for professionals and businesses",
     buttonText: "Get Started",
     buttonLink: "/auth/signup?plan=pro",
@@ -55,7 +59,8 @@ const pricingPlans: PricingPlan[] = [
   },
   {
     name: "Enterprise Plan",
-    price: "$30",
+    monthlyPrice: "$30",
+    annualPrice: "$288", // $30 * 12 months * 0.8 (20% discount) = $288
     description: "For teams and large-scale projects",
     buttonText: "Contact Sales",
     buttonLink: "/contact",
@@ -73,6 +78,12 @@ const pricingPlans: PricingPlan[] = [
 ];
 
 export default function PricingSection() {
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
+
+  const handleBillingToggle = (cycle: 'monthly' | 'annual') => {
+    setBillingCycle(cycle);
+  };
+
   return (
     <section className="relative bg-[#0D0D0D] overflow-hidden py-16 md:py-24">
       {/* Background glow effects */}
@@ -96,9 +107,38 @@ export default function PricingSection() {
               Choose Your Plan
             </span>
           </h2>
-          <p className="max-w-2xl mx-auto text-gray-300 text-lg md:text-xl">
+          <p className="max-w-2xl mx-auto text-gray-300 text-lg md:text-xl mb-8">
             Select the perfect plan for your image upscaling needs
           </p>
+          
+          {/* Billing toggle */}
+          <div className="flex justify-center mb-8">
+            <div className="bg-gray-800/60 backdrop-blur-sm p-1 rounded-full inline-flex">
+              <button
+                onClick={() => handleBillingToggle('monthly')}
+                className={`px-6 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
+                  billingCycle === 'monthly'
+                    ? 'bg-gray-700 text-white shadow-md'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                Monthly billing
+              </button>
+              <button
+                onClick={() => handleBillingToggle('annual')}
+                className={`px-6 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
+                  billingCycle === 'annual'
+                    ? 'bg-gray-700 text-white shadow-md'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                Yearly billing
+                <span className="ml-2 bg-orange-500 text-white text-xs px-2 py-0.5 rounded-full">
+                  Save 20%
+                </span>
+              </button>
+            </div>
+          </div>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -119,8 +159,16 @@ export default function PricingSection() {
               <div className="text-center mb-8">
                 <h3 className="text-xl md:text-2xl font-bold text-white mb-2">{plan.name}</h3>
                 <div className="text-3xl md:text-4xl font-extrabold text-orange-500 mb-2">
-                  {plan.price}<span className="text-lg font-normal text-gray-400">/month</span>
+                  {billingCycle === 'monthly' ? plan.monthlyPrice : plan.annualPrice}
+                  <span className="text-lg font-normal text-gray-400">
+                    {billingCycle === 'monthly' ? '/month' : '/year'}
+                  </span>
                 </div>
+                {billingCycle === 'annual' && plan.monthlyPrice !== "$0" && (
+                  <div className="text-sm text-gray-400 mb-2">
+                    ${Math.round(parseInt(plan.annualPrice!.replace('$', '')) / 12)} per month, billed annually
+                  </div>
+                )}
                 <p className="text-gray-400">{plan.description}</p>
               </div>
               
@@ -139,7 +187,7 @@ export default function PricingSection() {
               
               <div className="mt-auto">
                 <Link
-                  href={plan.buttonLink}
+                  href={`${plan.buttonLink}${plan.buttonLink.includes('?') ? '&' : '?'}billing=${billingCycle}`}
                   className={`
                     block w-full py-3 px-4 rounded-full text-center text-sm font-semibold transition-all duration-300
                     ${plan.highlighted 
