@@ -13,6 +13,15 @@ export default function Header() {
 
   // Handle scroll effect
   useEffect(() => {
+    // Check scroll position immediately on mount
+    const initialScrollCheck = () => {
+      const isScrolled = window.scrollY > 10;
+      setScrolled(isScrolled);
+    };
+    
+    // Run the check immediately
+    initialScrollCheck();
+    
     const handleScroll = () => {
       const isScrolled = window.scrollY > 10;
       if (isScrolled !== scrolled) {
@@ -35,7 +44,7 @@ export default function Header() {
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
         scrolled 
           ? 'bg-gray-900/95 backdrop-blur-md shadow-lg' 
-          : 'bg-transparent'
+          : 'bg-gray-900/80 backdrop-blur-sm'
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-b border-gray-800/50">

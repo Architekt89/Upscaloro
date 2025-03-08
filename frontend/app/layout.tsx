@@ -18,6 +18,14 @@ export const metadata: Metadata = {
   description: 'Enhance your images with AI-powered upscaling technology',
 };
 
+// Add a style block to ensure the header has a background before JS loads
+const headerStyle = `
+  header {
+    background-color: rgba(17, 24, 39, 0.8);
+    backdrop-filter: blur(8px);
+  }
+`;
+
 export default function RootLayout({
   children,
 }: {
@@ -25,6 +33,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
+      <head>
+        <style>{headerStyle}</style>
+      </head>
       <body className={`${poppins.variable} font-sans bg-gray-950 text-white antialiased overflow-x-hidden`} suppressHydrationWarning>
         <Providers>
           <AuthProvider>

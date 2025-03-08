@@ -26,6 +26,12 @@ body {
     rgb(var(--background-start-rgb));
 }
 
+/* Ensure header has a background before JS loads */
+header {
+  background-color: rgba(17, 24, 39, 0.8);
+  backdrop-filter: blur(8px);
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;
