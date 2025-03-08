@@ -14,7 +14,7 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: 'Upscalor - AI Image Upscaling',
+  title: 'picluxe - AI Image Upscaling',
   description: 'Enhance your images with AI-powered upscaling technology',
 };
 
@@ -36,7 +36,7 @@ export default function RootLayout({
       <head>
         <style>{headerStyle}</style>
       </head>
-      <body className={`${poppins.variable} font-sans bg-gray-950 text-white antialiased overflow-x-hidden`} suppressHydrationWarning>
+      <body className={`${poppins.variable} font-sans bg-black text-white antialiased overflow-x-hidden`} suppressHydrationWarning>
         <Providers>
           <AuthProvider>
             <Header />

@@ -1,22 +1,25 @@
 from dotenv import load_dotenv
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, status, Form, Query
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, status, Form, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from typing import Optional, List, Dict, Any
 import os
 import logging
 import sys
+from datetime import datetime
 
 # Try relative imports first
 try:
     from .image_processor import ImageProcessor, VALID_MODES, VALID_SCALE_FACTORS, VALID_OUTPUT_FORMATS, MODE_TO_MODEL
     from .auth import get_current_active_user, User
     from .database import DatabaseHandler
+    from .billing import BillingHandler
 except ImportError as e:
     # Fall back to absolute imports
     from backend.image_processor import ImageProcessor, VALID_MODES, VALID_SCALE_FACTORS, VALID_OUTPUT_FORMATS, MODE_TO_MODEL
     from backend.auth import get_current_active_user, User
     from backend.database import DatabaseHandler
+    from backend.billing import BillingHandler
 
 # Load environment variables
 load_dotenv()
@@ -330,6 +333,214 @@ async def get_models_info():
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error getting models information: {str(e)}"
+        )
+
+@app.get("/billing")
+async def get_billing_info(current_user: User = Depends(get_current_active_user)):
+    """
+    Get the user's billing information, including subscription, payment methods, and invoices.
+    
+    Returns:
+        dict: Billing information for the user
+    """
+    try:
+        logger.info(f"Fetching billing information for user: {current_user.username}")
+        
+        billing_info = await BillingHandler.get_user_billing_info(current_user.username)
+        
+        logger.info(f"Returning billing information for user: {current_user.username}")
+        return billing_info
+    except Exception as e:
+        logger.error(f"Error getting billing information: {str(e)}")
+        # Instead of returning an error, return default billing info
+        logger.info(f"Returning default billing information for user: {current_user.username}")
+        
+        # Default subscription for new users
+        default_subscription = {
+            "plan": "Free",
+            "status": "active",
+            "renewal_date": datetime.now().strftime("%Y-%m-%d"),
+            "price": "$0.00",
+            "billing_cycle": "monthly",
+            "features": [
+                "Up to 3 images per month",
+                "2x and 4x upscaling",
+                "Basic upscaling mode",
+                "Standard support"
+            ]
+        }
+        
+        # Default usage for new users
+        default_usage = {
+            "images_processed": 0,
+            "images_limit": 3,
+            "api_calls": 0,
+            "api_calls_limit": 0,
+            "storage_used": "0 GB",
+            "storage_limit": "0.1 GB",
+        }
+        
+        return {
+            "subscription": default_subscription,
+            "payment_methods": [],
+            "invoices": [],
+            "usage": default_usage
+        }
+
+@app.post("/billing/subscription")
+async def update_subscription(
+    plan_id: str = Body(..., embed=True),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Update the user's subscription plan.
+    
+    Args:
+        plan_id: The ID of the subscription plan to update to
+        
+    Returns:
+        dict: Result of the subscription update
+    """
+    try:
+        logger.info(f"Updating subscription for user: {current_user.username} to plan: {plan_id}")
+        
+        result = await BillingHandler.update_subscription(current_user.username, plan_id)
+        
+        logger.info(f"Subscription updated for user: {current_user.username}")
+        return result
+    except Exception as e:
+        logger.error(f"Error updating subscription: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating subscription: {str(e)}"
+        )
+
+@app.post("/billing/subscription/cancel")
+async def cancel_subscription(current_user: User = Depends(get_current_active_user)):
+    """
+    Cancel the user's subscription.
+    
+    Returns:
+        dict: Result of the subscription cancellation
+    """
+    try:
+        logger.info(f"Cancelling subscription for user: {current_user.username}")
+        
+        result = await BillingHandler.cancel_subscription(current_user.username)
+        
+        logger.info(f"Subscription cancelled for user: {current_user.username}")
+        return result
+    except Exception as e:
+        logger.error(f"Error cancelling subscription: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error cancelling subscription: {str(e)}"
+        )
+
+@app.post("/billing/payment-methods")
+async def add_payment_method(
+    payment_details: Dict[str, Any] = Body(...),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Add a new payment method for the user.
+    
+    Args:
+        payment_details: Details of the payment method to add
+        
+    Returns:
+        dict: Result of adding the payment method
+    """
+    try:
+        logger.info(f"Adding payment method for user: {current_user.username}")
+        
+        result = await BillingHandler.add_payment_method(current_user.username, payment_details)
+        
+        logger.info(f"Payment method added for user: {current_user.username}")
+        return result
+    except Exception as e:
+        logger.error(f"Error adding payment method: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error adding payment method: {str(e)}"
+        )
+
+@app.delete("/billing/payment-methods/{payment_method_id}")
+async def delete_payment_method(
+    payment_method_id: str,
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Delete a payment method for the user.
+    
+    Args:
+        payment_method_id: The ID of the payment method to delete
+        
+    Returns:
+        dict: Result of deleting the payment method
+    """
+    try:
+        logger.info(f"Deleting payment method for user: {current_user.username}, payment method ID: {payment_method_id}")
+        
+        result = await BillingHandler.delete_payment_method(current_user.username, payment_method_id)
+        
+        logger.info(f"Payment method deleted for user: {current_user.username}")
+        return result
+    except Exception as e:
+        logger.error(f"Error deleting payment method: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting payment method: {str(e)}"
+        )
+
+@app.post("/billing/payment-methods/{payment_method_id}/default")
+async def set_default_payment_method(
+    payment_method_id: str,
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Set a payment method as the default for the user.
+    
+    Args:
+        payment_method_id: The ID of the payment method to set as default
+        
+    Returns:
+        dict: Result of setting the default payment method
+    """
+    try:
+        logger.info(f"Setting default payment method for user: {current_user.username}, payment method ID: {payment_method_id}")
+        
+        result = await BillingHandler.set_default_payment_method(current_user.username, payment_method_id)
+        
+        logger.info(f"Default payment method set for user: {current_user.username}")
+        return result
+    except Exception as e:
+        logger.error(f"Error setting default payment method: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error setting default payment method: {str(e)}"
+        )
+
+@app.get("/billing/plans")
+async def get_available_plans():
+    """
+    Get all available subscription plans.
+    
+    Returns:
+        dict: Available subscription plans
+    """
+    try:
+        logger.info("Fetching available subscription plans")
+        
+        plans = await BillingHandler.get_available_plans()
+        
+        logger.info("Returning available subscription plans")
+        return plans
+    except Exception as e:
+        logger.error(f"Error getting available plans: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error getting available plans: {str(e)}"
         )
 
 if __name__ == "__main__":

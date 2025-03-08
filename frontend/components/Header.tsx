@@ -51,7 +51,12 @@ export default function Header() {
         <div className="flex justify-between items-center h-16 md:h-20">
           {/* Logo - Left Section */}
           <div className="flex-shrink-0 flex items-center">
-            <Logo width={40} height={40} />
+            <Link href="/" className="flex items-center">
+              <Logo width={40} height={40} />
+              <span className="ml-2 text-xl font-bold text-white">
+                picluxe
+              </span>
+            </Link>
           </div>
           
           {/* Navigation Links - Center Section */}
@@ -76,7 +81,7 @@ export default function Header() {
                 Pricing
               </Link>
               <Link
-                href="/api-docs"
+                href="/blog"
                 className="text-white/80 hover:text-white hover:underline underline-offset-8 decoration-orange-500 decoration-2 px-3 py-2 text-sm font-medium transition-all duration-200"
               >
                 Blog
@@ -98,6 +103,12 @@ export default function Header() {
                   transition-all duration-300 hover:scale-105"
                 >
                   Dashboard
+                </Link>
+                <Link
+                  href="/dashboard/billing"
+                  className="inline-flex items-center px-4 py-2 border border-gray-600 text-sm font-medium rounded-full text-white bg-transparent hover:bg-gray-800 transition-all duration-300"
+                >
+                  Billing
                 </Link>
                 <button
                   onClick={() => signOut()}
@@ -126,16 +137,24 @@ export default function Header() {
           {/* Mobile menu button */}
           <div className="flex items-center md:hidden">
             {user && (
-              <Link
-                href="/dashboard"
-                className="mr-4 inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-full shadow-sm text-white 
-                bg-gradient-to-r from-orange-500 to-orange-600 
-                hover:from-orange-400 hover:to-orange-600
-                shadow-[0_0_10px_rgba(249,115,22,0.2)]
-                transition-all duration-300"
-              >
-                Dashboard
-              </Link>
+              <>
+                <Link
+                  href="/dashboard"
+                  className="mr-2 inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-full shadow-sm text-white 
+                  bg-gradient-to-r from-orange-500 to-orange-600 
+                  hover:from-orange-400 hover:to-orange-600
+                  shadow-[0_0_10px_rgba(249,115,22,0.2)]
+                  transition-all duration-300"
+                >
+                  Dashboard
+                </Link>
+                <Link
+                  href="/dashboard/billing"
+                  className="mr-2 inline-flex items-center px-3 py-1.5 border border-gray-600 text-sm font-medium rounded-full text-white bg-transparent hover:bg-gray-800 transition-all duration-300"
+                >
+                  Billing
+                </Link>
+              </>
             )}
             <button
               type="button"
@@ -179,7 +198,7 @@ export default function Header() {
             Pricing
           </Link>
           <Link
-            href="/api-docs"
+            href="/blog"
             className="text-white/90 hover:text-white block px-3 py-2 rounded-md text-base font-medium"
             onClick={() => setMobileMenuOpen(false)}
           >
@@ -187,15 +206,31 @@ export default function Header() {
           </Link>
           
           {user ? (
-            <button
-              onClick={() => {
-                signOut();
-                setMobileMenuOpen(false);
-              }}
-              className="text-white/90 hover:text-white block px-3 py-2 rounded-md text-base font-medium w-full text-left"
-            >
-              Sign Out
-            </button>
+            <>
+              <Link
+                href="/dashboard"
+                className="text-white/90 hover:text-white block px-3 py-2 rounded-md text-base font-medium"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Dashboard
+              </Link>
+              <Link
+                href="/dashboard/billing"
+                className="text-white/90 hover:text-white block px-3 py-2 rounded-md text-base font-medium"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Billing
+              </Link>
+              <button
+                onClick={() => {
+                  signOut();
+                  setMobileMenuOpen(false);
+                }}
+                className="text-white/90 hover:text-white block px-3 py-2 rounded-md text-base font-medium w-full text-left"
+              >
+                Sign Out
+              </button>
+            </>
           ) : (
             <Link
               href="/auth/login"

@@ -16,42 +16,53 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Add the current directory to the path
-sys.path.insert(0, os.path.abspath("."))
+# Add the current directory to the Python path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# Try multiple approaches to import the app
+# Try to import the app from backend.main
 try:
     logger.info("Attempting to import app from backend.main...")
-    from backend.main import app as application
+    from backend.main import app
+    logger.info("Successfully imported app from backend.main")
 except ImportError as e:
-    logger.error(f"Error importing from backend.main: {e}")
-    
+    logger.warning(f"Failed to import from backend.main: {e}")
+    # If that fails, try to import directly from main
     try:
-        logger.info("Attempting to import backend.main module...")
-        import backend.main
-        application = backend.main.app
-    except ImportError as e2:
-        logger.error(f"Error importing backend.main module: {e2}")
+        logger.info("Attempting to import app from main...")
+        from main import app
+        logger.info("Successfully imported app from main")
+    except ImportError as e:
+        logger.error(f"Failed to import from main: {e}")
         
+        # Try one more approach - change directory to backend and import
         try:
-            logger.info("Attempting to change directory to backend...")
+            logger.info("Attempting to change directory to backend and import...")
             original_dir = os.getcwd()
-            os.chdir("backend")
-            sys.path.insert(0, os.path.abspath("."))
+            backend_dir = os.path.join(original_dir, 'backend')
             
-            try:
-                logger.info("Attempting to import app from main...")
-                from main import app as application
-            except ImportError as e3:
-                logger.error(f"Error importing from main: {e3}")
-                raise ImportError("Failed to import the FastAPI application") from e3
-            finally:
-                # Change back to the original directory
-                os.chdir(original_dir)
-        except Exception as e4:
-            logger.error(f"Error changing directory: {e4}")
-            raise ImportError("Failed to import the FastAPI application") from e4
+            if os.path.exists(backend_dir):
+                os.chdir(backend_dir)
+                sys.path.insert(0, os.path.abspath("."))
+                
+                try:
+                    from main import app
+                    logger.info("Successfully imported app from backend/main")
+                except ImportError as e2:
+                    logger.error(f"Failed to import from backend/main: {e2}")
+                    raise ImportError("Could not import the app from any location") from e2
+                finally:
+                    # Change back to the original directory
+                    os.chdir(original_dir)
+            else:
+                logger.error(f"Backend directory does not exist: {backend_dir}")
+                raise ImportError("Could not import the app from any location") from e
+        except Exception as e3:
+            logger.error(f"Error during import attempts: {e3}")
+            raise ImportError("Could not import the app from any location") from e3
 
-# This variable is used by WSGI servers like Gunicorn
-app = application
-logger.info("Successfully imported FastAPI application") 
+# This is used by gunicorn
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", 8000))
+    logger.info(f"Starting server on port {port}")
+    uvicorn.run("wsgi:app", host="0.0.0.0", port=port, log_level="info") 

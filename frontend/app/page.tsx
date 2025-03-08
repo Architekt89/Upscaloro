@@ -8,10 +8,10 @@ import PortraitsSection from '@/components/PortraitsSection';
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen flex flex-col bg-gray-950 font-sans overflow-x-hidden">
+    <div className="min-h-screen flex flex-col bg-black font-sans overflow-x-hidden">
       <main className="flex-grow">
         {/* Hero Section */}
-        <div className="relative overflow-hidden bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-gray-950 to-black min-h-[90vh] flex items-center">
+        <div className="relative overflow-hidden bg-black min-h-[90vh] flex items-center">
           {/* Background Effects */}
           <div className="absolute inset-0 overflow-hidden">
             {/* Large glow effects */}
@@ -76,12 +76,12 @@ export default function HomePage() {
         </div>
 
         {/* Before/After Comparison Section - No dividing line */}
-        <div className="bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-gray-950 to-black">
+        <div className="bg-black">
           <BeforeAfterSection />
         </div>
 
         {/* Features Section */}
-        <div className="py-24 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-gray-950 to-black relative">
+        <div className="py-24 bg-black relative">
           {/* Background glow effects */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
             <div className="absolute -top-20 -left-20 w-64 h-64 bg-orange-500/10 rounded-full blur-[100px]"></div>
@@ -163,27 +163,27 @@ export default function HomePage() {
         </div>
 
         {/* Portraits Section */}
-        <div className="bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-gray-950 to-black">
+        <div className="bg-black">
           <PortraitsSection />
         </div>
 
         {/* Testimonial Section */}
-        <div className="bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-gray-950 to-black">
+        <div className="bg-black">
           <TestimonialSection />
         </div>
 
         {/* Pricing Section */}
-        <div className="bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-gray-950 to-black">
+        <div className="bg-black">
           <PricingSection />
         </div>
 
         {/* FAQ Section */}
-        <div className="bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-gray-950 to-black">
+        <div className="bg-black">
           <FAQSection />
         </div>
 
         {/* CTA Section */}
-        <div className="bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-900 via-gray-950 to-black">
+        <div className="bg-black">
           <CTASection />
         </div>
       </main>

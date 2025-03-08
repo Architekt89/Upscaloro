@@ -14,10 +14,13 @@ picluxe is a SaaS application that uses AI to upscale and enhance images. It pro
 - **Advanced Controls**: Fine-tune your results with dynamic, creativity, resemblance, and handfix parameters
 - **Multiple Output Formats**: Save your upscaled images in JPEG, PNG, JPG, or WEBP formats
 - **User-Friendly Interface**: Drag-and-drop interface for easy image uploading
-- **Subscription Plans**: Basic Plan, Pro Plan, and Enterprise Plan with different feature sets
+- **Subscription Plans**: Basic Plan $0/month, Pro Plan $15/month, and Enterprise Plan $30/month with different feature sets
 - **API Access**: RESTful API for developers to integrate image upscaling into their applications
 - **Secure Authentication**: User authentication and authorization using Supabase
 - **Payment Processing**: Subscription and pay-as-you-go billing using Stripe
+- **User Dashboard**: Comprehensive dashboard for managing upscaled images and account settings
+- **Billing Management**: Dedicated billing page for managing subscriptions, payment methods, and viewing usage statistics
+- **Blog Platform**: Informative blog with articles about AI image upscaling, technology trends, and tutorials
 
 ## Tech Stack
 
@@ -46,8 +49,14 @@ picluxe is a SaaS application that uses AI to upscale and enhance images. It pro
 upscalor/
 ├── frontend/               # Next.js frontend application
 │   ├── app/                # App router pages
+│   │   ├── blog/           # Blog pages and components
+│   │   │   ├── [id]/       # Dynamic route for individual blog posts
+│   │   │   ├── layout.tsx  # Blog layout component
+│   │   │   └── page.tsx    # Blog listing page
 │   ├── components/         # React components
 │   ├── public/             # Static assets
+│   │   ├── blog/           # Blog post images
+│   │   └── avatars/        # Author avatar images
 │   └── ...
 ├── backend/                # FastAPI backend application
 │   ├── image_processor.py  # Image processing logic
