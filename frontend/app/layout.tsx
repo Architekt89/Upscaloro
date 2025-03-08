@@ -25,7 +25,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
-      <body className={`${poppins.variable} font-sans bg-gray-950 text-white antialiased`} suppressHydrationWarning>
+      <body className={`${poppins.variable} font-sans bg-gray-950 text-white antialiased overflow-x-hidden`} suppressHydrationWarning>
         <Providers>
           <AuthProvider>
             <Header />

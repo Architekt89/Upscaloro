@@ -1,10 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import { useState, useEffect } from 'react';
 import { Menu, X } from 'lucide-react';
+import Logo from './Logo';
 
 export default function Header() {
   const { user, signOut } = useAuth();
@@ -42,15 +42,7 @@ export default function Header() {
         <div className="flex justify-between items-center h-16 md:h-20">
           {/* Logo - Left Section */}
           <div className="flex-shrink-0 flex items-center">
-            <Link href="/" className="flex items-center cursor-pointer">
-              <Image 
-                src="/Images/logo.png" 
-                alt="Upscaloro Logo" 
-                width={40} 
-                height={40} 
-                className="h-10 w-auto"
-              />
-            </Link>
+            <Logo width={40} height={40} />
           </div>
           
           {/* Navigation Links - Center Section */}
