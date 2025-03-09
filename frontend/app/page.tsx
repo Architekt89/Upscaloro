@@ -6,6 +6,7 @@ import TestimonialSection from '@/components/TestimonialSection';
 import BeforeAfterSection from '@/components/BeforeAfterSection';
 import NatureEnhancementSection from '@/components/NatureEnhancementSection';
 import AnimeEnhancementSection from '@/components/AnimeEnhancementSection';
+import PortraitsEnhancementSection from '@/components/PortraitsEnhancementSection';
 import PortraitsSection from '@/components/PortraitsSection';
 
 export default function HomePage() {
@@ -71,6 +72,11 @@ export default function HomePage() {
         {/* Anime Enhancement Section */}
         <div className="bg-black">
           <AnimeEnhancementSection />
+        </div>
+
+        {/* Portraits Enhancement Section */}
+        <div className="bg-black">
+          <PortraitsEnhancementSection />
         </div>
 
         {/* Features Section */}

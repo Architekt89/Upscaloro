@@ -161,7 +161,7 @@ export default function BeforeAfterSection() {
           {/* Before Image (Left Side) */}
           <div className="absolute inset-0 brightness-90">
             <Image
-              src="/images/before-image.png"
+              src="/Images/before-image.png"
               alt="Before transformation"
               fill
               className="object-cover"
@@ -182,7 +182,7 @@ export default function BeforeAfterSection() {
             }}
           >
             <Image
-              src="/images/after-image.png"
+              src="/Images/after-image.png"
               alt="After transformation"
               fill
               className="object-cover"
