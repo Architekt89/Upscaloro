@@ -4,6 +4,7 @@ import FAQSection from '@/components/FAQSection';
 import PricingSection from '@/components/PricingSection';
 import TestimonialSection from '@/components/TestimonialSection';
 import BeforeAfterSection from '@/components/BeforeAfterSection';
+import NatureEnhancementSection from '@/components/NatureEnhancementSection';
 import PortraitsSection from '@/components/PortraitsSection';
 
 export default function HomePage() {
@@ -59,6 +60,11 @@ export default function HomePage() {
         {/* Before/After Comparison Section - No dividing line */}
         <div className="bg-black">
           <BeforeAfterSection />
+        </div>
+
+        {/* Nature Enhancement Section */}
+        <div className="bg-black">
+          <NatureEnhancementSection />
         </div>
 
         {/* Features Section */}

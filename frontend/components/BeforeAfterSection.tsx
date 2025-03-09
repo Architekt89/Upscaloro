@@ -115,7 +115,7 @@ export default function BeforeAfterSection() {
     return (
       <section className="relative bg-[#000000] overflow-hidden py-8 md:py-12 -mt-16 md:-mt-24">
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
-          <div className="w-full max-w-5xl mx-auto rounded-xl overflow-hidden shadow-2xl" style={{ aspectRatio: '16/9' }}>
+          <div className="w-full max-w-5xl mx-auto rounded-xl overflow-hidden shadow-2xl" style={{ aspectRatio: '5/4' }}>
             <div className="w-full h-full bg-gray-900/60"></div>
           </div>
         </div>
@@ -143,14 +143,21 @@ export default function BeforeAfterSection() {
         <div 
           ref={containerRef}
           className={`relative w-full max-w-5xl mx-auto rounded-xl overflow-hidden shadow-2xl 
-            transition-all duration-1000 ease-out
+            transition-all duration-1000 ease-out p-1 bg-[#0a0a0a] border border-gray-800/50
             ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
-          style={{ aspectRatio: '16/9' }}
+          style={{ aspectRatio: '5/4' }}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
         >
+          {/* Grid background pattern */}
+          <div className="absolute inset-0 grid grid-cols-12 grid-rows-12 gap-4 pointer-events-none opacity-10">
+            {Array.from({ length: 144 }).map((_, i) => (
+              <div key={i} className="border border-gray-700/30"></div>
+            ))}
+          </div>
+          
           {/* Before Image (Left Side) */}
           <div className="absolute inset-0 brightness-90">
             <Image

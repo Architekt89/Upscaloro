@@ -92,9 +92,6 @@ export default function TestimonialSection() {
       <section className="relative bg-[#000000] overflow-hidden py-16 md:py-24">
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
           <div className="text-center mb-12 md:mb-16">
-            <div className="inline-block px-4 py-1 rounded-full border border-white/30 text-white text-sm font-medium mb-6">
-              Testimonials
-            </div>
           </div>
         </div>
       </section>
@@ -106,11 +103,6 @@ export default function TestimonialSection() {
       {/* Content container */}
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
         <div className="text-center mb-12 md:mb-16">
-          {/* Section Label */}
-          <div className="inline-block px-4 py-1 rounded-full border border-white/30 text-white text-sm font-medium mb-6">
-            Testimonials
-          </div>
-          
           {/* Main Heading with Gradient */}
           <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-tight uppercase mb-8">
             <span className="bg-gradient-to-r from-orange-300 via-orange-100 to-white bg-clip-text text-transparent">
@@ -127,9 +119,16 @@ export default function TestimonialSection() {
           {testimonials.map((testimonial) => (
             <div 
               key={testimonial.id}
-              className="relative rounded-2xl p-6 bg-[#000000] border border-gray-800/30 
-                shadow-xl transition-all duration-300 hover:scale-[1.02] hover:border-orange-500/20 group"
+              className="relative rounded-2xl p-8 bg-[#0a0a0a] border border-gray-800/30 
+                shadow-xl transition-all duration-300 hover:scale-[1.02] hover:border-orange-500/20 group overflow-hidden"
             >
+              {/* Grid background pattern */}
+              <div className="absolute inset-0 grid grid-cols-12 grid-rows-12 gap-4 pointer-events-none opacity-10">
+                {Array.from({ length: 144 }).map((_, i) => (
+                  <div key={i} className="border border-gray-700/30"></div>
+                ))}
+              </div>
+              
               {/* Quote Icon */}
               <div className="text-6xl text-orange-500 opacity-70 group-hover:opacity-100 group-hover:text-orange-400 
                 transition-all duration-300 group-hover:shadow-glow absolute -top-2 left-4">
@@ -172,8 +171,15 @@ export default function TestimonialSection() {
                 key={testimonial.id}
                 className={`min-w-full px-4 snap-center`}
               >
-                <div className="relative rounded-2xl p-6 bg-[#000000] border border-gray-800/30 
-                  shadow-xl transition-all duration-300">
+                <div className="relative rounded-2xl p-8 bg-[#0a0a0a] border border-gray-800/30 
+                  shadow-xl transition-all duration-300 overflow-hidden">
+                  {/* Grid background pattern */}
+                  <div className="absolute inset-0 grid grid-cols-12 grid-rows-12 gap-4 pointer-events-none opacity-10">
+                    {Array.from({ length: 144 }).map((_, i) => (
+                      <div key={i} className="border border-gray-700/30"></div>
+                    ))}
+                  </div>
+                  
                   {/* Quote Icon */}
                   <div className="text-5xl text-orange-500 opacity-70 absolute -top-2 left-4">
                     ❝
