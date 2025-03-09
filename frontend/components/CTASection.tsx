@@ -4,16 +4,10 @@ import Link from 'next/link';
 
 export default function CTASection() {
   return (
-    <section className="relative bg-gray-950 overflow-hidden py-16 md:py-20">
-      {/* Background glow effects */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-20 -left-20 w-64 h-64 bg-orange-500/15 rounded-full blur-[100px]"></div>
-        <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-orange-500/15 rounded-full blur-[100px]"></div>
-      </div>
-      
+    <section className="relative bg-[#000000] overflow-hidden py-16 md:py-20">
       {/* Content container with rounded corners */}
       <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
-        <div className="bg-gray-900/60 backdrop-blur-sm rounded-3xl p-8 md:p-12 shadow-xl border border-gray-800/50">
+        <div className="bg-[#000000] backdrop-blur-sm rounded-3xl p-8 md:p-12 shadow-xl border border-gray-800/50">
           <div className="text-center">
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-tight mb-4 leading-tight">
               <span className="text-white drop-shadow-md">Ready to create stunning,</span>

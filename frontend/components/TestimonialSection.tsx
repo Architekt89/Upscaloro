@@ -89,7 +89,7 @@ export default function TestimonialSection() {
   // If not mounted yet (server-side), render a placeholder
   if (!isMounted) {
     return (
-      <section className="relative bg-[#0D0D0D] overflow-hidden py-16 md:py-24">
+      <section className="relative bg-[#000000] overflow-hidden py-16 md:py-24">
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
           <div className="text-center mb-12 md:mb-16">
             <div className="inline-block px-4 py-1 rounded-full border border-white/30 text-white text-sm font-medium mb-6">
@@ -102,13 +102,7 @@ export default function TestimonialSection() {
   }
 
   return (
-    <section className="relative bg-[#0D0D0D] overflow-hidden py-16 md:py-24">
-      {/* Background glow effects */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-20 -left-20 w-64 h-64 bg-orange-500/10 rounded-full blur-[100px]"></div>
-        <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-orange-500/10 rounded-full blur-[100px]"></div>
-      </div>
-      
+    <section className="relative bg-[#000000] overflow-hidden py-16 md:py-24">
       {/* Content container */}
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
         <div className="text-center mb-12 md:mb-16">
@@ -133,7 +127,7 @@ export default function TestimonialSection() {
           {testimonials.map((testimonial) => (
             <div 
               key={testimonial.id}
-              className="relative rounded-2xl p-6 bg-[#0D0D0D] border border-gray-800/30 
+              className="relative rounded-2xl p-6 bg-[#000000] border border-gray-800/30 
                 shadow-xl transition-all duration-300 hover:scale-[1.02] hover:border-orange-500/20 group"
             >
               {/* Quote Icon */}
@@ -178,7 +172,7 @@ export default function TestimonialSection() {
                 key={testimonial.id}
                 className={`min-w-full px-4 snap-center`}
               >
-                <div className="relative rounded-2xl p-6 bg-[#0D0D0D] border border-gray-800/30 
+                <div className="relative rounded-2xl p-6 bg-[#000000] border border-gray-800/30 
                   shadow-xl transition-all duration-300">
                   {/* Quote Icon */}
                   <div className="text-5xl text-orange-500 opacity-70 absolute -top-2 left-4">

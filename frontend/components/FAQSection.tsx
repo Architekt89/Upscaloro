@@ -39,13 +39,7 @@ export default function FAQSection() {
   };
 
   return (
-    <section className="relative bg-[#0D0D0D] overflow-hidden py-16 md:py-24">
-      {/* Background glow effects */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-20 -left-20 w-64 h-64 bg-orange-500/10 rounded-full blur-[100px]"></div>
-        <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-orange-500/10 rounded-full blur-[100px]"></div>
-      </div>
-      
+    <section className="relative bg-[#000000] overflow-hidden py-16 md:py-24">
       {/* Content container */}
       <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
         <div className="text-center mb-12 md:mb-16">
@@ -55,7 +49,7 @@ export default function FAQSection() {
           </h2>
         </div>
         
-        <div className="bg-[#0D0D0D] rounded-3xl p-6 md:p-8 shadow-xl border border-gray-800/50">
+        <div className="bg-[#000000] rounded-3xl p-6 md:p-8 shadow-xl border border-gray-800/50">
           <div className="divide-y divide-gray-800">
             {faqs.map((faq, index) => (
               <div key={index} className="py-5">
