@@ -5,6 +5,7 @@ import PricingSection from '@/components/PricingSection';
 import TestimonialSection from '@/components/TestimonialSection';
 import BeforeAfterSection from '@/components/BeforeAfterSection';
 import NatureEnhancementSection from '@/components/NatureEnhancementSection';
+import AnimeEnhancementSection from '@/components/AnimeEnhancementSection';
 import PortraitsSection from '@/components/PortraitsSection';
 
 export default function HomePage() {
@@ -65,6 +66,11 @@ export default function HomePage() {
         {/* Nature Enhancement Section */}
         <div className="bg-black">
           <NatureEnhancementSection />
+        </div>
+
+        {/* Anime Enhancement Section */}
+        <div className="bg-black">
+          <AnimeEnhancementSection />
         </div>
 
         {/* Features Section */}
