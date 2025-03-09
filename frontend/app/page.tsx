@@ -11,36 +11,17 @@ export default function HomePage() {
     <div className="min-h-screen flex flex-col bg-black font-sans overflow-x-hidden">
       <main className="flex-grow">
         {/* Hero Section */}
-        <div className="relative overflow-hidden bg-black min-h-[90vh] flex items-center">
-          {/* Background Effects */}
-          <div className="absolute inset-0 overflow-hidden">
-            {/* Large glow effects */}
-            <div className="absolute -left-20 top-1/4 w-96 h-96 bg-orange-500/10 rounded-full blur-[128px] animate-pulse-subtle"></div>
-            <div className="absolute right-0 top-1/3 w-[500px] h-[500px] bg-orange-600/10 rounded-full blur-[128px] animate-pulse-subtle delay-700"></div>
-            <div className="absolute left-1/3 -bottom-32 w-[600px] h-[600px] bg-orange-500/5 rounded-full blur-[128px] animate-pulse-subtle delay-1000"></div>
-            
-            {/* Corner glow effects */}
-            <div className="absolute -top-20 -left-20 w-64 h-64 bg-orange-500/15 rounded-full blur-[100px]"></div>
-            <div className="absolute -top-20 -right-20 w-64 h-64 bg-orange-500/15 rounded-full blur-[100px]"></div>
-            <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-orange-500/15 rounded-full blur-[100px]"></div>
-            <div className="absolute -bottom-20 -right-20 w-64 h-64 bg-orange-500/15 rounded-full blur-[100px]"></div>
-            
-            {/* Smaller accent glows */}
-            <div className="absolute top-20 right-32 w-24 h-24 bg-orange-400/20 rounded-full blur-2xl"></div>
-            <div className="absolute bottom-40 left-1/4 w-32 h-32 bg-orange-400/20 rounded-full blur-3xl"></div>
-            
-            {/* Grain effect overlay */}
-            <div className="absolute inset-0 bg-[url('/noise.png')] opacity-[0.02] mix-blend-overlay"></div>
-          </div>
-
+        <div className="relative overflow-hidden bg-[#000000] min-h-[90vh] flex items-start pt-[10.5vh]">
           {/* Content */}
           <div className="relative w-full">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
               <div className="text-center">
-                <h1 className="flex flex-col items-center font-extrabold tracking-tight mb-8 drop-shadow-2xl leading-tight">
-                  <span className="text-orange-500 bg-clip-text text-transparent bg-gradient-to-r from-orange-400 to-orange-600 text-3xl md:text-4xl lg:text-5xl tracking-wider mb-4 break-words">
-                  Stop settling for blurred pixels.
-                  </span>
+                <h1 className="flex flex-col items-center font-extrabold tracking-tight mb-8 drop-shadow-2xl">
+                  <div className="overflow-visible mb-2">
+                    <span className="text-orange-500 bg-clip-text text-transparent bg-gradient-to-r from-orange-400 to-orange-600 text-4xl md:text-5xl lg:text-6xl tracking-wider leading-relaxed py-2 inline-block">
+                    Stop settling for blurred pixels.
+                    </span>
+                  </div>
                   <span className="text-white text-4xl md:text-5xl lg:text-6xl break-words">
                   Present images that command attention at every scale.
                   </span>
