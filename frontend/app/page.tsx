@@ -8,6 +8,7 @@ import NatureEnhancementSection from '@/components/NatureEnhancementSection';
 import AnimeEnhancementSection from '@/components/AnimeEnhancementSection';
 import PortraitsEnhancementSection from '@/components/PortraitsEnhancementSection';
 import PortraitsSection from '@/components/PortraitsSection';
+import TypewriterText from '@/components/TypewriterText';
 
 export default function HomePage() {
   return (
@@ -22,7 +23,10 @@ export default function HomePage() {
                 <h1 className="flex flex-col items-center font-extrabold tracking-tight mb-8 drop-shadow-2xl">
                   <div className="overflow-visible mb-2">
                     <span className="text-orange-500 bg-clip-text text-transparent bg-gradient-to-r from-orange-400 to-orange-600 text-4xl md:text-5xl lg:text-6xl tracking-wider leading-relaxed py-2 inline-block">
-                    Stop settling for blurred pixels.
+                    <TypewriterText 
+                      text="Stop settling for blurred pixels."
+                      typingSpeed={50}
+                    />
                     </span>
                   </div>
                   <span className="text-white text-4xl md:text-5xl lg:text-6xl break-words">
