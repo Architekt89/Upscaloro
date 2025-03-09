@@ -49,7 +49,7 @@ export default function FAQSection() {
           </h2>
         </div>
         
-        <div className="bg-[#000000] rounded-3xl p-6 md:p-8 shadow-xl border border-gray-800/50">
+        <div className="bg-[#000000] p-6 md:p-8">
           <div className="divide-y divide-gray-800">
             {faqs.map((faq, index) => (
               <div key={index} className="py-5">
