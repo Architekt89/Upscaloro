@@ -41,18 +41,23 @@ export default function Header() {
 
   return (
     <header 
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 border-none shadow-none ${
         scrolled 
           ? 'bg-gray-900/95 backdrop-blur-md' 
           : 'bg-gray-900/80 backdrop-blur-sm'
       }`}
+      style={{ borderBottom: 'none', boxShadow: 'none' }}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" style={{ borderBottom: 'none', boxShadow: 'none' }}>
         <div className="flex justify-between items-center h-16 md:h-20">
           {/* Logo - Left Section */}
           <div className="flex-shrink-0 flex items-center">
             <Link href="/" className="flex items-center">
-              <Logo width={40} height={40} />
+              <Logo 
+                width={55} 
+                height={55} 
+                className="w-[55px] h-[55px] sm:w-[66px] sm:h-[66px] md:w-[80px] md:h-[80px]" 
+              />
             </Link>
           </div>
           

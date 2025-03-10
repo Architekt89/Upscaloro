@@ -258,11 +258,11 @@ export default function PortraitsEnhancementSection() {
           {/* Main Heading with Gradient */}
           <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-tight mb-3">
             <span className="bg-gradient-to-r from-orange-500 via-orange-400 to-white bg-clip-text text-transparent">
-              Portraits Enhancement
+              Crisp, Lifelike Portraits
             </span>
           </h2>
           <p className="max-w-2xl mx-auto text-gray-300 text-lg md:text-xl mb-8">
-            Drag the slider to reveal the transformation
+            Face Mode brings out the best in every face, refining features while preserving natural skin textures for ultra-realistic, high-definition results.
           </p>
         </div>
         

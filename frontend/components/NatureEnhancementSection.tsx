@@ -258,11 +258,11 @@ export default function NatureEnhancementSection() {
           {/* Main Heading with Gradient */}
           <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-tight mb-3">
             <span className="bg-gradient-to-r from-orange-500 via-orange-400 to-white bg-clip-text text-transparent">
-              Nature Enhancement
+              Sharper, More Vivid Nature Shots
             </span>
           </h2>
           <p className="max-w-2xl mx-auto text-gray-300 text-lg md:text-xl mb-8">
-            Drag the slider to reveal the transformation
+            Block Mode enhances landscapes and wildlife, revealing every rich texture and natural hue with breathtaking clarity. Experience nature like never before.
           </p>
         </div>
         
