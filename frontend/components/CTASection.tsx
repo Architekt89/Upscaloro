@@ -1,6 +1,35 @@
 'use client';
 
 import Link from 'next/link';
+import { useAuth } from '@/context/AuthContext';
+
+const CTAButton = () => {
+  const { user } = useAuth();
+  
+  return (
+    <>
+      <Link 
+        href={user ? "/dashboard" : "/auth/signup"}
+        className="inline-block px-10 py-4 text-lg font-semibold text-white 
+          bg-gradient-to-r from-orange-500 to-orange-600 
+          rounded-full 
+          shadow-[0_0_30px_-5px_rgba(249,115,22,0.4)] 
+          hover:shadow-[0_0_45px_-5px_rgba(249,115,22,0.6)] 
+          hover:bg-gradient-to-r hover:from-orange-400 hover:to-orange-600 
+          transition-all duration-300 ease-out hover:scale-105 
+          border border-orange-500/20"
+      >
+        {user ? 'Go to Dashboard' : 'Get Started For Free'}
+      </Link>
+      
+      {!user && (
+        <p className="mt-4 text-gray-400 text-sm font-medium">
+          No credit card required
+        </p>
+      )}
+    </>
+  );
+};
 
 export default function CTASection() {
   return (
@@ -28,24 +57,9 @@ export default function CTASection() {
             Start your free trial of picluxe now and transform your visuals into powerful statements.
             </p>
             
-            <div className="flex justify-center">
-              <Link 
-                href="/auth/signup" 
-                className="inline-block px-10 py-4 text-lg font-semibold text-white 
-                  bg-gradient-to-r from-orange-500 to-orange-600 
-                  rounded-full 
-                  shadow-[0_0_30px_-5px_rgba(249,115,22,0.4)] 
-                  hover:shadow-[0_0_45px_-5px_rgba(249,115,22,0.6)] 
-                  hover:bg-gradient-to-r hover:from-orange-400 hover:to-orange-600 
-                  transition-all duration-300 ease-out hover:scale-105 
-                  border border-orange-500/20"
-              >
-                Get Started For Free
-              </Link>
+            <div className="flex justify-center flex-col items-center">
+              <CTAButton />
             </div>
-            <p className="mt-4 text-gray-400 text-sm font-medium">
-              No credit card required
-            </p>
           </div>
         </div>
       </div>
