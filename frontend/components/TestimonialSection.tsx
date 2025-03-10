@@ -15,14 +15,14 @@ interface Testimonial {
 const testimonials: Testimonial[] = [
   {
     id: 1,
-    quote: "Upscaloro transformed my low-resolution photos into stunning high-quality images. The AI technology is truly impressive and the results exceeded my expectations.",
+    quote: "picluxe transformed my low-resolution photos into stunning high-quality images. The AI technology is truly impressive and the results exceeded my expectations.",
     name: "Sarah Johnson",
     title: "Professional Photographer",
     image: "/testimonials/user1.jpg"
   },
   {
     id: 2,
-    quote: "As a graphic designer, image quality is everything. Upscaloro has become an essential tool in my workflow, allowing me to upscale and enhance images with incredible detail.",
+    quote: "As a graphic designer, image quality is everything. picluxe has become an essential tool in my workflow, allowing me to upscale and enhance images with incredible detail.",
     name: "Michael Chen",
     title: "Senior Graphic Designer",
     image: "/testimonials/user2.jpg"

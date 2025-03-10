@@ -10,24 +10,24 @@ interface FAQItem {
 
 const faqs: FAQItem[] = [
   {
-    question: "What is the main benefit of using the AI-based upscaling tool?",
-    answer: "Our AI-powered upscaling technology enhances image resolution while preserving and improving details that traditional resizing methods would lose. It's perfect for professionals who need to enlarge images without sacrificing quality, or for restoring old, low-resolution photos to modern standards."
+    question: "What is AI Image Upscaling?",
+    answer: "AI image upscaling with picluxe enhances image resolution while preserving detail and sharpness, unlike traditional upscaling that results in pixelation."
+  },
+  {
+    question: "How does picluxe enhance images?",
+    answer: "Our AI-driven model analyzes patterns, textures, and edges, intelligently generating new pixels that match the original image, resulting in sharper and more refined visuals."
+  },
+  {
+    question: "What file formats does picluxe support?",
+    answer: "picluxe supports all major image formats including JPEG, PNG, WEBP, and TIFF. We recommend using lossless formats like PNG for the best results, especially when working with detailed images or graphics with text."
   },
   {
     question: "How many images can I process with a free account?",
     answer: "Free accounts can process up to 10 images per month. This gives you a chance to experience our technology before committing to a subscription. For unlimited processing and additional features, consider upgrading to our Pro plan."
   },
   {
-    question: "Can I collaborate with users who don't have an account?",
-    answer: "Yes! You can share your processed images with anyone, even if they don't have an Upscaloro account. Simply use the download or share options after processing your image. For team collaboration with shared workspaces, our Pro plan offers enhanced sharing capabilities."
-  },
-  {
-    question: "Is there a limit to the number of collaborators I can have on a single file?",
-    answer: "There's no limit to the number of collaborators for Pro accounts. Free accounts can share with up to 3 collaborators per project. Our enterprise solutions offer additional administrative controls for larger teams."
-  },
-  {
-    question: "What types of files can I upscale with your tool?",
-    answer: "Our tool supports all major image formats including JPEG, PNG, WEBP, and TIFF. We recommend using lossless formats like PNG for the best results, especially when working with detailed images or graphics with text."
+    question: "What is the main benefit of using the AI-based upscaling tool?",
+    answer: "Our AI-powered upscaling technology enhances image resolution while preserving and improving details that traditional resizing methods would lose. It's perfect for professionals who need to enlarge images without sacrificing quality, or for restoring old, low-resolution photos to modern standards."
   }
 ];
 
