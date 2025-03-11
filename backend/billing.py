@@ -61,6 +61,20 @@ class BillingInfo(BaseModel):
     invoices: List[Dict[str, Any]] = []
     usage: Optional[Dict[str, Any]] = None
 
+# Request model for checkout session creation
+class CheckoutSessionRequest(BaseModel):
+    plan_id: str
+    price_id: str
+    billing_cycle: str
+    success_url: str
+    cancel_url: str
+    skip_auth: Optional[bool] = False
+
+# Response model for checkout session
+class CheckoutSessionResponse(BaseModel):
+    url: str
+    session_id: str
+
 # Available subscription plans
 SUBSCRIPTION_PLANS = {
     "free": SubscriptionPlan(
@@ -405,4 +419,72 @@ class BillingHandler:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error fetching subscription plans: {str(e)}"
+            )
+    
+    @staticmethod
+    async def create_checkout_session(
+        user_id: str,
+        plan_id: str,
+        price_id: str,
+        billing_cycle: str,
+        success_url: str,
+        cancel_url: str
+    ) -> Dict[str, Any]:
+        """
+        Creates a Stripe checkout session for subscription.
+        
+        Args:
+            user_id: The user ID
+            plan_id: The subscription plan ID
+            price_id: The Stripe price ID
+            billing_cycle: The billing cycle (monthly or yearly)
+            success_url: The URL to redirect to on successful payment
+            cancel_url: The URL to redirect to on cancelled payment
+            
+        Returns:
+            Dict[str, Any]: The checkout session details
+        """
+        try:
+            logger.info(f"Creating checkout session for user {user_id} with plan {plan_id}, price {price_id}, billing cycle {billing_cycle}")
+            
+            # Validate the plan ID
+            if plan_id not in SUBSCRIPTION_PLANS:
+                logger.error(f"Invalid plan ID: {plan_id}. Available plans: {list(SUBSCRIPTION_PLANS.keys())}")
+                raise ValueError(f"Invalid plan ID: {plan_id}")
+            
+            # Create a checkout session
+            checkout_session = stripe.checkout.Session.create(
+                payment_method_types=["card"],
+                line_items=[
+                    {
+                        "price": price_id,
+                        "quantity": 1,
+                    },
+                ],
+                mode="subscription",
+                success_url=success_url,
+                cancel_url=cancel_url,
+                metadata={
+                    "user_id": user_id,
+                    "plan_id": plan_id,
+                    "billing_cycle": billing_cycle
+                },
+            )
+            
+            logger.info(f"Checkout session created with ID: {checkout_session.id}")
+            return {
+                "session_id": checkout_session.id,
+                "url": checkout_session.url,
+            }
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe error creating checkout session: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Stripe error: {str(e)}"
+            )
+        except Exception as e:
+            logger.error(f"Error creating checkout session: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error creating checkout session: {str(e)}"
             ) 

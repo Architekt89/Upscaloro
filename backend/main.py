@@ -614,6 +614,122 @@ async def create_checkout_session(
             detail=f"Error creating checkout session: {str(e)}"
         )
 
+@app.post("/billing/create-checkout-session")
+async def create_checkout_session(
+    request: billing.CheckoutSessionRequest,
+    current_user: Optional[User] = Depends(get_current_active_user)
+):
+    """
+    Create a Stripe checkout session for the user.
+    
+    Args:
+        request: The checkout session request containing plan_id, price_id, billing_cycle, success_url, and cancel_url
+        current_user: The authenticated user
+        
+    Returns:
+        dict: Checkout session details with URL
+    """
+    try:
+        logger.info(f"Received checkout session request: {request}")
+        
+        # Check if authentication is required
+        if not request.skip_auth and not current_user:
+            logger.warning("Authentication required for checkout but no user provided")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required for checkout",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # Use a placeholder user ID for unauthenticated checkout if skip_auth is True
+        user_id = current_user.username if current_user else "anonymous-user"
+        
+        # Validate the plan ID
+        if request.plan_id not in billing.SUBSCRIPTION_PLANS:
+            logger.error(f"Invalid plan ID: {request.plan_id}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid plan ID: {request.plan_id}. Available plans: {list(billing.SUBSCRIPTION_PLANS.keys())}"
+            )
+        
+        # Create the checkout session
+        result = await BillingHandler.create_checkout_session(
+            user_id=user_id,
+            plan_id=request.plan_id,
+            price_id=request.price_id,
+            billing_cycle=request.billing_cycle,
+            success_url=request.success_url,
+            cancel_url=request.cancel_url
+        )
+        
+        logger.info(f"Checkout session created: {result}")
+        return billing.CheckoutSessionResponse(
+            url=result["url"],
+            session_id=result["session_id"]
+        )
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        logger.error(f"Error creating checkout session: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating checkout session: {str(e)}"
+        )
+
+@app.post("/billing/create-checkout-session-alt")
+async def create_checkout_session_alt(
+    request: billing.CheckoutSessionRequest
+):
+    """
+    Alternative endpoint for creating a Stripe checkout session without authentication.
+    This is useful for initial signups or when the user doesn't have an account yet.
+    
+    Args:
+        request: The checkout session request containing plan_id, price_id, billing_cycle, success_url, and cancel_url
+        
+    Returns:
+        dict: Checkout session details with URL
+    """
+    try:
+        logger.info(f"Received alternative checkout session request: {request}")
+        
+        # Use a placeholder user ID for unauthenticated checkout
+        user_id = "anonymous-user"
+        
+        # Validate the plan ID
+        if request.plan_id not in billing.SUBSCRIPTION_PLANS:
+            logger.error(f"Invalid plan ID: {request.plan_id}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid plan ID: {request.plan_id}. Available plans: {list(billing.SUBSCRIPTION_PLANS.keys())}"
+            )
+        
+        # Create the checkout session
+        result = await BillingHandler.create_checkout_session(
+            user_id=user_id,
+            plan_id=request.plan_id,
+            price_id=request.price_id,
+            billing_cycle=request.billing_cycle,
+            success_url=request.success_url,
+            cancel_url=request.cancel_url
+        )
+        
+        logger.info(f"Alternative checkout session created: {result}")
+        return billing.CheckoutSessionResponse(
+            url=result["url"],
+            session_id=result["session_id"]
+        )
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        logger.error(f"Error creating alternative checkout session: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating checkout session: {str(e)}"
+        )
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True) 
