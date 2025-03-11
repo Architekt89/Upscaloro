@@ -78,16 +78,21 @@ export default function TokenTest() {
         console.log('No token available for Authorization header');
       }
 
-      // Make the request to the checkout API
-      const response = await fetch('/api/checkout', {
+      // Use the provided backend URL or default to the environment variable
+      const apiUrl = backendUrl || process.env.NEXT_PUBLIC_API_URL || 'https://upscaloro.onrender.com';
+      console.log(`Using backend URL: ${apiUrl}`);
+
+      // Make the request directly to the backend API
+      const response = await fetch(`${apiUrl}/billing/create-checkout-session`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          planId: planId,
-          priceId: priceId,
-          billingCycle: billingCycle,
-          redirectTo: window.location.origin + '/token-test?success=true',
-          skipAuth: !tokenToUse // Skip auth if no token
+          plan_id: planId,
+          price_id: priceId || 'price_test',
+          billing_cycle: billingCycle,
+          success_url: window.location.origin + '/token-test?success=true',
+          cancel_url: window.location.origin + '/token-test?success=false',
+          skip_auth: !tokenToUse // Skip auth if no token
         }),
       });
 

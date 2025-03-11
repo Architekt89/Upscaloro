@@ -38,16 +38,21 @@ export default function CheckoutTest() {
         console.log('No auth token for checkout request (skipAuth:', skipAuth, ')');
       }
 
-      // Make the request to the checkout API
-      const response = await fetch('/api/checkout', {
+      // Use the provided backend URL or default to the environment variable
+      const apiUrl = backendUrl || process.env.NEXT_PUBLIC_API_URL || 'https://upscaloro.onrender.com';
+      console.log(`Using backend URL: ${apiUrl}`);
+
+      // Make the request directly to the backend API
+      const response = await fetch(`${apiUrl}/billing/create-checkout-session`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          planId: planId,
-          priceId: priceId,
-          billingCycle: billingCycle,
-          redirectTo: window.location.origin + '/checkout-test?success=true',
-          skipAuth: skipAuth
+          plan_id: planId,
+          price_id: priceId || 'price_test',
+          billing_cycle: billingCycle,
+          success_url: window.location.origin + '/checkout-test?success=true',
+          cancel_url: window.location.origin + '/checkout-test?success=false',
+          skip_auth: skipAuth
         }),
       });
 
