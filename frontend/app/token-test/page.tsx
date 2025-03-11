@@ -15,6 +15,7 @@ export default function TokenTest() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   
   const testBackendConnection = async () => {
     if (!token) {
@@ -50,65 +51,61 @@ export default function TokenTest() {
   };
   
   const createCheckoutSession = async () => {
-    if (!token && !skipAuth) {
-      setError('Please enter a token or enable "Skip Authentication"');
-      return;
-    }
-    
     setLoading(true);
-    setError(null);
-    setResult(null);
-    
+    setError('');
+    setResult('');
+
     try {
       // Prepare headers
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
-      
+
       // Determine which token to use
-      let authToken = token;
+      let tokenToUse = token;
       
-      // If no direct token provided and not skipping auth, use session token
-      if (!authToken && !skipAuth && session?.access_token) {
-        authToken = session.access_token;
-        console.log("Using session token for checkout request");
+      // If no token provided but we have a session, use that
+      if (!tokenToUse && session?.access_token) {
+        tokenToUse = session.access_token;
+        console.log('Using session token for checkout');
       }
       
-      // Add Authorization header if we have a token and not skipping auth
-      if (authToken && !skipAuth) {
-        headers['Authorization'] = `Bearer ${authToken}`;
-        console.log("Adding auth token to checkout request");
+      // Add Authorization header if we have a token
+      if (tokenToUse) {
+        headers['Authorization'] = `Bearer ${tokenToUse}`;
+        console.log('Adding token to Authorization header');
       } else {
-        console.log("No auth token available or auth skipped for checkout request");
+        console.log('No token available for Authorization header');
       }
-      
-      // Create a checkout session
-      const checkoutResponse = await fetch('/api/checkout', {
+
+      // Make the request to the checkout API
+      const response = await fetch('/api/checkout', {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          planId,
-          priceId,
-          billingCycle,
-          directToken: token || undefined,
-          customBackendUrl: backendUrl || undefined,
-          skipAuth
+          planId: planId,
+          priceId: priceId,
+          billingCycle: billingCycle,
+          redirectTo: window.location.origin + '/token-test?success=true',
+          skipAuth: !tokenToUse // Skip auth if no token
         }),
       });
-      
-      const checkoutData = await checkoutResponse.json();
-      setResult({
-        type: 'checkout',
-        data: checkoutData,
-      });
-      
-      // If successful, redirect to Stripe
-      if (checkoutData.url) {
-        window.location.href = checkoutData.url;
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create checkout session');
       }
-    } catch (err) {
-      console.error('Error creating checkout session:', err);
-      setError('Error creating checkout session: ' + String(err));
+
+      setResult(JSON.stringify(data, null, 2));
+      
+      // If there's a URL, offer to redirect
+      if (data.url) {
+        setCheckoutUrl(data.url);
+      }
+    } catch (error) {
+      console.error('Error creating checkout session:', error);
+      setError(error instanceof Error ? error.message : 'An unknown error occurred');
     } finally {
       setLoading(false);
     }
@@ -264,13 +261,32 @@ export default function TokenTest() {
       )}
       
       {result && (
-        <div className="mb-8 p-4 bg-green-50 border border-green-200 rounded-lg">
-          <h2 className="text-lg font-semibold text-green-700 mb-2">
-            {result.type === 'checkout' ? 'Checkout Result' : 'Test Result'}
+        <div className="mt-4">
+          <h2 className="text-lg font-semibold text-gray-700 mb-2">
+            Result:
           </h2>
           <pre className="text-sm font-mono whitespace-pre-wrap text-green-800 bg-green-50 p-2 rounded">
-            {JSON.stringify(result.data, null, 2)}
+            {result}
           </pre>
+          
+          {checkoutUrl && (
+            <div className="mt-4">
+              <h3 className="text-md font-semibold text-gray-700 mb-2">
+                Checkout URL:
+              </h3>
+              <div className="flex flex-col space-y-2">
+                <div className="text-sm font-mono break-all bg-blue-50 p-2 rounded">
+                  {checkoutUrl}
+                </div>
+                <button
+                  onClick={() => window.location.href = checkoutUrl}
+                  className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded"
+                >
+                  Proceed to Checkout
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

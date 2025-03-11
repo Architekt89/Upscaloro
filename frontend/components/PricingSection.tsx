@@ -199,7 +199,7 @@ export default function PricingSection() {
         console.log("No auth token available for checkout request");
       }
       
-      // Call the checkout API
+      // Call the checkout API with the correct request body format
       const response = await fetch("/api/checkout", {
         method: "POST",
         headers,

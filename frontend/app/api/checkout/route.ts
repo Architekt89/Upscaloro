@@ -1,209 +1,134 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession, getCurrentUser, supabase } from '@/utils/supabase';
 import axios from 'axios';
+import { getSession, getCurrentUser, supabase } from '@/utils/supabase';
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const json = await request.json();
-    const { planId, priceId, billingCycle, redirectTo, directToken, customBackendUrl, skipAuth } = json;
+    // Parse the request body
+    const body = await request.json();
+    const { planId, priceId, billingCycle, redirectTo, skipAuth = false } = body;
 
-    if (!planId) {
-      console.error('Missing plan ID in checkout request');
-      return NextResponse.json(
-        { error: 'Missing plan ID' },
-        { status: 400 }
-      );
-    }
-
-    // Extract token from Authorization header if present
+    // Get the token from the Authorization header if present
     const authHeader = request.headers.get('Authorization');
     let headerToken = null;
-    
     if (authHeader && authHeader.startsWith('Bearer ')) {
-      headerToken = authHeader.substring(7); // Remove 'Bearer ' prefix
-      console.log('Found token in Authorization header');
-    } else {
-      console.log('No Authorization header found or invalid format');
+      headerToken = authHeader.substring(7);
+      console.log(`Using token from Authorization header (length: ${headerToken.length})`);
     }
 
+    // Get token from direct request or session
+    const session = await getSession();
+    const directToken = body.token;
+    
     // Determine which token to use (priority: header > direct > session)
-    let token = headerToken || directToken;
-    let authSource = headerToken ? 'header' : (directToken ? 'direct' : 'none');
+    let token = headerToken || directToken || session?.access_token;
+    let tokenSource = headerToken ? 'header' : (directToken ? 'direct' : 'session');
     
-    // Skip authentication check if skipAuth is true
-    if (!skipAuth && !token) {
-      let session = await getSession();
-      const user = await getCurrentUser();
-
-      // If no direct token, check session
-      if (!token) {
-        if (!session && user) {
-          console.log('No session found but user exists, trying to refresh session');
-          // Try to refresh the session
-          const { data } = await supabase.auth.refreshSession();
-          session = data.session;
-          console.log('Session refresh result:', !!session);
-        }
-
-        if (!session) {
-          console.error('No session found for checkout');
-          return NextResponse.json(
-            { 
-              error: 'You need to be logged in. Please refresh the page and try again.',
-              hasSession: !!session,
-              hasUser: !!user,
-              hasAuthHeader: !!headerToken
-            },
-            { status: 401 }
-          );
-        }
-
-        token = session.access_token;
-        authSource = 'session';
-      }
-    } else if (skipAuth) {
-      console.log('Skipping authentication check for testing');
-      // Use a placeholder token for unauthenticated requests
-      if (!token) {
-        token = 'test-token';
-        authSource = 'none';
-      }
-    }
-
-    // Log token information for debugging
-    console.log('Using token from source:', authSource);
-    console.log('Token length:', token ? token.length : 0);
-
-    // Determine the backend URL to use
-    let backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://upscaloro.onrender.com';
-    
-    // Override with custom URL if provided
-    if (customBackendUrl && customBackendUrl.trim()) {
-      backendUrl = customBackendUrl.trim();
-      console.log('Using custom backend URL:', backendUrl);
-    }
-
-    // Normalize backend URL
-    if (backendUrl.endsWith('/')) {
-      backendUrl = backendUrl.slice(0, -1);
-    }
-
-    // List of endpoints to try (primary and alternatives)
-    const endpoints = [
-      // The correct endpoint based on user feedback
-      `${backendUrl}/api/create-checkout-session`,
-      // Fallback endpoints
-      `${backendUrl}/checkout`,
-      `${backendUrl}/api/checkout`,
-      `${backendUrl}/v1/checkout`,
-      `${backendUrl}/users/checkout`
-    ];
-
-    let checkoutResponse = null;
-    let successEndpoint = null;
-
-    // Try each endpoint until one works
-    for (const endpoint of endpoints) {
-      try {
-        console.log(`Attempting checkout with endpoint: ${endpoint}, auth source: ${authSource}`);
-        
-        // Prepare the request payload
-        const payload = {
-          plan_id: planId,
-          price_id: priceId,
-          billing_cycle: billingCycle,
-          redirect_to: redirectTo || `${process.env.NEXT_PUBLIC_URL || ''}/pricing?success=true`,
-          // Add a flag to indicate this is an unauthenticated checkout if skipAuth is true
-          unauthenticated: skipAuth || false
-        };
-        
-        // Prepare headers - only include Authorization if we have a real token
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json'
-        };
-        
-        if (token && authSource !== 'none') {
-          headers['Authorization'] = `Bearer ${token}`;
-          console.log('Adding Authorization header to backend request');
-        } else {
-          console.log('No token available for Authorization header');
-        }
-        
-        // Log the full request for debugging
-        console.log('Checkout request:', {
-          endpoint,
-          headers: { ...headers, Authorization: headers.Authorization ? 'Bearer [REDACTED]' : undefined },
-          payload
-        });
-        
-        checkoutResponse = await axios.post(
-          endpoint,
-          payload,
-          { headers }
-        );
-        
-        // If we got here, the endpoint worked
-        successEndpoint = endpoint;
-        console.log(`Checkout successful with endpoint: ${endpoint}`);
-        break;
-      } catch (error: unknown) {
-        const axiosError = error as { 
-          response?: { status?: number, data?: any },
-          message?: string 
-        };
-        
-        // If we get a 401 and we're not skipping auth, stop trying endpoints - we have an auth problem
-        if (axiosError.response?.status === 401 && !skipAuth) {
-          console.error('Authentication failed for checkout');
-          return NextResponse.json(
-            {
-              error: 'Authentication failed for checkout. Please log out and log in again.',
-              details: axiosError.response?.data || axiosError.message,
-              endpoint
-            },
-            { status: 401 }
-          );
-        }
-        
-        // If it's not a 404, it's a real error, not just "endpoint not found"
-        if (axiosError.response?.status !== 404) {
-          console.error(`Error with endpoint ${endpoint}:`, axiosError.response?.data || axiosError.message);
-        } else {
-          console.log(`Endpoint ${endpoint} not found, trying next...`);
-        }
-      }
-    }
-
-    // If we couldn't find a working endpoint
-    if (!checkoutResponse) {
-      console.error('All checkout endpoints failed');
+    // If skipAuth is true and no token is available, use a placeholder
+    if (skipAuth && !token) {
+      console.log('Skipping authentication for checkout');
+      token = 'unauthenticated-checkout';
+      tokenSource = 'skipped';
+    } else if (!token) {
+      console.log('No authentication token available');
       return NextResponse.json(
-        { 
-          error: 'Failed to create checkout session. No valid endpoint found.',
-          endpoints,
-          authSource,
-          skipAuth: !!skipAuth
-        },
-        { status: 500 }
+        { error: 'Authentication required' },
+        { status: 401 }
       );
     }
+    
+    console.log(`Using ${tokenSource} token for checkout (length: ${token.length})`);
 
-    console.log('Checkout successful, returning URL');
-    return NextResponse.json(checkoutResponse.data);
+    // Prepare the request payload in snake_case format as expected by the backend
+    const payload = {
+      plan_id: planId,
+      price_id: priceId,
+      billing_cycle: billingCycle,
+      success_url: redirectTo,
+      cancel_url: redirectTo?.replace('success=true', 'success=false') || `${request.nextUrl.origin}/pricing?success=false`
+    };
+
+    // Prepare headers
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    
+    // Add Authorization header if token is available
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+      console.log('Adding Authorization header to backend request');
+    } else {
+      console.log('No token available for Authorization header');
+    }
+
+    // Log the full checkout request details (redacting the actual token)
+    console.log('Checkout request:', {
+      endpoint: `${process.env.NEXT_PUBLIC_API_URL}/billing/create-checkout-session`,
+      headers: { ...headers, Authorization: headers.Authorization ? 'Bearer [REDACTED]' : undefined },
+      payload
+    });
+
+    // Make the request to the backend API
+    const response = await axios.post(
+      `${process.env.NEXT_PUBLIC_API_URL}/billing/create-checkout-session`,
+      payload,
+      { headers }
+    );
+
+    // Return the checkout URL
+    return NextResponse.json({ url: response.data.url });
   } catch (error: unknown) {
+    // Cast error to a type with response and message properties
     const axiosError = error as { 
-      response?: { status?: number, data?: any },
+      response?: { status?: number; data?: any }; 
       message?: string 
     };
     
-    console.error('Unhandled error in checkout API:', axiosError.response?.data || axiosError.message);
+    console.error('Checkout error:', axiosError);
     
+    // If the primary endpoint fails with a 401, try the alternative endpoint
+    if (axiosError.response?.status === 401) {
+      try {
+        console.log('Primary endpoint returned 401, trying alternative endpoint');
+        
+        // Parse the request body again
+        const body = await request.json();
+        const { planId, priceId, redirectTo } = body;
+        
+        // Make the request to the alternative endpoint
+        const altResponse = await axios.post(
+          `${process.env.NEXT_PUBLIC_API_URL}/billing/create-checkout-session-alt`,
+          {
+            plan_id: planId,
+            price_id: priceId,
+            success_url: redirectTo,
+            cancel_url: redirectTo?.replace('success=true', 'success=false') || `${request.nextUrl.origin}/pricing?success=false`
+          }
+        );
+        
+        // Return the checkout URL from the alternative endpoint
+        return NextResponse.json({ url: altResponse.data.url });
+      } catch (altError: unknown) {
+        // Cast alternative error to a type with response and message properties
+        const altAxiosError = altError as { 
+          response?: { status?: number; data?: any }; 
+          message?: string 
+        };
+        
+        console.error('Alternative endpoint error:', altAxiosError);
+        
+        // Return the error from the alternative endpoint
+        return NextResponse.json(
+          { error: altAxiosError.response?.data?.error || 'Failed to create checkout session' },
+          { status: altAxiosError.response?.status || 500 }
+        );
+      }
+    }
+    
+    // Return the error from the primary endpoint
     return NextResponse.json(
-      { 
-        error: 'Failed to create checkout session',
-        details: axiosError.response?.data || axiosError.message
-      },
-      { status: 500 }
+      { error: axiosError.response?.data?.error || 'Failed to create checkout session' },
+      { status: axiosError.response?.status || 500 }
     );
   }
 } 

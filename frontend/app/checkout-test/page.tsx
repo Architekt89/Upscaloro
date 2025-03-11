@@ -17,52 +17,55 @@ export default function CheckoutTest() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   
   const createCheckoutSession = async () => {
     setLoading(true);
-    setError(null);
-    setResult(null);
-    
+    setError('');
+    setResult('');
+
     try {
       // Prepare headers
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
-      
-      // Add Authorization header if not skipping auth and we have a session
+
+      // Add Authorization header if not skipping auth
       if (!skipAuth && session?.access_token) {
         headers['Authorization'] = `Bearer ${session.access_token}`;
-        console.log("Adding auth token to checkout request");
+        console.log('Adding auth token to checkout request');
       } else {
-        console.log("No auth token available or auth skipped for checkout request");
+        console.log('No auth token for checkout request (skipAuth:', skipAuth, ')');
       }
-      
-      // Create a checkout session
-      const checkoutResponse = await fetch('/api/checkout', {
+
+      // Make the request to the checkout API
+      const response = await fetch('/api/checkout', {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          planId,
-          priceId,
-          billingCycle,
-          customBackendUrl: backendUrl || undefined,
-          skipAuth
+          planId: planId,
+          priceId: priceId,
+          billingCycle: billingCycle,
+          redirectTo: window.location.origin + '/checkout-test?success=true',
+          skipAuth: skipAuth
         }),
       });
-      
-      const checkoutData = await checkoutResponse.json();
-      setResult({
-        type: 'checkout',
-        data: checkoutData,
-      });
-      
-      // If successful, redirect to Stripe
-      if (checkoutData.url) {
-        window.location.href = checkoutData.url;
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create checkout session');
       }
-    } catch (err) {
-      console.error('Error creating checkout session:', err);
-      setError('Error creating checkout session: ' + String(err));
+
+      setResult(JSON.stringify(data, null, 2));
+      
+      // If there's a URL, offer to redirect
+      if (data.url) {
+        setCheckoutUrl(data.url);
+      }
+    } catch (error) {
+      console.error('Error creating checkout session:', error);
+      setError(error instanceof Error ? error.message : 'An unknown error occurred');
     } finally {
       setLoading(false);
     }
@@ -206,13 +209,32 @@ export default function CheckoutTest() {
       )}
       
       {result && (
-        <div className="mb-8 p-4 bg-green-50 border border-green-200 rounded-lg">
-          <h2 className="text-lg font-semibold text-green-700 mb-2">
-            Checkout Result
+        <div className="mt-4">
+          <h2 className="text-lg font-semibold text-gray-700 mb-2">
+            Result:
           </h2>
           <pre className="text-sm font-mono whitespace-pre-wrap text-green-800 bg-green-50 p-2 rounded">
-            {JSON.stringify(result.data, null, 2)}
+            {result}
           </pre>
+          
+          {checkoutUrl && (
+            <div className="mt-4">
+              <h3 className="text-md font-semibold text-gray-700 mb-2">
+                Checkout URL:
+              </h3>
+              <div className="flex flex-col space-y-2">
+                <div className="text-sm font-mono break-all bg-blue-50 p-2 rounded">
+                  {checkoutUrl}
+                </div>
+                <button
+                  onClick={() => window.location.href = checkoutUrl}
+                  className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded"
+                >
+                  Proceed to Checkout
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
