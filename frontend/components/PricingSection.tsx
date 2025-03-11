@@ -3,6 +3,10 @@
 import { useState } from 'react';
 import { Check } from 'lucide-react';
 import Link from 'next/link';
+import { useAuth } from '@/context/AuthContext';
+import axios from 'axios';
+import toast from 'react-hot-toast';
+import { useRouter } from 'next/navigation';
 
 interface PricingFeature {
   text: string;
@@ -10,24 +14,24 @@ interface PricingFeature {
 }
 
 interface PricingPlan {
+  id: string;
   name: string;
   monthlyPrice: string;
   annualPrice?: string;
   description: string;
   buttonText: string;
-  buttonLink: string;
   highlighted: boolean;
   features: PricingFeature[];
 }
 
 const pricingPlans: PricingPlan[] = [
   {
+    id: "basic",
     name: "Basic Plan",
     monthlyPrice: "$0",
     annualPrice: "$0",
     description: "Perfect for individuals and small projects",
     buttonText: "Get Started",
-    buttonLink: "/auth/signup",
     highlighted: false,
     features: [
       { text: "10 images per month", included: true },
@@ -40,12 +44,12 @@ const pricingPlans: PricingPlan[] = [
     ]
   },
   {
+    id: "pro",
     name: "Professional Plan",
     monthlyPrice: "$15",
     annualPrice: "$144", // $15 * 12 months * 0.8 (20% discount) = $144
     description: "Ideal for professionals and businesses",
     buttonText: "Get Started",
-    buttonLink: "/auth/signup?plan=pro",
     highlighted: true,
     features: [
       { text: "Unlimited images", included: true },
@@ -58,12 +62,12 @@ const pricingPlans: PricingPlan[] = [
     ]
   },
   {
+    id: "enterprise",
     name: "Enterprise Plan",
     monthlyPrice: "$30",
     annualPrice: "$288", // $30 * 12 months * 0.8 (20% discount) = $288
     description: "For teams and large-scale projects",
     buttonText: "Contact Sales",
-    buttonLink: "/contact",
     highlighted: false,
     features: [
       { text: "Unlimited images", included: true },
@@ -79,9 +83,54 @@ const pricingPlans: PricingPlan[] = [
 
 export default function PricingSection() {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
+  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  const { user } = useAuth();
+  const router = useRouter();
 
   const handleBillingToggle = (cycle: 'monthly' | 'annual') => {
     setBillingCycle(cycle);
+  };
+
+  const handlePlanSelect = async (plan: PricingPlan) => {
+    if (plan.id === "basic") {
+      // Basic plan doesn't require payment
+      router.push("/auth/signup");
+      return;
+    }
+
+    if (plan.id === "enterprise") {
+      // Enterprise plan redirects to contact page
+      router.push("/contact");
+      return;
+    }
+
+    // If user is not logged in, redirect to signup
+    if (!user) {
+      router.push(`/auth/signup?plan=${plan.id}&billing=${billingCycle}`);
+      return;
+    }
+
+    // For paid plans, create a checkout session
+    try {
+      setLoadingPlan(plan.id);
+      
+      // Call the checkout API endpoint
+      const response = await axios.post('/api/checkout', {
+        planId: plan.id,
+      });
+      
+      // Redirect to Stripe checkout
+      if (response.data && response.data.url) {
+        window.location.href = response.data.url;
+      } else {
+        toast.error('Failed to create checkout session');
+      }
+    } catch (error) {
+      console.error('Error creating checkout session:', error);
+      toast.error('An error occurred while processing your request');
+    } finally {
+      setLoadingPlan(null);
+    }
   };
 
   return (
@@ -173,18 +222,30 @@ export default function PricingSection() {
               </ul>
               
               <div className="mt-auto">
-                <Link
-                  href={`${plan.buttonLink}${plan.buttonLink.includes('?') ? '&' : '?'}billing=${billingCycle}`}
+                <button
+                  onClick={() => handlePlanSelect(plan)}
+                  disabled={loadingPlan === plan.id}
                   className={`
                     block w-full py-3 px-4 rounded-full text-center text-sm font-semibold transition-all duration-300
                     ${plan.highlighted 
                       ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-[0_0_15px_rgba(249,115,22,0.3)] hover:shadow-[0_0_20px_rgba(249,115,22,0.5)] hover:from-orange-400 hover:to-orange-600 hover:scale-[1.03]' 
                       : 'border border-gray-400 text-white hover:bg-orange-500 hover:border-orange-500 hover:text-white hover:scale-[1.03]'
                     }
+                    ${loadingPlan === plan.id ? 'opacity-75 cursor-not-allowed' : ''}
                   `}
                 >
-                  {plan.buttonText}
-                </Link>
+                  {loadingPlan === plan.id ? (
+                    <span className="flex items-center justify-center">
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Processing...
+                    </span>
+                  ) : (
+                    plan.buttonText
+                  )}
+                </button>
               </div>
             </div>
           ))}

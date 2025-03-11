@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, status, Form, Query, Body
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, status, Form, Query, Body, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from typing import Optional, List, Dict, Any
@@ -14,12 +14,14 @@ try:
     from .auth import get_current_active_user, User
     from .database import DatabaseHandler
     from .billing import BillingHandler
+    from .payment import PaymentHandler
 except ImportError as e:
     # Fall back to absolute imports
     from backend.image_processor import ImageProcessor, VALID_MODES, VALID_SCALE_FACTORS, VALID_OUTPUT_FORMATS, MODE_TO_MODEL
     from backend.auth import get_current_active_user, User
     from backend.database import DatabaseHandler
     from backend.billing import BillingHandler
+    from backend.payment import PaymentHandler
 
 # Load environment variables
 load_dotenv()
@@ -541,6 +543,75 @@ async def get_available_plans():
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error getting available plans: {str(e)}"
+        )
+
+@app.post("/api/webhook")
+async def stripe_webhook(request: Request):
+    """
+    Handle Stripe webhook events.
+    """
+    try:
+        # Get the webhook signature from the header
+        stripe_signature = request.headers.get("stripe-signature")
+        if not stripe_signature:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Missing Stripe signature"
+            )
+        
+        # Read the request body
+        payload = await request.body()
+        
+        logger.info(f"Received webhook event with signature: {stripe_signature[:10]}...")
+        
+        # Process the webhook event
+        result = await PaymentHandler.handle_webhook(payload, stripe_signature)
+        
+        logger.info(f"Webhook processed: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Error processing webhook: {str(e)}")
+        # Return a 200 response to prevent Stripe from retrying the webhook
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"status": "error", "message": str(e)}
+        )
+
+@app.post("/api/checkout")
+async def create_checkout_session(
+    plan_id: str = Body(..., embed=True),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Create a Stripe checkout session for the user.
+    
+    Args:
+        plan_id: The ID of the subscription plan to checkout
+        
+    Returns:
+        dict: Checkout session details
+    """
+    try:
+        logger.info(f"Creating checkout session for user: {current_user.username} for plan: {plan_id}")
+        
+        # Determine the domain for success/cancel URLs
+        domain = os.getenv("FRONTEND_URL", "http://localhost:3000")
+        
+        # Create the checkout session
+        result = await PaymentHandler.create_checkout_session(
+            user_id=current_user.username,
+            plan_id=plan_id,
+            success_url=f"{domain}/dashboard/billing?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{domain}/dashboard/billing?canceled=true"
+        )
+        
+        logger.info(f"Checkout session created: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Error creating checkout session: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating checkout session: {str(e)}"
         )
 
 if __name__ == "__main__":
