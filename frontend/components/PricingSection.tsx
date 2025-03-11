@@ -87,23 +87,72 @@ export default function PricingSection() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [sessionChecked, setSessionChecked] = useState(false);
+  const [userPlan, setUserPlan] = useState<string>("free"); // Default to free plan
 
   // Check session status on component mount
   useEffect(() => {
     if (!authLoading) {
       setSessionChecked(true);
       console.log("Auth state loaded, user:", user ? "authenticated" : "not authenticated");
+      
+      // If user is logged in, fetch their current plan
+      if (user) {
+        fetchUserPlan();
+      }
     }
   }, [authLoading, user]);
+
+  // Fetch the user's current plan
+  const fetchUserPlan = async () => {
+    try {
+      // You can replace this with an actual API call to get the user's plan
+      // For now, we'll assume they're on the free plan if logged in
+      setUserPlan("free");
+      
+      // Example of how you might fetch the actual plan:
+      // const response = await axios.get('/api/user/plan');
+      // setUserPlan(response.data.plan);
+    } catch (error) {
+      console.error("Error fetching user plan:", error);
+      // Default to free plan if there's an error
+      setUserPlan("free");
+    }
+  };
 
   const handleBillingToggle = (cycle: 'monthly' | 'annual') => {
     setBillingCycle(cycle);
   };
 
+  // Get the appropriate button text based on the plan and user's current plan
+  const getButtonText = (plan: PricingPlan) => {
+    if (!user) return plan.buttonText;
+    
+    if (plan.id === userPlan) {
+      return "Current Plan";
+    } else if (plan.id === "basic" && userPlan !== "basic") {
+      return "Downgrade"; // If they're on a higher plan
+    } else if (plan.id === "enterprise") {
+      return "Contact Sales";
+    } else {
+      return "Upgrade"; // For higher plans than current
+    }
+  };
+
   const handlePlanSelect = async (plan: PricingPlan) => {
+    // If this is the user's current plan, do nothing
+    if (user && plan.id === userPlan) {
+      toast.success("You are already on this plan");
+      return;
+    }
+
     if (plan.id === "basic") {
       // Basic plan doesn't require payment
-      router.push("/auth/signup");
+      if (!user) {
+        router.push("/auth/signup");
+      } else {
+        // If user is logged in and wants to downgrade to basic
+        toast.success("Please contact support to downgrade your plan");
+      }
       return;
     }
 
@@ -223,8 +272,16 @@ export default function PricingSection() {
                 relative rounded-2xl p-6 md:p-8 bg-gray-900/60 backdrop-blur-sm border border-gray-800 
                 shadow-xl transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl
                 ${plan.highlighted ? 'md:scale-105 md:-translate-y-2 z-10' : 'z-0'}
+                ${user && plan.id === userPlan ? 'ring-2 ring-orange-500' : ''}
               `}
             >
+              {/* Current plan badge */}
+              {user && plan.id === userPlan && (
+                <div className="absolute top-0 right-0 -mt-2 -mr-2 bg-orange-500 text-white text-xs px-2 py-1 rounded-full">
+                  Current Plan
+                </div>
+              )}
+              
               {/* Highlight border for Professional plan */}
               {plan.highlighted && (
                 <div className="absolute inset-0 rounded-2xl border-2 border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.5)] -z-10"></div>
@@ -262,14 +319,14 @@ export default function PricingSection() {
               <div className="mt-auto">
                 <button
                   onClick={() => handlePlanSelect(plan)}
-                  disabled={loadingPlan === plan.id || !sessionChecked}
+                  disabled={loadingPlan === plan.id || !sessionChecked || (!!user && plan.id === userPlan)}
                   className={`
                     block w-full py-3 px-4 rounded-full text-center text-sm font-semibold transition-all duration-300
                     ${plan.highlighted 
                       ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-[0_0_15px_rgba(249,115,22,0.3)] hover:shadow-[0_0_20px_rgba(249,115,22,0.5)] hover:from-orange-400 hover:to-orange-600 hover:scale-[1.03]' 
                       : 'border border-gray-400 text-white hover:bg-orange-500 hover:border-orange-500 hover:text-white hover:scale-[1.03]'
                     }
-                    ${(loadingPlan === plan.id || !sessionChecked) ? 'opacity-75 cursor-not-allowed' : ''}
+                    ${(loadingPlan === plan.id || !sessionChecked || (!!user && plan.id === userPlan)) ? 'opacity-75 cursor-not-allowed' : ''}
                   `}
                 >
                   {loadingPlan === plan.id ? (
@@ -289,7 +346,7 @@ export default function PricingSection() {
                       Loading...
                     </span>
                   ) : (
-                    plan.buttonText
+                    getButtonText(plan)
                   )}
                 </button>
               </div>

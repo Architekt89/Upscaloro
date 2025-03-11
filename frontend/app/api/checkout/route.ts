@@ -8,17 +8,21 @@ export async function POST(request: NextRequest) {
     const session = await getSession();
     const user = await getCurrentUser();
     
-    // Log authentication details (for debugging)
-    console.log('Session status:', !!session);
-    console.log('User status:', !!user);
+    console.log('Session status:', !!session, 'User status:', !!user);
     
-    if (!session || !user) {
+    // Check proper authentication based on either session or user
+    if (!session && !user) {
       console.log('Authentication failed: No session or user found');
       return NextResponse.json({ error: 'Unauthorized: No session found' }, { status: 401 });
     }
     
-    if (!session.access_token) {
-      console.log('Authentication failed: No access token in session');
+    // Get the token either from session or user JWT
+    let authToken;
+    if (session?.access_token) {
+      authToken = session.access_token;
+      console.log('Using session access token');
+    } else {
+      console.log('No access token in session');
       return NextResponse.json({ error: 'Unauthorized: No access token' }, { status: 401 });
     }
 
@@ -42,7 +46,7 @@ export async function POST(request: NextRequest) {
       { plan_id: planId },
       {
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json',
         },
       }
@@ -60,7 +64,6 @@ export async function POST(request: NextRequest) {
       console.error('Response status:', error.response?.status);
       console.error('Response data:', error.response?.data);
       console.error('Request URL:', error.config?.url);
-      console.error('Request headers:', error.config?.headers);
     }
     
     // Return an error response
