@@ -5,7 +5,7 @@ import axios from 'axios';
 export async function POST(request: Request) {
   try {
     const json = await request.json();
-    const { planId, priceId, billingCycle, redirectTo, directToken, customBackendUrl } = json;
+    const { planId, priceId, billingCycle, redirectTo, directToken, customBackendUrl, skipAuth } = json;
 
     if (!planId) {
       console.error('Missing plan ID in checkout request');
@@ -15,37 +15,46 @@ export async function POST(request: Request) {
       );
     }
 
-    let session = await getSession();
-    const user = await getCurrentUser();
-
-    // Try to use direct token if provided (for debugging)
     let token = directToken;
     let authSource = 'direct';
+    
+    // Skip authentication check if skipAuth is true
+    if (!skipAuth) {
+      let session = await getSession();
+      const user = await getCurrentUser();
 
-    // If no direct token, check session
-    if (!token) {
-      if (!session && user) {
-        console.log('No session found but user exists, trying to refresh session');
-        // Try to refresh the session
-        const { data } = await supabase.auth.refreshSession();
-        session = data.session;
-        console.log('Session refresh result:', !!session);
+      // If no direct token, check session
+      if (!token) {
+        if (!session && user) {
+          console.log('No session found but user exists, trying to refresh session');
+          // Try to refresh the session
+          const { data } = await supabase.auth.refreshSession();
+          session = data.session;
+          console.log('Session refresh result:', !!session);
+        }
+
+        if (!session) {
+          console.error('No session found for checkout');
+          return NextResponse.json(
+            { 
+              error: 'You need to be logged in. Please refresh the page and try again.',
+              hasSession: !!session,
+              hasUser: !!user,
+            },
+            { status: 401 }
+          );
+        }
+
+        token = session.access_token;
+        authSource = 'session';
       }
-
-      if (!session) {
-        console.error('No session found for checkout');
-        return NextResponse.json(
-          { 
-            error: 'You need to be logged in. Please refresh the page and try again.',
-            hasSession: !!session,
-            hasUser: !!user,
-          },
-          { status: 401 }
-        );
+    } else {
+      console.log('Skipping authentication check for testing');
+      // Use a placeholder token for unauthenticated requests
+      if (!token) {
+        token = 'test-token';
+        authSource = 'none';
       }
-
-      token = session.access_token;
-      authSource = 'session';
     }
 
     // Determine the backend URL to use
@@ -81,19 +90,29 @@ export async function POST(request: Request) {
       try {
         console.log(`Attempting checkout with endpoint: ${endpoint}, auth source: ${authSource}`);
         
+        // Prepare the request payload
+        const payload = {
+          plan_id: planId,
+          price_id: priceId,
+          billing_cycle: billingCycle,
+          redirect_to: redirectTo || `${process.env.NEXT_PUBLIC_URL || ''}/pricing?success=true`,
+          // Add a flag to indicate this is an unauthenticated checkout if skipAuth is true
+          unauthenticated: skipAuth || false
+        };
+        
+        // Prepare headers - only include Authorization if we have a real token
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json'
+        };
+        
+        if (token && authSource !== 'none') {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+        
         checkoutResponse = await axios.post(
           endpoint,
-          {
-            plan_id: planId,
-            price_id: priceId,
-            billing_cycle: billingCycle,
-            redirect_to: redirectTo || `${process.env.NEXT_PUBLIC_URL || ''}/pricing?success=true`
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${token}`
-            }
-          }
+          payload,
+          { headers }
         );
         
         // If we got here, the endpoint worked
@@ -106,8 +125,8 @@ export async function POST(request: Request) {
           message?: string 
         };
         
-        // If we get a 401, stop trying endpoints - we have an auth problem
-        if (axiosError.response?.status === 401) {
+        // If we get a 401 and we're not skipping auth, stop trying endpoints - we have an auth problem
+        if (axiosError.response?.status === 401 && !skipAuth) {
           console.error('Authentication failed for checkout');
           return NextResponse.json(
             {
@@ -135,7 +154,8 @@ export async function POST(request: Request) {
         { 
           error: 'Failed to create checkout session. No valid endpoint found.',
           endpoints,
-          authSource 
+          authSource,
+          skipAuth: !!skipAuth
         },
         { status: 500 }
       );

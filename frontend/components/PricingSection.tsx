@@ -102,6 +102,7 @@ export default function PricingSection() {
   const { user, loading: authLoading, refreshUser, session } = useAuth();
   const [sessionChecked, setSessionChecked] = useState(false);
   const [userPlan, setUserPlan] = useState<string>("free"); // Default to free plan
+  const [allowUnauthCheckout, setAllowUnauthCheckout] = useState(false);
 
   // Check session status on component mount
   useEffect(() => {
@@ -159,14 +160,14 @@ export default function PricingSection() {
   };
 
   const handlePlanSelect = async (plan: PricingPlan) => {
-    if (!user) {
-      // If user is not logged in, redirect to sign up
+    // If user is not logged in and unauthenticated checkout is not allowed, redirect to sign up
+    if (!user && !allowUnauthCheckout) {
       router.push('/auth/signin');
       return;
     }
 
     // If the user already has this plan, show a message
-    if (plan.id === userPlan) {
+    if (user && plan.id === userPlan) {
       toast.success("You're already on this plan!");
       return;
     }
@@ -180,7 +181,7 @@ export default function PricingSection() {
     }
 
     // Special case for downgrading to basic - this might require contacting support
-    if (plan.id === "basic" && userPlan !== "basic") {
+    if (user && plan.id === "basic" && userPlan !== "basic") {
       toast.success("Please contact our support team to downgrade your plan");
       return;
     }
@@ -189,7 +190,7 @@ export default function PricingSection() {
       setLoadingPlan(plan.id);
       
       // Determine billing cycle and price ID based on period
-      const cycleType = billingCycle === 'annual' ? 'yearly' : 'monthly'; // Renamed variable to avoid conflict
+      const cycleType = billingCycle === 'annual' ? 'yearly' : 'monthly';
       // Use the appropriate property based on billing cycle
       const priceId = cycleType === 'yearly' ? plan.annualPriceId : plan.monthlyPriceId;
       
@@ -202,9 +203,11 @@ export default function PricingSection() {
         body: JSON.stringify({
           planId: plan.id,
           priceId,
-          billingCycle: cycleType, // Use the renamed variable
+          billingCycle: cycleType,
           // Redirect back to pricing page with success parameter
-          redirectTo: `${window.location.origin}/pricing?success=true&plan=${plan.id}`
+          redirectTo: `${window.location.origin}/pricing?success=true&plan=${plan.id}`,
+          // Skip authentication if user is not logged in but unauthenticated checkout is allowed
+          skipAuth: !user && allowUnauthCheckout
         }),
       });
 
@@ -288,11 +291,59 @@ export default function PricingSection() {
     </div>
   );
 
+  // Add a toggle for unauthenticated checkout in development mode
+  const DevControls = () => {
+    // Only show in development mode
+    if (process.env.NODE_ENV !== 'development') return null;
+    
+    return (
+      <div className="mb-8 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+        <h2 className="text-lg font-semibold text-yellow-700 mb-2">Development Controls</h2>
+        <div className="flex items-center mb-2">
+          <input
+            type="checkbox"
+            id="allowUnauthCheckout"
+            checked={allowUnauthCheckout}
+            onChange={(e) => setAllowUnauthCheckout(e.target.checked)}
+            className="mr-2 h-4 w-4"
+          />
+          <label htmlFor="allowUnauthCheckout" className="text-sm text-yellow-700">
+            Allow checkout without authentication (Testing only)
+          </label>
+        </div>
+        <div className="mt-3 flex flex-col space-y-2">
+          <Link 
+            href="/checkout-test" 
+            className="text-sm text-blue-600 hover:text-blue-800 underline"
+          >
+            Go to Checkout Test Page →
+          </Link>
+          <Link 
+            href="/token-test" 
+            className="text-sm text-blue-600 hover:text-blue-800 underline"
+          >
+            Go to Token Test Page →
+          </Link>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
+      {/* Show dev controls at the top if in development mode */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="container mx-auto px-4 pt-4">
+          <DevControls />
+        </div>
+      )}
+      
+      {/* Show login prompt when needed */}
+      {showLoginPrompt && <LoginPrompt />}
+      
       <section className="relative bg-[#000000] overflow-hidden py-16 md:py-24">
         {/* Content container */}
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="text-center mb-12 md:mb-16">
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-tight mb-4">
               <span className="bg-gradient-to-r from-orange-500 via-orange-400 to-white bg-clip-text text-transparent">
@@ -424,9 +475,6 @@ export default function PricingSection() {
           </div>
         </div>
       </section>
-      
-      {/* Add login prompt when needed */}
-      {showLoginPrompt && <LoginPrompt />}
     </>
   );
 } 

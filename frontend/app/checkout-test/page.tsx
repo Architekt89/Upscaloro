@@ -1,64 +1,27 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 import Link from 'next/link';
 
-export default function TokenTest() {
-  const [token, setToken] = useState('');
+export default function CheckoutTest() {
+  const router = useRouter();
   const [planId, setPlanId] = useState('pro');
   const [priceId, setPriceId] = useState('price_1R1UVUBQ1z6vW0DwWfGtyIW0');
   const [billingCycle, setBillingCycle] = useState('monthly');
   const [backendUrl, setBackendUrl] = useState('https://upscaloro.onrender.com');
-  const [skipAuth, setSkipAuth] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   
-  const testBackendConnection = async () => {
-    if (!token) {
-      setError('Please enter a token');
-      return;
-    }
-    
-    setLoading(true);
-    setError(null);
-    setResult(null);
-    
-    try {
-      // Test the token with a debug endpoint
-      const debugResponse = await fetch('/api/checkout-debug', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ clientToken: token }),
-      });
-      
-      const debugData = await debugResponse.json();
-      setResult({
-        type: 'debug',
-        data: debugData,
-      });
-    } catch (err) {
-      console.error('Error testing connection:', err);
-      setError('Error testing connection: ' + String(err));
-    } finally {
-      setLoading(false);
-    }
-  };
-  
   const createCheckoutSession = async () => {
-    if (!token && !skipAuth) {
-      setError('Please enter a token or enable "Skip Authentication"');
-      return;
-    }
-    
     setLoading(true);
     setError(null);
     setResult(null);
     
     try {
-      // Create a checkout session using the token
+      // Create a checkout session without authentication
       const checkoutResponse = await fetch('/api/checkout', {
         method: 'POST',
         headers: {
@@ -68,9 +31,8 @@ export default function TokenTest() {
           planId,
           priceId,
           billingCycle,
-          directToken: token || undefined,
           customBackendUrl: backendUrl || undefined,
-          skipAuth
+          skipAuth: true
         }),
       });
       
@@ -94,11 +56,17 @@ export default function TokenTest() {
   
   return (
     <div className="container max-w-4xl mx-auto py-8 px-4">
-      <h1 className="text-3xl font-bold mb-6">Manual Token Test</h1>
+      <h1 className="text-3xl font-bold mb-6">Checkout Test Page</h1>
       <p className="mb-8 text-gray-600">
-        This page allows you to manually test authentication with a token.
-        Paste your authentication token from the auth-test page or use the "Skip Authentication" option.
+        This page allows you to test the checkout process without authentication.
+        Use this to verify if the checkout API is working correctly.
       </p>
+      
+      <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 mb-8">
+        <p className="text-yellow-800 font-medium">
+          ⚠️ This page is for testing purposes only. It bypasses authentication checks.
+        </p>
+      </div>
       
       <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 mb-8">
         <p className="text-blue-800 font-medium mb-2">
@@ -106,10 +74,10 @@ export default function TokenTest() {
         </p>
         <div className="flex flex-col space-y-2">
           <Link 
-            href="/checkout-test" 
+            href="/token-test" 
             className="text-sm text-blue-600 hover:text-blue-800 underline"
           >
-            Go to Checkout Test Page (No Auth Required) →
+            Go to Token Test Page (For Testing with Auth Token) →
           </Link>
           <Link 
             href="/pricing" 
@@ -121,32 +89,6 @@ export default function TokenTest() {
       </div>
       
       <div className="bg-gray-50 p-6 rounded-lg border mb-8">
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Authentication Token
-          </label>
-          <textarea
-            className="w-full p-2 border rounded font-mono text-sm h-24"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            placeholder="Paste your authentication token here..."
-            disabled={skipAuth}
-          />
-          
-          <div className="mt-2 flex items-center">
-            <input
-              type="checkbox"
-              id="skipAuth"
-              checked={skipAuth}
-              onChange={(e) => setSkipAuth(e.target.checked)}
-              className="mr-2 h-4 w-4"
-            />
-            <label htmlFor="skipAuth" className="text-sm text-gray-700">
-              Skip Authentication (Test checkout without a token)
-            </label>
-          </div>
-        </div>
-        
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Backend URL
@@ -211,23 +153,16 @@ export default function TokenTest() {
           <button
             className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 flex-1"
             onClick={createCheckoutSession}
-            disabled={loading || (!token && !skipAuth)}
+            disabled={loading}
           >
-            {loading ? 'Loading...' : 'Create Checkout Session'}
+            {loading ? 'Loading...' : 'Create Checkout Session (No Auth)'}
           </button>
           
           <button
             className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50"
-            onClick={() => {
-              setToken('');
-              setBackendUrl('https://upscaloro.onrender.com');
-              setSkipAuth(false);
-              setResult(null);
-              setError(null);
-            }}
-            disabled={loading}
+            onClick={() => router.push('/pricing')}
           >
-            Clear
+            Back to Pricing
           </button>
         </div>
       </div>
@@ -244,7 +179,7 @@ export default function TokenTest() {
       {result && (
         <div className="mb-8 p-4 bg-green-50 border border-green-200 rounded-lg">
           <h2 className="text-lg font-semibold text-green-700 mb-2">
-            {result.type === 'checkout' ? 'Checkout Result' : 'Test Result'}
+            Checkout Result
           </h2>
           <pre className="text-sm font-mono whitespace-pre-wrap text-green-800 bg-green-50 p-2 rounded">
             {JSON.stringify(result.data, null, 2)}
