@@ -36,18 +36,39 @@ export async function POST(request: NextRequest) {
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
     const apiUrl = process.env.NEXT_PUBLIC_API_URL;
     
+    // Try different endpoint paths that might exist on the backend
     let testEndpoint = '';
+    let endpointPaths = [];
     
     if (backendUrl) {
-      testEndpoint = `${backendUrl}/user/me`;
+      // Try various potential endpoints in order of likelihood
+      endpointPaths = [
+        `${backendUrl}/checkout/session-auth-test`,
+        `${backendUrl}/user/me`,
+        `${backendUrl}/api/auth/user`,
+        // Add the actual checkout endpoint as a fallback
+        `${backendUrl}/checkout/create-checkout-session`
+      ];
+      console.log(`Using NEXT_PUBLIC_BACKEND_URL: ${backendUrl}`);
     } else if (apiUrl) {
-      testEndpoint = `${apiUrl}/api/user`;
+      // Try various potential endpoints for legacy backend
+      endpointPaths = [
+        `${apiUrl}/auth/user`,
+        `${apiUrl}/api/auth/verify`,
+        `${apiUrl}/api/user/me`,
+        // Add the actual checkout endpoint as a fallback
+        `${apiUrl}/api/checkout`
+      ];
+      console.log(`Using NEXT_PUBLIC_API_URL: ${apiUrl}`);
     } else {
       return NextResponse.json({ 
         error: "No backend URL configured",
         envVars: Object.keys(process.env).filter(key => key.startsWith('NEXT_PUBLIC_'))
       }, { status: 500 });
     }
+    
+    // Choose the first endpoint to try
+    testEndpoint = endpointPaths[0];
     
     // Debug information about current state
     const debugState = {
@@ -59,33 +80,73 @@ export async function POST(request: NextRequest) {
       tokenLength: tokenToUse?.length || 0,
       backendUrl,
       apiUrl,
-      testEndpoint
+      testEndpoint,
+      allEndpointsToTry: endpointPaths
     };
     
     // If we have a token, test calling the backend API
     if (tokenToUse) {
-      try {
-        const response = await axios.get(testEndpoint, {
-          headers: {
-            "Authorization": `Bearer ${tokenToUse}`,
-            "Content-Type": "application/json"
+      // Try each endpoint until we find one that doesn't 404
+      let successfulResponse = null;
+      let lastError = null;
+      
+      for (const endpoint of endpointPaths) {
+        try {
+          console.log(`Testing endpoint: ${endpoint}`);
+          
+          const response = await axios.get(endpoint, {
+            headers: {
+              "Authorization": `Bearer ${tokenToUse}`,
+              "Content-Type": "application/json"
+            }
+          });
+          
+          // If we get a successful response, use this endpoint
+          successfulResponse = {
+            status: response.status,
+            data: response.data,
+            endpoint
+          };
+          break;
+        } catch (apiError: any) {
+          console.error(`Error calling ${endpoint}:`, apiError.message);
+          
+          // If it's not a 404, we've found an endpoint that exists but has other issues
+          if (apiError.response?.status !== 404) {
+            lastError = {
+              status: apiError.response?.status,
+              data: apiError.response?.data,
+              endpoint
+            };
+            break;
           }
-        });
-        
+          
+          // Store the last error to return if all endpoints fail
+          lastError = {
+            status: apiError.response?.status,
+            data: apiError.response?.data,
+            endpoint
+          };
+        }
+      }
+      
+      if (successfulResponse) {
+        // We found a working endpoint
         return NextResponse.json({
           success: true,
           message: "Successfully authenticated with backend",
-          backendResponse: response.data,
+          backendResponse: successfulResponse.data,
+          endpoint: successfulResponse.endpoint,
           debug: debugState
         });
-      } catch (apiError: any) {
-        console.error("Error calling backend:", apiError);
-        
+      } else {
+        // All endpoints failed
         return NextResponse.json({
           success: false,
           error: "Backend API call failed",
-          status: apiError.response?.status,
-          data: apiError.response?.data,
+          status: lastError?.status,
+          data: lastError?.data,
+          endpoint: lastError?.endpoint,
           debug: debugState
         }, { status: 500 });
       }

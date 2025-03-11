@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Check } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
@@ -115,177 +115,137 @@ export default function PricingSection() {
     }
   }, [authLoading, user]);
 
-  // Fetch the user's current plan
-  const fetchUserPlan = async () => {
-    try {
-      // You can replace this with an actual API call to get the user's plan
-      // For now, we'll assume they're on the free plan if logged in
+  // This function will be called when the component mounts and whenever user changes
+  const fetchUserPlan = useCallback(async () => {
+    if (!user) {
       setUserPlan("free");
+      setLoadingPlan(null);
+      return;
+    }
+
+    try {
+      // TODO: Replace with actual API call to get user's plan
+      // Example: const response = await fetch('/api/user/plan');
+      // For now, simulate an API call with a delay
+      setLoadingPlan("fetching");
+      await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Example of how you might fetch the actual plan:
-      // const response = await axios.get('/api/user/plan');
-      // setUserPlan(response.data.plan);
+      // Hardcoded to "free" for now, but this would be replaced with actual API data
+      setUserPlan("free");
     } catch (error) {
       console.error("Error fetching user plan:", error);
-      // Default to free plan if there's an error
+      // Default to free if there's an error
       setUserPlan("free");
+      toast.error("Failed to load your current plan");
+    } finally {
+      setLoadingPlan(null);
     }
-  };
+  }, [user]);
 
   const handleBillingToggle = (cycle: 'monthly' | 'annual') => {
     setBillingCycle(cycle);
   };
 
-  // Get the appropriate button text based on the plan and user's current plan
-  const getButtonText = (plan: PricingPlan) => {
-    if (!user) return plan.buttonText;
-    
-    if (plan.id === userPlan) {
-      return "Current Plan";
-    } else if (plan.id === "basic" && userPlan !== "basic") {
-      return "Downgrade"; // If they're on a higher plan
-    } else if (plan.id === "enterprise") {
-      return "Contact Sales";
-    } else {
-      return "Upgrade"; // For higher plans than current
-    }
-  };
-
   const handlePlanSelect = async (plan: PricingPlan) => {
-    // If this is the user's current plan, do nothing
-    if (user && plan.id === userPlan) {
-      toast.success("You are already on this plan");
-      return;
-    }
-
-    if (plan.id === "basic") {
-      // Basic plan doesn't require payment
-      if (!user) {
-        router.push("/auth/signup");
-      } else {
-        // If user is logged in and wants to downgrade to basic
-        toast.success("Please contact support to downgrade your plan");
-      }
-      return;
-    }
-
-    // If user is not logged in, redirect to signup
     if (!user) {
-      router.push(`/auth/signup?plan=${plan.id}&billing=${billingCycle}`);
+      // If user is not logged in, redirect to sign up
+      router.push('/auth/signup');
       return;
     }
 
-    // For paid plans, create a checkout session
+    // If the user already has this plan, show a message
+    if (plan.id === userPlan) {
+      toast.success("You're already on this plan!");
+      return;
+    }
+
+    // Special case for enterprise plan
+    if (plan.id === "enterprise") {
+      // Enterprise plan requires contacting sales
+      toast.success("Please contact our sales team to discuss enterprise options");
+      // Could open chat, redirect to contact page, etc.
+      return;
+    }
+
+    // Special case for downgrading to basic - this might require contacting support
+    if (plan.id === "basic" && userPlan !== "basic") {
+      toast.success("Please contact our support team to downgrade your plan");
+      return;
+    }
+
     try {
       setLoadingPlan(plan.id);
       
-      console.log('Creating checkout session for plan:', plan.id);
+      // Determine billing cycle and price ID based on period
+      const cycleType = billingCycle === 'annual' ? 'yearly' : 'monthly'; // Renamed variable to avoid conflict
+      // Use the appropriate property based on billing cycle
+      const priceId = cycleType === 'yearly' ? plan.annualPriceId : plan.monthlyPriceId;
       
-      // First, test our authentication with the backend
-      try {
-        // 1. Check if we have a session token in memory
-        const accessToken = session?.access_token;
+      // Call the checkout API
+      const response = await fetch("/api/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          planId: plan.id,
+          priceId,
+          billingCycle: cycleType, // Use the renamed variable
+          // Redirect back to pricing page with success parameter
+          redirectTo: `${window.location.origin}/pricing?success=true&plan=${plan.id}`
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        console.error("Checkout error:", data);
         
-        if (!accessToken) {
-          console.error("No access token in session");
-          // Try to refresh
-          await refreshUser();
-          
-          if (!session?.access_token) {
-            console.error("Still no access token after refresh");
-            setShowLoginPrompt(true);
-            return;
-          }
-        }
-        
-        // 2. Test API communication with token
-        const debugResponse = await axios.post('/api/checkout-debug', {
-          clientToken: accessToken
-        });
-        
-        console.log('Debug API response:', debugResponse.data);
-        
-        if (!debugResponse.data.success) {
-          console.error('Failed to communicate with backend:', debugResponse.data);
-          toast.error('Could not connect to the payment service. Please try again later.');
+        // If not authorized, prompt user to log in again
+        if (response.status === 401) {
+          toast.error(data.error || "Authentication failed. Please log in again.");
+          setTimeout(() => {
+            refreshUser();
+          }, 2000);
           return;
         }
-      } catch (authTestError) {
-        console.error('Auth test failed:', authTestError);
-        setShowLoginPrompt(true);
-        return;
-      }
-      
-      // Get the proper price ID based on billing cycle
-      const priceId = billingCycle === 'annual' 
-        ? plan.annualPriceId 
-        : plan.monthlyPriceId;
-      
-      if (!priceId) {
-        console.error('No price ID found for plan:', plan.id, 'with billing cycle:', billingCycle);
-        toast.error("This plan is not available with the selected billing cycle.");
-        return;
-      }
-      
-      // Call the checkout API endpoint with direct token
-      const response = await axios.post('/api/checkout', {
-        planId: plan.id,
-        priceId: priceId,
-        billingCycle: billingCycle,
-        directToken: session?.access_token
-      });
-      
-      console.log('Checkout response:', response.data);
-      
-      // Redirect to Stripe checkout
-      if (response.data && response.data.url) {
-        console.log('Redirecting to:', response.data.url);
-        window.location.href = response.data.url;
-      } else {
-        console.error('Invalid checkout response:', response.data);
-        toast.error('Failed to create checkout session');
-      }
-    } catch (error: any) {
-      console.error('Error creating checkout session:', error);
-      
-      let errorMessage = 'An error occurred while processing your request';
-      let needsReauth = false;
-      let isBackendIssue = false;
-      
-      if (error.response) {
-        // The request was made and the server responded with a status code
-        // that falls out of the range of 2xx
-        console.error('Response data:', error.response.data);
-        console.error('Response status:', error.response.status);
         
-        if (error.response.status === 401) {
-          errorMessage = 'Your session has expired. Please sign in again.';
-          needsReauth = true;
-        } else if (error.response.status === 500 && error.response.data?.details === "No backend URL configured") {
-          errorMessage = 'The backend service is not properly configured. Please contact support.';
-          isBackendIssue = true;
-        } else if (error.response.data?.details) {
-          errorMessage = `Error: ${error.response.data.details}`;
-        }
-      } else if (error.request) {
-        // The request was made but no response was received
-        console.error('No response received from server');
-        errorMessage = 'Could not connect to the backend service. Please try again later or contact support.';
-        isBackendIssue = true;
+        throw new Error(data.error || "Failed to create checkout session");
       }
+
+      const { url } = await response.json();
       
-      toast.error(errorMessage);
-      
-      // If authentication error, prompt user to log in again
-      if (needsReauth) {
-        setShowLoginPrompt(true);
-      } else if (isBackendIssue) {
-        // Create an issue report if it's a backend issue
-        toast.error('This appears to be a backend connectivity issue. Our team has been notified.');
+      // Redirect to Stripe Checkout
+      if (url) {
+        window.location.href = url;
+      } else {
+        throw new Error("No checkout URL returned");
       }
+    } catch (error) {
+      console.error("Error handling plan selection:", error);
+      toast.error(`Error: ${error instanceof Error ? error.message : "Failed to process your request"}`);
     } finally {
       setLoadingPlan(null);
     }
+  };
+
+  const getButtonText = (plan: PricingPlan) => {
+    // If this plan is the user's current plan
+    if (plan.id === userPlan) {
+      return "Current Plan";
+    }
+    
+    // Enterprise plan always shows "Contact Sales"
+    if (plan.id === "enterprise") {
+      return "Contact Sales";
+    }
+    
+    // If user is on a higher tier and trying to go to free
+    if (plan.id === "basic" && userPlan !== "basic") {
+      return "Contact Support";
+    }
+    
+    // Otherwise, show upgrade text
+    return plan.id === "basic" ? "Start Free" : "Upgrade";
   };
 
   // Add login prompt component
