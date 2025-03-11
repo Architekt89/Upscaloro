@@ -15,11 +15,23 @@ export async function POST(request: Request) {
       );
     }
 
-    let token = directToken;
-    let authSource = 'direct';
+    // Extract token from Authorization header if present
+    const authHeader = request.headers.get('Authorization');
+    let headerToken = null;
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      headerToken = authHeader.substring(7); // Remove 'Bearer ' prefix
+      console.log('Found token in Authorization header');
+    } else {
+      console.log('No Authorization header found or invalid format');
+    }
+
+    // Determine which token to use (priority: header > direct > session)
+    let token = headerToken || directToken;
+    let authSource = headerToken ? 'header' : (directToken ? 'direct' : 'none');
     
     // Skip authentication check if skipAuth is true
-    if (!skipAuth) {
+    if (!skipAuth && !token) {
       let session = await getSession();
       const user = await getCurrentUser();
 
@@ -40,6 +52,7 @@ export async function POST(request: Request) {
               error: 'You need to be logged in. Please refresh the page and try again.',
               hasSession: !!session,
               hasUser: !!user,
+              hasAuthHeader: !!headerToken
             },
             { status: 401 }
           );
@@ -48,7 +61,7 @@ export async function POST(request: Request) {
         token = session.access_token;
         authSource = 'session';
       }
-    } else {
+    } else if (skipAuth) {
       console.log('Skipping authentication check for testing');
       // Use a placeholder token for unauthenticated requests
       if (!token) {
@@ -56,6 +69,10 @@ export async function POST(request: Request) {
         authSource = 'none';
       }
     }
+
+    // Log token information for debugging
+    console.log('Using token from source:', authSource);
+    console.log('Token length:', token ? token.length : 0);
 
     // Determine the backend URL to use
     let backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://upscaloro.onrender.com';
@@ -107,7 +124,17 @@ export async function POST(request: Request) {
         
         if (token && authSource !== 'none') {
           headers['Authorization'] = `Bearer ${token}`;
+          console.log('Adding Authorization header to backend request');
+        } else {
+          console.log('No token available for Authorization header');
         }
+        
+        // Log the full request for debugging
+        console.log('Checkout request:', {
+          endpoint,
+          headers: { ...headers, Authorization: headers.Authorization ? 'Bearer [REDACTED]' : undefined },
+          payload
+        });
         
         checkoutResponse = await axios.post(
           endpoint,

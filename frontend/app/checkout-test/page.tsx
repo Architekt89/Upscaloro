@@ -4,13 +4,16 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
+import { useAuth } from '@/context/AuthContext';
 
 export default function CheckoutTest() {
   const router = useRouter();
+  const { session } = useAuth();
   const [planId, setPlanId] = useState('pro');
   const [priceId, setPriceId] = useState('price_1R1UVUBQ1z6vW0DwWfGtyIW0');
   const [billingCycle, setBillingCycle] = useState('monthly');
   const [backendUrl, setBackendUrl] = useState('https://upscaloro.onrender.com');
+  const [skipAuth, setSkipAuth] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
@@ -21,18 +24,29 @@ export default function CheckoutTest() {
     setResult(null);
     
     try {
-      // Create a checkout session without authentication
+      // Prepare headers
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      
+      // Add Authorization header if not skipping auth and we have a session
+      if (!skipAuth && session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+        console.log("Adding auth token to checkout request");
+      } else {
+        console.log("No auth token available or auth skipped for checkout request");
+      }
+      
+      // Create a checkout session
       const checkoutResponse = await fetch('/api/checkout', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           planId,
           priceId,
           billingCycle,
           customBackendUrl: backendUrl || undefined,
-          skipAuth: true
+          skipAuth
         }),
       });
       
@@ -89,6 +103,21 @@ export default function CheckoutTest() {
       </div>
       
       <div className="bg-gray-50 p-6 rounded-lg border mb-8">
+        <div className="mb-4">
+          <div className="flex items-center mb-4">
+            <input
+              type="checkbox"
+              id="skipAuth"
+              checked={skipAuth}
+              onChange={(e) => setSkipAuth(e.target.checked)}
+              className="mr-2 h-4 w-4"
+            />
+            <label htmlFor="skipAuth" className="text-sm text-gray-700">
+              Skip Authentication (Test checkout without a token)
+            </label>
+          </div>
+        </div>
+        
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Backend URL

@@ -2,8 +2,10 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useAuth } from '@/context/AuthContext';
 
 export default function TokenTest() {
+  const { session } = useAuth();
   const [token, setToken] = useState('');
   const [planId, setPlanId] = useState('pro');
   const [priceId, setPriceId] = useState('price_1R1UVUBQ1z6vW0DwWfGtyIW0');
@@ -58,12 +60,32 @@ export default function TokenTest() {
     setResult(null);
     
     try {
-      // Create a checkout session using the token
+      // Prepare headers
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      
+      // Determine which token to use
+      let authToken = token;
+      
+      // If no direct token provided and not skipping auth, use session token
+      if (!authToken && !skipAuth && session?.access_token) {
+        authToken = session.access_token;
+        console.log("Using session token for checkout request");
+      }
+      
+      // Add Authorization header if we have a token and not skipping auth
+      if (authToken && !skipAuth) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+        console.log("Adding auth token to checkout request");
+      } else {
+        console.log("No auth token available or auth skipped for checkout request");
+      }
+      
+      // Create a checkout session
       const checkoutResponse = await fetch('/api/checkout', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           planId,
           priceId,

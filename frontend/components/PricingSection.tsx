@@ -186,12 +186,23 @@ export default function PricingSection() {
       // Use the appropriate property based on billing cycle
       const priceId = cycleType === 'yearly' ? plan.annualPriceId : plan.monthlyPriceId;
       
+      // Prepare headers with Authorization token if user is logged in
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      
+      // Add Authorization header with Bearer token if user is logged in
+      if (user && session?.access_token) {
+        headers["Authorization"] = `Bearer ${session.access_token}`;
+        console.log("Adding auth token to checkout request");
+      } else {
+        console.log("No auth token available for checkout request");
+      }
+      
       // Call the checkout API
       const response = await fetch("/api/checkout", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify({
           planId: plan.id,
           priceId,
