@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/utils/supabase';
 import { Switch } from '@/components/ui/switch';
 
@@ -93,6 +93,7 @@ const pricingPlans: PricingPlan[] = [
 
 export default function PricingSection() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
@@ -106,15 +107,10 @@ export default function PricingSection() {
   useEffect(() => {
     if (!authLoading) {
       setSessionChecked(true);
-      console.log("Auth state loaded, user:", user ? "authenticated" : "not authenticated");
-      
-      // If user is logged in, fetch their current plan
-      if (user) {
-        fetchUserPlan();
-      }
+      fetchUserPlan();
     }
   }, [authLoading, user]);
-
+  
   // This function will be called when the component mounts and whenever user changes
   const fetchUserPlan = useCallback(async () => {
     if (!user) {
@@ -142,6 +138,22 @@ export default function PricingSection() {
     }
   }, [user]);
 
+  // Check for success parameter in URL
+  useEffect(() => {
+    const success = searchParams.get('success');
+    const plan = searchParams.get('plan');
+    
+    if (success === 'true' && plan) {
+      toast.success(`Successfully upgraded to ${plan.charAt(0).toUpperCase() + plan.slice(1)} plan!`);
+      
+      // Clear the URL parameters
+      router.replace('/pricing');
+      
+      // Refresh the user's plan
+      fetchUserPlan();
+    }
+  }, [searchParams, router, fetchUserPlan]);
+
   const handleBillingToggle = (cycle: 'monthly' | 'annual') => {
     setBillingCycle(cycle);
   };
@@ -149,7 +161,7 @@ export default function PricingSection() {
   const handlePlanSelect = async (plan: PricingPlan) => {
     if (!user) {
       // If user is not logged in, redirect to sign up
-      router.push('/auth/signup');
+      router.push('/auth/signin');
       return;
     }
 

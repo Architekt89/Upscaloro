@@ -7,7 +7,7 @@ export default function TokenTest() {
   const [planId, setPlanId] = useState('pro');
   const [priceId, setPriceId] = useState('price_1R1UVUBQ1z6vW0DwWfGtyIW0');
   const [billingCycle, setBillingCycle] = useState('monthly');
-  const [backendUrl, setBackendUrl] = useState('');
+  const [backendUrl, setBackendUrl] = useState('https://upscaloro.onrender.com');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
@@ -112,17 +112,17 @@ export default function TokenTest() {
         
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Backend URL (Optional)
+            Backend URL
           </label>
           <input
             type="text"
             className="w-full p-2 border rounded"
             value={backendUrl}
             onChange={(e) => setBackendUrl(e.target.value)}
-            placeholder="https://your-backend.com"
+            placeholder="https://upscaloro.onrender.com"
           />
           <p className="text-xs text-gray-500 mt-1">
-            Leave empty to use the configured environment variable.
+            Default is set to the Render deployment URL. The correct endpoint is /api/create-checkout-session.
           </p>
         </div>
         

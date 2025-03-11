@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     }
 
     // Determine the backend URL to use
-    let backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://api.upscalor.com';
+    let backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://upscaloro.onrender.com';
     
     // Override with custom URL if provided
     if (customBackendUrl && customBackendUrl.trim()) {
@@ -64,6 +64,9 @@ export async function POST(request: Request) {
 
     // List of endpoints to try (primary and alternatives)
     const endpoints = [
+      // The correct endpoint based on user feedback
+      `${backendUrl}/api/create-checkout-session`,
+      // Fallback endpoints
       `${backendUrl}/checkout`,
       `${backendUrl}/api/checkout`,
       `${backendUrl}/v1/checkout`,
