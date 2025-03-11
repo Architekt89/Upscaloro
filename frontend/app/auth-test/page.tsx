@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { JsonView, defaultStyles } from 'react-json-view-lite';
 import 'react-json-view-lite/dist/index.css';
+import TokenDisplay from './token-display';
 
 // Simple UI components
 const Button = ({ 
@@ -213,6 +214,8 @@ export default function AuthTestPage() {
         <h1 className="text-3xl font-bold mb-2">Authentication Test Page</h1>
         <p className="text-gray-500">Use this page to debug authentication and session issues</p>
       </div>
+      
+      <TokenDisplay />
       
       <div className="flex flex-wrap gap-4 mb-8">
         <Button 

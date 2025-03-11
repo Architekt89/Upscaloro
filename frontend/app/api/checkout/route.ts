@@ -8,7 +8,7 @@ export async function POST(req: Request) {
     
     // Get the request body
     const body = await req.json();
-    const { planId, priceId, billingCycle } = body;
+    const { planId, priceId, billingCycle, directToken } = body;
     
     if (!planId) {
       console.error("No plan ID provided");
@@ -20,51 +20,65 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Stripe Price ID is required" }, { status: 400 });
     }
     
-    // Get the session and user
-    let session = await getSession();
-    const user = await getCurrentUser();
+    // Determine which token to use - either from direct token or session
+    let accessToken = directToken;
+    let tokenSource = "direct";
     
-    console.log("Session check:", { 
-      session: session ? "exists" : "null", 
-      user: user ? "exists" : "null"
-    });
-    
-    // If we have a user but no session, try to refresh the session
-    if (user && !session) {
-      console.log("User exists but no session, attempting to refresh");
-      try {
-        const { data, error } = await supabase.auth.refreshSession();
-        if (error) {
-          console.error("Session refresh error:", error);
-        } else {
-          session = data.session;
-          console.log("Session refreshed successfully");
-        }
-      } catch (refreshError) {
-        console.error("Error refreshing session:", refreshError);
-      }
-    }
-    
-    // If there is still no session or user, return an unauthorized response
-    if (!session || !user) {
-      console.error("No session or user found after refresh attempt");
-      return NextResponse.json({ 
-        error: "Unauthorized", 
-        details: "You need to be logged in",
-        sessionExists: !!session,
-        userExists: !!user
-      }, { status: 401 });
-    }
-    
-    // Extracting the access token for the API call
-    const accessToken = session.access_token;
+    // If no direct token was provided, use session
     if (!accessToken) {
-      console.error("No access token found in session");
+      tokenSource = "session";
+      
+      // Get the session and user
+      let session = await getSession();
+      const user = await getCurrentUser();
+      
+      console.log("Session check:", { 
+        session: session ? "exists" : "null", 
+        user: user ? "exists" : "null"
+      });
+      
+      // If we have a user but no session, try to refresh the session
+      if (user && !session) {
+        console.log("User exists but no session, attempting to refresh");
+        try {
+          const { data, error } = await supabase.auth.refreshSession();
+          if (error) {
+            console.error("Session refresh error:", error);
+          } else {
+            session = data.session;
+            console.log("Session refreshed successfully");
+          }
+        } catch (refreshError) {
+          console.error("Error refreshing session:", refreshError);
+        }
+      }
+      
+      // If there is still no session or user, return an unauthorized response
+      if (!session || !user) {
+        console.error("No session or user found after refresh attempt");
+        return NextResponse.json({ 
+          error: "Unauthorized", 
+          details: "You need to be logged in",
+          sessionExists: !!session,
+          userExists: !!user
+        }, { status: 401 });
+      }
+      
+      // Extracting the access token for the API call
+      accessToken = session.access_token;
+    }
+    
+    // Check if we have a token regardless of source
+    if (!accessToken) {
+      console.error("No access token found from any source");
       return NextResponse.json({ 
         error: "Unauthorized", 
-        details: "No access token found" 
+        details: "No access token found",
+        tokenSource
       }, { status: 401 });
     }
+    
+    console.log(`Using token from ${tokenSource} source, length: ${accessToken.length}`);
     
     // Making the request to the backend API
     console.log(`Creating checkout session for plan: ${planId}, price: ${priceId}, billing: ${billingCycle}`);
@@ -110,6 +124,7 @@ export async function POST(req: Request) {
       };
     }
     
+    // Make the API call with our token
     const response = await axios.post(
       checkoutEndpoint,
       payload,

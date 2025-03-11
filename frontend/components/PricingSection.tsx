@@ -181,48 +181,39 @@ export default function PricingSection() {
       
       console.log('Creating checkout session for plan:', plan.id);
       
-      // Try to recover the session first in case it's broken
-      const recoveryAttempted = await refreshUser();
-      
-      // First check auth status with Supabase directly
+      // First, test our authentication with the backend
       try {
-        // Force a refresh of the token
-        const { data, error } = await supabase.auth.refreshSession();
+        // 1. Check if we have a session token in memory
+        const accessToken = session?.access_token;
         
-        if (error || !data.session) {
-          console.error("Error refreshing Supabase session:", error);
-          setShowLoginPrompt(true);
-          return;
-        } else {
-          console.log("Session refreshed successfully:", data.session.user.email);
+        if (!accessToken) {
+          console.error("No access token in session");
+          // Try to refresh
+          await refreshUser();
+          
+          if (!session?.access_token) {
+            console.error("Still no access token after refresh");
+            setShowLoginPrompt(true);
+            return;
+          }
         }
-      } catch (authError) {
-        console.error("Error checking Supabase session:", authError);
-      }
-      
-      // Then check with our API
-      const authCheckResponse = await fetch('/api/auth-debug');
-      const authData = await authCheckResponse.json();
-      console.log('Auth status from API:', authData);
-      
-      if (!authData.authenticated) {
-        console.log('No valid session found from API');
+        
+        // 2. Test API communication with token
+        const debugResponse = await axios.post('/api/checkout-debug', {
+          clientToken: accessToken
+        });
+        
+        console.log('Debug API response:', debugResponse.data);
+        
+        if (!debugResponse.data.success) {
+          console.error('Failed to communicate with backend:', debugResponse.data);
+          toast.error('Could not connect to the payment service. Please try again later.');
+          return;
+        }
+      } catch (authTestError) {
+        console.error('Auth test failed:', authTestError);
         setShowLoginPrompt(true);
         return;
-      }
-      
-      // Check configuration
-      try {
-        const configResponse = await fetch('/api/config-debug');
-        const configData = await configResponse.json();
-        console.log('Config status:', configData);
-        
-        if (!configData.config.hasBackendUrl && !configData.config.hasApiUrl) {
-          toast.error("The backend service is not properly configured. Please contact support.");
-          return;
-        }
-      } catch (configError) {
-        console.error('Error checking configuration:', configError);
       }
       
       // Get the proper price ID based on billing cycle
@@ -236,11 +227,12 @@ export default function PricingSection() {
         return;
       }
       
-      // Call the checkout API endpoint
+      // Call the checkout API endpoint with direct token
       const response = await axios.post('/api/checkout', {
         planId: plan.id,
         priceId: priceId,
-        billingCycle: billingCycle
+        billingCycle: billingCycle,
+        directToken: session?.access_token
       });
       
       console.log('Checkout response:', response.data);
