@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Check } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
@@ -84,8 +84,17 @@ const pricingPlans: PricingPlan[] = [
 export default function PricingSection() {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const [sessionChecked, setSessionChecked] = useState(false);
+
+  // Check session status on component mount
+  useEffect(() => {
+    if (!authLoading) {
+      setSessionChecked(true);
+      console.log("Auth state loaded, user:", user ? "authenticated" : "not authenticated");
+    }
+  }, [authLoading, user]);
 
   const handleBillingToggle = (cycle: 'monthly' | 'annual') => {
     setBillingCycle(cycle);
@@ -114,20 +123,49 @@ export default function PricingSection() {
     try {
       setLoadingPlan(plan.id);
       
+      console.log('Creating checkout session for plan:', plan.id);
+      
       // Call the checkout API endpoint
       const response = await axios.post('/api/checkout', {
         planId: plan.id,
       });
       
+      console.log('Checkout response:', response.data);
+      
       // Redirect to Stripe checkout
       if (response.data && response.data.url) {
+        console.log('Redirecting to:', response.data.url);
         window.location.href = response.data.url;
       } else {
+        console.error('Invalid checkout response:', response.data);
         toast.error('Failed to create checkout session');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating checkout session:', error);
-      toast.error('An error occurred while processing your request');
+      
+      let errorMessage = 'An error occurred while processing your request';
+      
+      if (error.response) {
+        // The request was made and the server responded with a status code
+        // that falls out of the range of 2xx
+        console.error('Response data:', error.response.data);
+        console.error('Response status:', error.response.status);
+        
+        if (error.response.status === 401) {
+          errorMessage = 'You need to be logged in. Please refresh the page and try again.';
+        } else if (error.response.data?.details) {
+          errorMessage = `Error: ${error.response.data.details}`;
+        }
+      }
+      
+      toast.error(errorMessage);
+      
+      // If authentication error, prompt user to log in again
+      if (error.response?.status === 401) {
+        setTimeout(() => {
+          router.push('/auth/login');
+        }, 2000);
+      }
     } finally {
       setLoadingPlan(null);
     }
@@ -224,14 +262,14 @@ export default function PricingSection() {
               <div className="mt-auto">
                 <button
                   onClick={() => handlePlanSelect(plan)}
-                  disabled={loadingPlan === plan.id}
+                  disabled={loadingPlan === plan.id || !sessionChecked}
                   className={`
                     block w-full py-3 px-4 rounded-full text-center text-sm font-semibold transition-all duration-300
                     ${plan.highlighted 
                       ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-[0_0_15px_rgba(249,115,22,0.3)] hover:shadow-[0_0_20px_rgba(249,115,22,0.5)] hover:from-orange-400 hover:to-orange-600 hover:scale-[1.03]' 
                       : 'border border-gray-400 text-white hover:bg-orange-500 hover:border-orange-500 hover:text-white hover:scale-[1.03]'
                     }
-                    ${loadingPlan === plan.id ? 'opacity-75 cursor-not-allowed' : ''}
+                    ${(loadingPlan === plan.id || !sessionChecked) ? 'opacity-75 cursor-not-allowed' : ''}
                   `}
                 >
                   {loadingPlan === plan.id ? (
@@ -241,6 +279,14 @@ export default function PricingSection() {
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
                       Processing...
+                    </span>
+                  ) : !sessionChecked ? (
+                    <span className="flex items-center justify-center">
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Loading...
                     </span>
                   ) : (
                     plan.buttonText

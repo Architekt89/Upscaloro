@@ -14,8 +14,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Get Stripe API key from environment variables
-stripe_api_key = os.getenv("STRIPE_API_KEY")
-stripe.api_key = stripe_api_key
+stripe_api_key = os.getenv("STRIPE_SECRET_KEY")
+if not stripe_api_key:
+    logger.warning("STRIPE_SECRET_KEY environment variable is not set!")
+else:
+    logger.info(f"Stripe API key configured for billing.py (ending in: {stripe_api_key[-4:] if stripe_api_key else 'None'})")
+    stripe.api_key = stripe_api_key
 
 # Models for billing data
 class SubscriptionPlan(BaseModel):

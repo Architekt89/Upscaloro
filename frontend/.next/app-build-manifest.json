@@ -55,6 +55,11 @@
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/blog/page.js"
+    ],
+    "/api/checkout/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/checkout/route.js"
     ]
   }
 }

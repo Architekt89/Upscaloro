@@ -16,15 +16,31 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Stripe configuration
-stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
-logger.info(f"Stripe API configured with key ending in: {stripe.api_key[-4:] if stripe.api_key else 'None'}")
+stripe_api_key = os.getenv("STRIPE_SECRET_KEY")
+if not stripe_api_key:
+    logger.warning("STRIPE_SECRET_KEY environment variable is not set!")
+else:
+    logger.info(f"Stripe API configured with key ending in: {stripe_api_key[-4:] if stripe_api_key else 'None'}")
+    stripe.api_key = stripe_api_key
 
 # Subscription plan IDs - These should be created in Stripe dashboard
-SUBSCRIPTION_PLANS = {
-    "basic": os.getenv("STRIPE_BASIC_PLAN_ID", "price_basic"),
-    "pro": os.getenv("STRIPE_PRO_PLAN_ID", "price_pro"),
-    "enterprise": os.getenv("STRIPE_ENTERPRISE_PLAN_ID", "price_enterprise"),
-}
+SUBSCRIPTION_PLANS = {}
+
+# Get plan IDs from environment variables
+basic_plan_id = os.getenv("STRIPE_BASIC_PLAN_ID")
+pro_plan_id = os.getenv("STRIPE_PRO_PLAN_ID")
+enterprise_plan_id = os.getenv("STRIPE_ENTERPRISE_PLAN_ID")
+
+# Add plans to the dictionary if they exist
+if basic_plan_id:
+    SUBSCRIPTION_PLANS["basic"] = basic_plan_id
+if pro_plan_id:
+    SUBSCRIPTION_PLANS["pro"] = pro_plan_id
+if enterprise_plan_id:
+    SUBSCRIPTION_PLANS["enterprise"] = enterprise_plan_id
+
+# Log available plans
+logger.info(f"Available Stripe subscription plans: {SUBSCRIPTION_PLANS}")
 
 # API usage pricing
 API_USAGE_PRICE_ID = os.getenv("STRIPE_API_USAGE_PRICE_ID", "price_0987654321")
@@ -60,8 +76,10 @@ class PaymentHandler:
             # Get the Stripe price ID for the selected plan
             price_id = SUBSCRIPTION_PLANS.get(plan_id)
             if not price_id:
-                logger.error(f"Invalid plan ID: {plan_id}")
+                logger.error(f"Invalid plan ID: {plan_id}. Available plans: {SUBSCRIPTION_PLANS}")
                 raise ValueError(f"Invalid plan ID: {plan_id}")
+            
+            logger.info(f"Using Stripe price ID: {price_id} for plan: {plan_id}")
                 
             # Create a checkout session
             checkout_session = stripe.checkout.Session.create(
