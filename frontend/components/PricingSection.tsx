@@ -174,6 +174,33 @@ export default function PricingSection() {
       
       console.log('Creating checkout session for plan:', plan.id);
       
+      // First check auth status to ensure we have a valid session
+      const authCheckResponse = await fetch('/api/auth-debug');
+      const authData = await authCheckResponse.json();
+      console.log('Auth status:', authData);
+      
+      if (!authData.authenticated || !authData.sessionExists) {
+        toast.error("Your session has expired. Please log in again.");
+        setTimeout(() => {
+          router.push('/auth/login');
+        }, 2000);
+        return;
+      }
+      
+      // Check configuration
+      try {
+        const configResponse = await fetch('/api/config-debug');
+        const configData = await configResponse.json();
+        console.log('Config status:', configData);
+        
+        if (!configData.config.hasBackendUrl && !configData.config.hasApiUrl) {
+          toast.error("The backend service is not properly configured. Please contact support.");
+          return;
+        }
+      } catch (configError) {
+        console.error('Error checking configuration:', configError);
+      }
+      
       // Call the checkout API endpoint
       const response = await axios.post('/api/checkout', {
         planId: plan.id,
@@ -193,6 +220,8 @@ export default function PricingSection() {
       console.error('Error creating checkout session:', error);
       
       let errorMessage = 'An error occurred while processing your request';
+      let needsReauth = false;
+      let isBackendIssue = false;
       
       if (error.response) {
         // The request was made and the server responded with a status code
@@ -201,19 +230,38 @@ export default function PricingSection() {
         console.error('Response status:', error.response.status);
         
         if (error.response.status === 401) {
-          errorMessage = 'You need to be logged in. Please refresh the page and try again.';
+          errorMessage = 'Your session has expired. Please sign in again.';
+          needsReauth = true;
+        } else if (error.response.status === 500 && error.response.data?.details === "No backend URL configured") {
+          errorMessage = 'The backend service is not properly configured. Please contact support.';
+          isBackendIssue = true;
         } else if (error.response.data?.details) {
           errorMessage = `Error: ${error.response.data.details}`;
         }
+      } else if (error.request) {
+        // The request was made but no response was received
+        console.error('No response received from server');
+        errorMessage = 'Could not connect to the backend service. Please try again later or contact support.';
+        isBackendIssue = true;
       }
       
       toast.error(errorMessage);
       
       // If authentication error, prompt user to log in again
-      if (error.response?.status === 401) {
+      if (needsReauth) {
+        toast.error('Redirecting to login page...');
         setTimeout(() => {
+          // Force a sign out to clear any invalid tokens
+          try {
+            fetch('/api/logout', { method: 'POST' });
+          } catch (e) {
+            console.error('Error during logout:', e);
+          }
           router.push('/auth/login');
         }, 2000);
+      } else if (isBackendIssue) {
+        // Create an issue report if it's a backend issue
+        toast.error('This appears to be a backend connectivity issue. Our team has been notified.');
       }
     } finally {
       setLoadingPlan(null);

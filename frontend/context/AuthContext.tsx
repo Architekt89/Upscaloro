@@ -33,6 +33,36 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const refreshUser = async () => {
     try {
       console.log('Refreshing user data...');
+      
+      // First try to refresh the session if needed
+      try {
+        const currentSession = await getSession();
+        
+        // Check if session is about to expire (within 5 minutes)
+        if (currentSession?.expires_at) {
+          const expiresAt = new Date(currentSession.expires_at * 1000);
+          const now = new Date();
+          const minutesUntilExpiry = (expiresAt.getTime() - now.getTime()) / (1000 * 60);
+          
+          console.log(`Session expires in ${minutesUntilExpiry.toFixed(2)} minutes`);
+          
+          // If session expires soon (< 5 minutes), refresh it
+          if (minutesUntilExpiry < 5) {
+            console.log('Session expiring soon, refreshing...');
+            const { data, error } = await supabase.auth.refreshSession();
+            
+            if (error) {
+              console.error('Error refreshing session:', error);
+            } else {
+              console.log('Session refreshed successfully');
+              setSession(data.session);
+            }
+          }
+        }
+      } catch (refreshError) {
+        console.error('Error checking/refreshing session:', refreshError);
+      }
+      
       const currentUser = await getCurrentUser();
       setUser(currentUser);
       
@@ -95,6 +125,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             hasToken: !!currentSession?.access_token,
             tokenLength: currentSession?.access_token?.length
           });
+          
+          // If session expires soon (< 5 minutes), refresh it
+          if (currentSession?.expires_at) {
+            const expiresAt = new Date(currentSession.expires_at * 1000);
+            const now = new Date();
+            const minutesUntilExpiry = (expiresAt.getTime() - now.getTime()) / (1000 * 60);
+            
+            console.log(`Session expires in ${minutesUntilExpiry.toFixed(2)} minutes`);
+            
+            if (minutesUntilExpiry < 5) {
+              console.log('Session expiring soon, refreshing...');
+              const { data, error } = await supabase.auth.refreshSession();
+              
+              if (error) {
+                console.error('Error refreshing session:', error);
+              } else {
+                console.log('Session refreshed successfully');
+                setSession(data.session);
+              }
+            }
+          }
         } else {
           console.log('No authenticated user found');
         }
@@ -110,17 +161,31 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('Auth state changed:', event);
+        
         if (session?.user) {
           setUser(session.user);
+          setSession(session);
+          console.log('Session updated from auth state change');
         } else {
           setUser(null);
+          setSession(null);
         }
         setLoading(false);
       }
     );
+    
+    // Set up a periodic session refresh check (every 5 minutes)
+    const refreshInterval = setInterval(() => {
+      if (user) {
+        console.log('Periodic session refresh check');
+        refreshUser();
+      }
+    }, 5 * 60 * 1000);
 
     return () => {
       subscription.unsubscribe();
+      clearInterval(refreshInterval);
     };
   }, []);
 
