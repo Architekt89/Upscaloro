@@ -13,14 +13,14 @@ try:
     from .image_processor import ImageProcessor, VALID_MODES, VALID_SCALE_FACTORS, VALID_OUTPUT_FORMATS, MODE_TO_MODEL
     from .auth import get_current_active_user, User
     from .database import DatabaseHandler
-    from .billing import BillingHandler
+    from .billing import BillingHandler, CheckoutSessionRequest
     from .payment import PaymentHandler
 except ImportError as e:
     # Fall back to absolute imports
     from backend.image_processor import ImageProcessor, VALID_MODES, VALID_SCALE_FACTORS, VALID_OUTPUT_FORMATS, MODE_TO_MODEL
     from backend.auth import get_current_active_user, User
     from backend.database import DatabaseHandler
-    from backend.billing import BillingHandler
+    from backend.billing import BillingHandler, CheckoutSessionRequest
     from backend.payment import PaymentHandler
 
 # Load environment variables
