@@ -76,9 +76,14 @@ export const mockBillingData = {
     api_calls: 230,
     api_calls_limit: 500,
     storage_used: "1.2 GB",
-    storage_limit: "5 GB",
+    storage_limit: "5 GB",  // Corresponds to 5000 MB in the Pro plan
   }
 };
+
+// Convert storage_gb to storage_mb (100MB = 0.1GB, etc.)
+// storage_gb: 0.1 → storage_mb: 100
+// storage_gb: 5 → storage_mb: 5000
+// storage_gb: 20 → storage_mb: 20000
 
 // Billing API functions
 export const getBillingInfo = async () => {
@@ -288,7 +293,7 @@ export const getAvailablePlans = async () => {
                 images_per_month: 3,
                 max_scale_factor: 4,
                 api_calls_per_month: 0,
-                storage_gb: 0.1
+                storage_mb: 100
               }
             },
             pro: {
@@ -307,7 +312,7 @@ export const getAvailablePlans = async () => {
                 images_per_month: 100,
                 max_scale_factor: 16,
                 api_calls_per_month: 500,
-                storage_gb: 5
+                storage_mb: 5000
               }
             },
             enterprise: {
@@ -327,7 +332,7 @@ export const getAvailablePlans = async () => {
                 images_per_month: 1000,
                 max_scale_factor: 16,
                 api_calls_per_month: 5000,
-                storage_gb: 20
+                storage_mb: 20000
               }
             }
           }

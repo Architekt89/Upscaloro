@@ -379,7 +379,7 @@ async def get_billing_info(current_user: User = Depends(get_current_active_user)
             "api_calls": 0,
             "api_calls_limit": 0,
             "storage_used": "0 GB",
-            "storage_limit": "0.1 GB",
+            "storage_limit": "0.1 GB",  # Corresponds to 100 MB in the Free plan
         }
         
         return {

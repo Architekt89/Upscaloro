@@ -78,7 +78,7 @@ SUBSCRIPTION_PLANS = {
             "images_per_month": 3,
             "max_scale_factor": 4,
             "api_calls_per_month": 0,
-            "storage_gb": 0.1
+            "storage_mb": 100  # 0.1 GB = 100 MB
         }
     ),
     "pro": SubscriptionPlan(
@@ -97,7 +97,7 @@ SUBSCRIPTION_PLANS = {
             "images_per_month": 100,
             "max_scale_factor": 16,
             "api_calls_per_month": 500,
-            "storage_gb": 5
+            "storage_mb": 5000  # 5 GB = 5000 MB
         }
     ),
     "enterprise": SubscriptionPlan(
@@ -117,7 +117,7 @@ SUBSCRIPTION_PLANS = {
             "images_per_month": 1000,
             "max_scale_factor": 16,
             "api_calls_per_month": 5000,
-            "storage_gb": 20
+            "storage_mb": 20000  # 20 GB = 20000 MB
         }
     )
 }
@@ -201,7 +201,7 @@ class BillingHandler:
                 "api_calls": 230,
                 "api_calls_limit": 500,
                 "storage_used": "1.2 GB",
-                "storage_limit": "5 GB",
+                "storage_limit": "5 GB",  # Matches the Pro plan's 5000 MB
             }
             
             return BillingInfo(
@@ -237,7 +237,7 @@ class BillingHandler:
                 "api_calls": 0,
                 "api_calls_limit": 0,
                 "storage_used": "0 GB",
-                "storage_limit": "0.1 GB",
+                "storage_limit": "0.1 GB",  # Matches the Free plan's 100 MB
             }
             
             return BillingInfo(

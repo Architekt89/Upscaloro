@@ -40,7 +40,7 @@ const mockUsageData = {
   apiCalls: 230,
   apiCallsLimit: 500,
   storageUsed: '1.2 GB',
-  storageLimit: '5 GB',
+  storageLimit: '5 GB',  // Corresponds to 5000 MB in the Pro plan
 };
 
 const mockPaymentMethods = [
