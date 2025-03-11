@@ -30,7 +30,7 @@ interface PricingPlan {
 
 const pricingPlans: PricingPlan[] = [
   {
-    id: "basic",
+    id: "free",
     name: "Free",
     monthlyPrice: "$0",
     description: "Great for getting started with basic image upscaling",
@@ -172,16 +172,8 @@ export default function PricingSection() {
       return;
     }
 
-    // Special case for enterprise plan
-    if (plan.id === "enterprise") {
-      // Enterprise plan requires contacting sales
-      toast.success("Please contact our sales team to discuss enterprise options");
-      // Could open chat, redirect to contact page, etc.
-      return;
-    }
-
-    // Special case for downgrading to basic - this might require contacting support
-    if (user && plan.id === "basic" && userPlan !== "basic") {
+    // Special case for downgrading to free plan
+    if (user && plan.id === "free" && userPlan !== "free") {
       toast.success("Please contact our support team to downgrade your plan");
       return;
     }
@@ -244,23 +236,27 @@ export default function PricingSection() {
   };
 
   const getButtonText = (plan: PricingPlan) => {
+    // If user is not logged in, show "Get Started" variants
+    if (!user) {
+      if (plan.id === "free") {
+        return "Get Started for Free";
+      } else {
+        return "Get Started";
+      }
+    }
+    
     // If this plan is the user's current plan
     if (plan.id === userPlan) {
       return "Current Plan";
     }
     
-    // Enterprise plan always shows "Contact Sales"
-    if (plan.id === "enterprise") {
-      return "Contact Sales";
-    }
-    
     // If user is on a higher tier and trying to go to free
-    if (plan.id === "basic" && userPlan !== "basic") {
-      return "Contact Support";
+    if (plan.id === "free" && userPlan !== "free") {
+      return "Downgrade";
     }
     
-    // Otherwise, show upgrade text
-    return plan.id === "basic" ? "Start Free" : "Upgrade";
+    // Otherwise, show upgrade text for higher plans
+    return "Upgrade";
   };
 
   // Add login prompt component
