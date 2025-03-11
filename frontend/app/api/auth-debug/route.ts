@@ -3,63 +3,71 @@ import { getSession, getCurrentUser, supabase } from '@/utils/supabase';
 
 export async function GET(request: NextRequest) {
   try {
+    console.log("Auth debug API called");
+    
     // Get Supabase session
     const session = await getSession();
     const user = await getCurrentUser();
     
-    // Get detailed session information
+    // Get session data directly
     const { data: sessionData } = await supabase.auth.getSession();
     
-    // Try to refresh the session to ensure it's valid
+    // Extract cookie names from the request
+    const cookieNames = Object.keys(request.cookies.getAll());
+    const supabaseCookieNames = cookieNames.filter(name => 
+      name.includes('supabase') || 
+      name.includes('sb-')
+    );
+    
+    // Try to refresh the session
     let refreshResult = null;
-    if (session) {
-      try {
-        const { data, error } = await supabase.auth.refreshSession();
-        refreshResult = {
-          success: !error,
-          newSession: data?.session ? true : false,
-          error: error ? error.message : null
-        };
-      } catch (refreshError) {
-        refreshResult = {
-          success: false,
-          error: String(refreshError)
-        };
+    try {
+      const { data, error } = await supabase.auth.refreshSession();
+      refreshResult = {
+        success: !error,
+        hasSession: !!data.session,
+        hasUser: !!data.user,
+        error: error ? error.message : null
+      };
+      
+      if (!error && data.session) {
+        console.log("Session refreshed successfully");
+      } else if (error) {
+        console.error("Session refresh error:", error);
       }
+    } catch (refreshError) {
+      console.error("Error refreshing session:", refreshError);
+      refreshResult = { 
+        success: false, 
+        error: (refreshError as Error).message 
+      };
     }
     
     // Return detailed authentication information
     return NextResponse.json({
       authenticated: !!user,
       sessionExists: !!session,
-      session: session ? {
-        expiresAt: session.expires_at, 
-        tokenType: session.token_type,
-        refreshable: !!session.refresh_token,
-        providerToken: !!session.provider_token,
-        providerRefreshToken: !!session.provider_refresh_token,
-        accessTokenLength: session.access_token?.length,
-        refreshTokenLength: session.refresh_token?.length
+      rawSessionExists: !!sessionData?.session,
+      session: sessionData?.session ? {
+        expiresAt: sessionData.session.expires_at,
+        hasAccessToken: !!sessionData.session.access_token,
+        accessTokenLength: sessionData.session.access_token?.length || 0
       } : null,
       user: user ? {
         id: user.id,
         email: user.email,
-        emailConfirmed: user.email_confirmed_at ? true : false,
-        lastSignIn: user.last_sign_in_at,
-        createdAt: user.created_at,
-        updatedAt: user.updated_at,
-        appMetadataKeys: user.app_metadata ? Object.keys(user.app_metadata) : [],
-        userMetadataKeys: user.user_metadata ? Object.keys(user.user_metadata) : []
+        emailConfirmed: !!user.email_confirmed_at
       } : null,
-      refreshResult,
-      rawSessionExists: !!sessionData.session,
-      cookiesPresent: Object.keys(request.cookies.getAll())
+      supabaseCookies: supabaseCookieNames,
+      allCookies: cookieNames,
+      refreshResult
     });
   } catch (error) {
     console.error('Auth debug error:', error);
     return NextResponse.json({
+      success: false,
       error: 'Error debugging authentication',
-      details: String(error)
+      details: (error as Error).message
     }, { status: 500 });
   }
 } 

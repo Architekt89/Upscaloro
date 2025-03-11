@@ -8,11 +8,16 @@ export async function POST(req: Request) {
     
     // Get the request body
     const body = await req.json();
-    const { planId } = body;
+    const { planId, priceId, billingCycle } = body;
     
     if (!planId) {
       console.error("No plan ID provided");
       return NextResponse.json({ error: "Plan ID is required" }, { status: 400 });
+    }
+    
+    if (!priceId) {
+      console.error("No price ID provided");
+      return NextResponse.json({ error: "Stripe Price ID is required" }, { status: 400 });
     }
     
     // Get the session and user
@@ -62,7 +67,7 @@ export async function POST(req: Request) {
     }
     
     // Making the request to the backend API
-    console.log(`Creating checkout session for plan: ${planId}`);
+    console.log(`Creating checkout session for plan: ${planId}, price: ${priceId}, billing: ${billingCycle}`);
     
     // Get the backend URL from environment variables, checking multiple possible configurations
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
@@ -87,9 +92,27 @@ export async function POST(req: Request) {
     
     console.log(`Making request to: ${checkoutEndpoint}`);
     
+    // Prepare the payload based on which backend we're using
+    let payload;
+    if (backendUrl) {
+      // New backend format
+      payload = { 
+        planId, 
+        priceId,
+        billingCycle 
+      };
+    } else {
+      // Legacy backend format
+      payload = { 
+        plan_id: planId, 
+        price_id: priceId,
+        billing_cycle: billingCycle
+      };
+    }
+    
     const response = await axios.post(
       checkoutEndpoint,
-      backendUrl ? { planId } : { plan_id: planId }, // Different payload formats based on backend
+      payload,
       {
         headers: {
           "Content-Type": "application/json",

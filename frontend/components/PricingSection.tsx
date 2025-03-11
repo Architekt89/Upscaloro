@@ -22,63 +22,71 @@ interface PricingPlan {
   buttonText: string;
   highlighted: boolean;
   features: PricingFeature[];
+  monthlyPriceId?: string;  // Stripe price ID for monthly billing
+  annualPriceId?: string;   // Stripe price ID for annual billing
 }
 
 const pricingPlans: PricingPlan[] = [
   {
     id: "basic",
-    name: "Basic Plan",
+    name: "Free",
     monthlyPrice: "$0",
-    annualPrice: "$0",
-    description: "Perfect for individuals and small projects",
+    description: "Great for getting started with basic image upscaling",
     buttonText: "Get Started",
     highlighted: false,
     features: [
-      { text: "10 images per month", included: true },
-      { text: "Up to 2x upscaling", included: true },
-      { text: "Basic image enhancement", included: true },
-      { text: "Email support", included: true },
+      { text: "5 images per day", included: true },
+      { text: "Basic upscaling", included: true },
+      { text: "Maximum 2K output resolution", included: true },
+      { text: "Community support", included: true },
+      { text: "Standard processing speed", included: false },
       { text: "Advanced AI models", included: false },
       { text: "Batch processing", included: false },
-      { text: "API access", included: false },
-    ]
+      { text: "Priority support", included: false },
+    ],
   },
   {
     id: "pro",
-    name: "Professional Plan",
+    name: "Pro",
     monthlyPrice: "$15",
-    annualPrice: "$144", // $15 * 12 months * 0.8 (20% discount) = $144
-    description: "Ideal for professionals and businesses",
-    buttonText: "Get Started",
+    annualPrice: "$144",
+    description: "Perfect for professionals with advanced needs",
+    buttonText: "Upgrade Now",
     highlighted: true,
     features: [
-      { text: "Unlimited images", included: true },
-      { text: "Up to 16x upscaling", included: true },
-      { text: "Advanced image enhancement", included: true },
-      { text: "Priority email support", included: true },
+      { text: "100 images per day", included: true },
+      { text: "Premium upscaling quality", included: true },
+      { text: "Maximum 4K output resolution", included: true },
+      { text: "Email support", included: true },
+      { text: "Fast processing speed", included: true },
       { text: "All AI models", included: true },
       { text: "Batch processing", included: true },
-      { text: "API access", included: false },
-    ]
+      { text: "Priority support", included: false },
+    ],
+    monthlyPriceId: "price_1R1UVUBQ1z6vW0DwWfGtyIW0",
+    annualPriceId: "price_1R1UWMBQ1z6vW0DwRkcoXWT7"
   },
   {
     id: "enterprise",
-    name: "Enterprise Plan",
+    name: "Enterprise",
     monthlyPrice: "$30",
-    annualPrice: "$288", // $30 * 12 months * 0.8 (20% discount) = $288
-    description: "For teams and large-scale projects",
-    buttonText: "Contact Sales",
+    annualPrice: "$288",
+    description: "For businesses with high-volume requirements",
+    buttonText: "Upgrade to Enterprise",
     highlighted: false,
     features: [
       { text: "Unlimited images", included: true },
-      { text: "Up to 16x upscaling", included: true },
-      { text: "Advanced image enhancement", included: true },
-      { text: "24/7 priority support", included: true },
-      { text: "All AI models", included: true },
-      { text: "Batch processing", included: true },
-      { text: "API access", included: true },
-    ]
-  }
+      { text: "Highest upscaling quality", included: true },
+      { text: "Maximum 8K output resolution", included: true },
+      { text: "Dedicated support", included: true },
+      { text: "Ultra-fast processing speed", included: true },
+      { text: "All AI models plus beta access", included: true },
+      { text: "Unlimited batch processing", included: true },
+      { text: "Priority 24/7 support", included: true },
+    ],
+    monthlyPriceId: "price_1R1UWzBQ1z6vW0DwRDLKndlG",
+    annualPriceId: "price_1R1UXlBQ1z6vW0DwMaBDmKaZ"
+  },
 ];
 
 export default function PricingSection() {
@@ -156,12 +164,6 @@ export default function PricingSection() {
       return;
     }
 
-    if (plan.id === "enterprise") {
-      // Enterprise plan redirects to contact page
-      router.push("/contact");
-      return;
-    }
-
     // If user is not logged in, redirect to signup
     if (!user) {
       router.push(`/auth/signup?plan=${plan.id}&billing=${billingCycle}`);
@@ -201,9 +203,22 @@ export default function PricingSection() {
         console.error('Error checking configuration:', configError);
       }
       
+      // Get the proper price ID based on billing cycle
+      const priceId = billingCycle === 'annual' 
+        ? plan.annualPriceId 
+        : plan.monthlyPriceId;
+      
+      if (!priceId) {
+        console.error('No price ID found for plan:', plan.id, 'with billing cycle:', billingCycle);
+        toast.error("This plan is not available with the selected billing cycle.");
+        return;
+      }
+      
       // Call the checkout API endpoint
       const response = await axios.post('/api/checkout', {
         planId: plan.id,
+        priceId: priceId,
+        billingCycle: billingCycle
       });
       
       console.log('Checkout response:', response.data);
