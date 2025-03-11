@@ -5,19 +5,28 @@ export async function GET(request: NextRequest) {
   try {
     console.log("Auth debug API called");
     
-    // Get Supabase session
-    const session = await getSession();
-    const user = await getCurrentUser();
+    // Get headers from the request for debugging
+    const authHeader = request.headers.get('authorization');
+    const cookieHeader = request.headers.get('cookie');
     
-    // Get session data directly
-    const { data: sessionData } = await supabase.auth.getSession();
+    // Get all cookies from the request
+    const requestCookies = Object.fromEntries(
+      request.cookies.getAll().map(c => [c.name, c.value])
+    );
     
-    // Extract cookie names from the request
-    const cookieNames = Object.keys(request.cookies.getAll());
-    const supabaseCookieNames = cookieNames.filter(name => 
+    // List all supabase-related cookies
+    const supabaseCookies = Object.keys(requestCookies).filter(name => 
       name.includes('supabase') || 
       name.includes('sb-')
     );
+    
+    // Get Supabase session directly
+    const directSessionResult = await supabase.auth.getSession();
+    const directUserResult = await supabase.auth.getUser();
+    
+    // Get session through our helper
+    const session = await getSession();
+    const user = await getCurrentUser();
     
     // Try to refresh the session
     let refreshResult = null;
@@ -47,19 +56,33 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       authenticated: !!user,
       sessionExists: !!session,
-      rawSessionExists: !!sessionData?.session,
-      session: sessionData?.session ? {
-        expiresAt: sessionData.session.expires_at,
-        hasAccessToken: !!sessionData.session.access_token,
-        accessTokenLength: sessionData.session.access_token?.length || 0
+      directSessionExists: !!directSessionResult.data.session,
+      directUserExists: !!directUserResult.data.user,
+      
+      // Include safe versions of the session and user objects
+      session: session ? {
+        expiresAt: session.expires_at,
+        hasAccessToken: !!session.access_token,
+        accessTokenLength: session.access_token?.length || 0
       } : null,
+      
       user: user ? {
         id: user.id,
         email: user.email,
         emailConfirmed: !!user.email_confirmed_at
       } : null,
-      supabaseCookies: supabaseCookieNames,
-      allCookies: cookieNames,
+      
+      // Cookie information
+      authHeader: authHeader ? 'Present' : 'Missing',
+      cookieHeader: cookieHeader ? `Present (${cookieHeader.length} chars)` : 'Missing',
+      supabaseCookies,
+      hasSbAuthCookie: !!requestCookies['sb-auth-token'],
+      hasSupabaseAuthCookie: !!requestCookies['supabase-auth-token'],
+      
+      // Request cookie counts
+      requestCookieCount: Object.keys(requestCookies).length,
+      
+      // Refresh result
       refreshResult
     });
   } catch (error) {
