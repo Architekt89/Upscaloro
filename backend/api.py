@@ -1,4 +1,5 @@
 from backend.database import DatabaseHandler
+from datetime import datetime, timedelta
 
 @app.get("/subscription/{user_id}", tags=["Subscription"])
 async def get_subscription(user_id: str, request: Request):
@@ -75,4 +76,42 @@ async def get_subscription(user_id: str, request: Request):
         raise HTTPException(
             status_code=500,
             detail=f"Internal server error: {str(e)}"
-        ) 
+        )
+
+@app.post("/test/create-subscription", tags=["Testing"])
+async def test_create_subscription():
+    """
+    Test endpoint to create a subscription record
+    """
+    try:
+        # Create a test subscription
+        user_id = "test_user_id"
+        subscription_data = {
+            "id": user_id,
+            "stripe_customer_id": "test_customer_id",
+            "stripe_subscription_id": "test_subscription_id",
+            "plan": "pro",
+            "status": "active",
+            "current_period_end": (datetime.now() + timedelta(days=30)).isoformat(),
+            "email": "test@example.com"
+        }
+        
+        # Insert directly into the table
+        result = DatabaseHandler.supabase.table("subscriptions").upsert(subscription_data).execute()
+        
+        if result.data:
+            return {
+                "status": "success",
+                "message": "Test subscription created",
+                "data": result.data[0]
+            }
+        else:
+            return {
+                "status": "error",
+                "message": "Failed to create test subscription"
+            }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error creating test subscription: {str(e)}"
+        } 
