@@ -10,8 +10,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Import database handler
-from backend.database import DatabaseHandler
+# Import database handler and supabase client
+from backend.database import DatabaseHandler, supabase
 
 async def get_subscription(user_id: str, request: Request):
     """
@@ -105,7 +105,24 @@ async def test_create_subscription():
             "email": "test@example.com"
         }
         
-        # Use the upsert_subscription method instead of direct table access
+        logger.info(f"Attempting to create test subscription with data: {subscription_data}")
+        
+        # Try direct table access first for debugging
+        try:
+            direct_result = await supabase.table("subscriptions").upsert({
+                "id": user_id,
+                "stripe_customer_id": subscription_data["stripe_customer_id"],
+                "stripe_subscription_id": subscription_data["stripe_subscription_id"],
+                "plan": subscription_data["plan"],
+                "status": subscription_data["status"],
+                "current_period_end": subscription_data["current_period_end"],
+                "email": subscription_data["email"]
+            }).execute()
+            logger.info(f"Direct table access result: {direct_result}")
+        except Exception as e:
+            logger.error(f"Error with direct table access: {str(e)}")
+        
+        # Use the upsert_subscription method
         result = await DatabaseHandler.upsert_subscription(
             user_id=user_id,
             stripe_customer_id=subscription_data["stripe_customer_id"],
@@ -117,17 +134,20 @@ async def test_create_subscription():
         )
         
         if result:
+            logger.info(f"Successfully created test subscription: {result}")
             return {
                 "status": "success",
                 "message": "Test subscription created",
                 "data": result
             }
         else:
+            logger.error("Failed to create test subscription: result was None")
             return {
                 "status": "error",
                 "message": "Failed to create test subscription"
             }
     except Exception as e:
+        logger.error(f"Error creating test subscription: {str(e)}")
         return {
             "status": "error",
             "message": f"Error creating test subscription: {str(e)}"
