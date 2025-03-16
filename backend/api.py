@@ -2,6 +2,7 @@ import logging
 from fastapi import HTTPException, Request
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
+import uuid
 
 # Configure logging
 logging.basicConfig(
@@ -94,8 +95,8 @@ async def test_create_subscription():
     Test endpoint to create a subscription record
     """
     try:
-        # Create a test subscription
-        user_id = "test_user_id"
+        # Create a test subscription with a valid UUID
+        user_id = str(uuid.uuid4())  # Generate a valid UUID
         subscription_data = {
             "stripe_customer_id": "test_customer_id",
             "stripe_subscription_id": "test_subscription_id",
@@ -105,7 +106,8 @@ async def test_create_subscription():
             "email": "test@example.com"
         }
         
-        logger.info(f"Attempting to create test subscription with data: {subscription_data}")
+        logger.info(f"Attempting to create test subscription with user_id: {user_id}")
+        logger.info(f"Subscription data: {subscription_data}")
         
         # Try direct table access first for debugging
         try:
