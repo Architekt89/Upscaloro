@@ -224,4 +224,72 @@ class DatabaseHandler:
             return True
         except Exception as e:
             logger.error(f"Error deleting old images: {str(e)}")
-            return False 
+            return False
+    
+    @classmethod
+    async def upsert_subscription(cls, user_id, stripe_customer_id, stripe_subscription_id, plan, status, current_period_end, email=None):
+        """
+        Upsert a subscription record in the database
+        
+        Args:
+            user_id (str): The user ID
+            stripe_customer_id (str): The Stripe customer ID
+            stripe_subscription_id (str): The Stripe subscription ID
+            plan (str): The subscription plan
+            status (str): The subscription status
+            current_period_end (datetime): The end date of the current subscription period
+            email (str, optional): The user's email
+            
+        Returns:
+            dict: The upserted subscription data or None if the operation failed
+        """
+        try:
+            logger.info(f"Upserting subscription for user: {user_id}")
+            
+            subscription_data = {
+                "id": user_id,  # Using user_id as the primary key
+                "stripe_customer_id": stripe_customer_id,
+                "stripe_subscription_id": stripe_subscription_id,
+                "plan": plan,
+                "status": status,
+                "current_period_end": current_period_end.isoformat(),
+                "email": email
+            }
+            
+            result = cls.supabase.table("subscriptions").upsert(subscription_data).execute()
+            
+            if result.data:
+                logger.info(f"Successfully upserted subscription for user: {user_id}")
+                return result.data[0]
+            else:
+                logger.error(f"Failed to upsert subscription for user: {user_id}")
+                return None
+        except Exception as e:
+            logger.error(f"Error upserting subscription: {str(e)}")
+            return None
+            
+    @classmethod
+    async def get_subscription(cls, user_id):
+        """
+        Get subscription information for a user
+        
+        Args:
+            user_id (str): The user ID
+            
+        Returns:
+            dict: The subscription data or None if not found
+        """
+        try:
+            logger.info(f"Getting subscription for user: {user_id}")
+            
+            result = cls.supabase.table("subscriptions").select("*").eq("id", user_id).execute()
+            
+            if result.data and len(result.data) > 0:
+                logger.info(f"Found subscription for user: {user_id}")
+                return result.data[0]
+            else:
+                logger.info(f"No subscription found for user: {user_id}")
+                return None
+        except Exception as e:
+            logger.error(f"Error getting subscription: {str(e)}")
+            return None 

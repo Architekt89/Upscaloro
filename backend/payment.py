@@ -177,7 +177,18 @@ class PaymentHandler:
                 
                 # Update the user's subscription in the database
                 try:
-                    # Prepare the subscription data
+                    # Get the user's email from Stripe customer
+                    customer_email = None
+                    try:
+                        customer = stripe.Customer.retrieve(customer_id)
+                        customer_email = customer.email
+                    except Exception as e:
+                        logger.warning(f"Could not retrieve customer email: {str(e)}")
+                    
+                    # Update the user record with subscription details
+                    from backend.database import DatabaseHandler
+                    
+                    # First update the user's subscription tier
                     subscription_data = {
                         "subscription_tier": plan_id,
                         "stripe_customer_id": customer_id,
@@ -189,23 +200,32 @@ class PaymentHandler:
                         "updated_at": datetime.now().isoformat()
                     }
                     
-                    # Update the user in the database
-                    from backend.database import DatabaseHandler
                     updated_user = await DatabaseHandler.update_user(user_id, subscription_data)
                     
-                    if updated_user:
+                    # Then upsert the subscription record
+                    subscription_result = await DatabaseHandler.upsert_subscription(
+                        user_id=user_id,
+                        stripe_customer_id=customer_id,
+                        stripe_subscription_id=subscription_id,
+                        plan=plan_id,
+                        status=status,
+                        current_period_end=datetime.fromtimestamp(current_period_end),
+                        email=customer_email
+                    )
+                    
+                    if updated_user and subscription_result:
                         logger.info(f"Successfully updated subscription for user: {user_id}")
                     else:
-                        logger.error(f"Failed to update user in database: {user_id}")
+                        logger.error(f"Failed to update subscription in database: {user_id}")
                         return {
                             "status": "error",
-                            "message": f"Failed to update user in database: {user_id}"
+                            "message": f"Failed to update subscription in database: {user_id}"
                         }
                 except Exception as e:
-                    logger.error(f"Error updating user subscription in database: {str(e)}")
+                    logger.error(f"Error updating subscription in database: {str(e)}")
                     return {
                         "status": "error",
-                        "message": f"Error updating user subscription in database: {str(e)}"
+                        "message": f"Error updating subscription in database: {str(e)}"
                     }
                 
                 return {
@@ -256,7 +276,15 @@ class PaymentHandler:
                             "message": "No user ID found in subscription metadata"
                         }
                     
-                    # Update the user's subscription in the database
+                    # Get the user's email from Stripe customer
+                    customer_email = None
+                    try:
+                        customer = stripe.Customer.retrieve(customer_id)
+                        customer_email = customer.email
+                    except Exception as e:
+                        logger.warning(f"Could not retrieve customer email: {str(e)}")
+                    
+                    # Update the user record with subscription details
                     subscription_data = {
                         "subscription_tier": plan_id or "pro",  # Default to pro if plan_id is not found
                         "stripe_customer_id": customer_id,
@@ -269,19 +297,30 @@ class PaymentHandler:
                     
                     updated_user = await DatabaseHandler.update_user(user_id, subscription_data)
                     
-                    if updated_user:
+                    # Then upsert the subscription record
+                    subscription_result = await DatabaseHandler.upsert_subscription(
+                        user_id=user_id,
+                        stripe_customer_id=customer_id,
+                        stripe_subscription_id=subscription_id,
+                        plan=plan_id or "pro",  # Default to pro if plan_id is not found
+                        status=status,
+                        current_period_end=datetime.fromtimestamp(current_period_end),
+                        email=customer_email
+                    )
+                    
+                    if updated_user and subscription_result:
                         logger.info(f"Successfully updated subscription for user: {user_id}")
                     else:
-                        logger.error(f"Failed to update user in database: {user_id}")
+                        logger.error(f"Failed to update subscription in database: {user_id}")
                         return {
                             "status": "error",
-                            "message": f"Failed to update user in database: {user_id}"
+                            "message": f"Failed to update subscription in database: {user_id}"
                         }
                 except Exception as e:
-                    logger.error(f"Error updating user subscription in database: {str(e)}")
+                    logger.error(f"Error updating subscription in database: {str(e)}")
                     return {
                         "status": "error",
-                        "message": f"Error updating user subscription in database: {str(e)}"
+                        "message": f"Error updating subscription in database: {str(e)}"
                     }
                 
                 return {
@@ -332,7 +371,15 @@ class PaymentHandler:
                             "message": "No user ID found in subscription metadata"
                         }
                     
-                    # Update the user's subscription in the database
+                    # Get the user's email from Stripe customer
+                    customer_email = None
+                    try:
+                        customer = stripe.Customer.retrieve(customer_id)
+                        customer_email = customer.email
+                    except Exception as e:
+                        logger.warning(f"Could not retrieve customer email: {str(e)}")
+                    
+                    # Update the user record with subscription details
                     subscription_data = {
                         "subscription_tier": plan_id or "pro",  # Default to pro if plan_id is not found
                         "stripe_subscription_id": subscription_id,
@@ -344,19 +391,30 @@ class PaymentHandler:
                     
                     updated_user = await DatabaseHandler.update_user(user_id, subscription_data)
                     
-                    if updated_user:
+                    # Then upsert the subscription record
+                    subscription_result = await DatabaseHandler.upsert_subscription(
+                        user_id=user_id,
+                        stripe_customer_id=customer_id,
+                        stripe_subscription_id=subscription_id,
+                        plan=plan_id or "pro",  # Default to pro if plan_id is not found
+                        status=status,
+                        current_period_end=datetime.fromtimestamp(current_period_end),
+                        email=customer_email
+                    )
+                    
+                    if updated_user and subscription_result:
                         logger.info(f"Successfully updated subscription for user: {user_id}")
                     else:
-                        logger.error(f"Failed to update user in database: {user_id}")
+                        logger.error(f"Failed to update subscription in database: {user_id}")
                         return {
                             "status": "error",
-                            "message": f"Failed to update user in database: {user_id}"
+                            "message": f"Failed to update subscription in database: {user_id}"
                         }
                 except Exception as e:
-                    logger.error(f"Error updating user subscription in database: {str(e)}")
+                    logger.error(f"Error updating subscription in database: {str(e)}")
                     return {
                         "status": "error",
-                        "message": f"Error updating user subscription in database: {str(e)}"
+                        "message": f"Error updating subscription in database: {str(e)}"
                     }
                 
                 return {
@@ -384,7 +442,15 @@ class PaymentHandler:
                             "message": "No user ID found in subscription metadata"
                         }
                     
-                    # Update the user's subscription in the database
+                    # Get the user's email from Stripe customer
+                    customer_email = None
+                    try:
+                        customer = stripe.Customer.retrieve(customer_id)
+                        customer_email = customer.email
+                    except Exception as e:
+                        logger.warning(f"Could not retrieve customer email: {str(e)}")
+                    
+                    # Update the user record with subscription details
                     subscription_data = {
                         "subscription_tier": "free",  # Downgrade to free tier
                         "subscription_status": "canceled",
@@ -394,19 +460,30 @@ class PaymentHandler:
                     
                     updated_user = await DatabaseHandler.update_user(user_id, subscription_data)
                     
-                    if updated_user:
+                    # Then upsert the subscription record
+                    subscription_result = await DatabaseHandler.upsert_subscription(
+                        user_id=user_id,
+                        stripe_customer_id=customer_id,
+                        stripe_subscription_id=subscription.id,
+                        plan="free",  # Downgrade to free tier
+                        status="canceled",
+                        current_period_end=datetime.fromtimestamp(subscription.current_period_end),
+                        email=customer_email
+                    )
+                    
+                    if updated_user and subscription_result:
                         logger.info(f"Successfully updated subscription for user: {user_id}")
                     else:
-                        logger.error(f"Failed to update user in database: {user_id}")
+                        logger.error(f"Failed to update subscription in database: {user_id}")
                         return {
                             "status": "error",
-                            "message": f"Failed to update user in database: {user_id}"
+                            "message": f"Failed to update subscription in database: {user_id}"
                         }
                 except Exception as e:
-                    logger.error(f"Error updating user subscription in database: {str(e)}")
+                    logger.error(f"Error updating subscription in database: {str(e)}")
                     return {
                         "status": "error",
-                        "message": f"Error updating user subscription in database: {str(e)}"
+                        "message": f"Error updating subscription in database: {str(e)}"
                     }
                 
                 return {
