@@ -15,6 +15,7 @@ try:
     from .database import DatabaseHandler
     from .billing import BillingHandler, CheckoutSessionRequest, SUBSCRIPTION_PLANS, CheckoutSessionResponse
     from .payment import PaymentHandler
+    from .api import get_subscription, test_create_subscription  # Import our API endpoints
 except ImportError as e:
     # Fall back to absolute imports
     from backend.image_processor import ImageProcessor, VALID_MODES, VALID_SCALE_FACTORS, VALID_OUTPUT_FORMATS, MODE_TO_MODEL
@@ -22,6 +23,7 @@ except ImportError as e:
     from backend.database import DatabaseHandler
     from backend.billing import BillingHandler, CheckoutSessionRequest, SUBSCRIPTION_PLANS, CheckoutSessionResponse
     from backend.payment import PaymentHandler
+    from backend.api import get_subscription, test_create_subscription  # Import our API endpoints
 
 # Load environment variables
 load_dotenv()
@@ -55,6 +57,10 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["Content-Disposition", "Content-Length"],
 )
+
+# Add our API endpoints
+app.add_api_route("/subscription/{user_id}", get_subscription, methods=["GET"], tags=["Subscription"])
+app.add_api_route("/test/create-subscription", test_create_subscription, methods=["POST"], tags=["Testing"])
 
 @app.get("/")
 async def root():

@@ -1,7 +1,18 @@
-from backend.database import DatabaseHandler
+import logging
+from fastapi import HTTPException, Request
 from datetime import datetime, timedelta
+from typing import Optional, Dict, Any
 
-@app.get("/subscription/{user_id}", tags=["Subscription"])
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+# Import database handler
+from backend.database import DatabaseHandler
+
 async def get_subscription(user_id: str, request: Request):
     """
     Get subscription information for a user
@@ -78,7 +89,6 @@ async def get_subscription(user_id: str, request: Request):
             detail=f"Internal server error: {str(e)}"
         )
 
-@app.post("/test/create-subscription", tags=["Testing"])
 async def test_create_subscription():
     """
     Test endpoint to create a subscription record
