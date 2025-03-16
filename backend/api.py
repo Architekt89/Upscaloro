@@ -97,7 +97,6 @@ async def test_create_subscription():
         # Create a test subscription
         user_id = "test_user_id"
         subscription_data = {
-            "id": user_id,
             "stripe_customer_id": "test_customer_id",
             "stripe_subscription_id": "test_subscription_id",
             "plan": "pro",
@@ -106,14 +105,22 @@ async def test_create_subscription():
             "email": "test@example.com"
         }
         
-        # Insert directly into the table
-        result = DatabaseHandler.supabase.table("subscriptions").upsert(subscription_data).execute()
+        # Use the upsert_subscription method instead of direct table access
+        result = await DatabaseHandler.upsert_subscription(
+            user_id=user_id,
+            stripe_customer_id=subscription_data["stripe_customer_id"],
+            stripe_subscription_id=subscription_data["stripe_subscription_id"],
+            plan=subscription_data["plan"],
+            status=subscription_data["status"],
+            current_period_end=datetime.now() + timedelta(days=30),
+            email=subscription_data["email"]
+        )
         
-        if result.data:
+        if result:
             return {
                 "status": "success",
                 "message": "Test subscription created",
-                "data": result.data[0]
+                "data": result
             }
         else:
             return {
