@@ -199,23 +199,19 @@ export default function PricingSection() {
         console.log("No auth token available for checkout request");
       }
       
-      // Use the backend URL directly instead of going through the Next.js API route
-      const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://upscaloro.onrender.com';
-      
-      // Call the backend API directly with the correct request body format
-      const response = await fetch(`${backendUrl}/billing/create-checkout-session`, {
+      // Fix the URL construction
+      const backendUrl = "https://upscaloro.onrender.com";
+      let response = await fetch(`${backendUrl}/billing/create-checkout-session`, {
         method: "POST",
         headers,
         body: JSON.stringify({
           plan_id: plan.id,
           price_id: priceId,
           billing_cycle: cycleType,
-          // Redirect back to pricing page with success parameter
-          success_url: `${window.location.origin}/pricing?success=true&plan=${plan.id}`,
-          cancel_url: `${window.location.origin}/pricing?success=false`,
-          // Skip authentication if user is not logged in but unauthenticated checkout is allowed
+          success_url: "".concat(window.location.origin, "/pricing?success=true&plan=").concat(plan.id),
+          cancel_url: "".concat(window.location.origin, "/pricing?success=false"),
           skip_auth: !user && allowUnauthCheckout
-        }),
+        })
       });
 
       if (!response.ok) {
