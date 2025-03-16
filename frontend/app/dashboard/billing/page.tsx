@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { CreditCard, Package, BarChart, Receipt, AlertCircle, CheckCircle, ChevronRight, PlusCircle, Edit, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -83,8 +83,10 @@ const mockBillingHistory = [
 ];
 
 export default function BillingPage() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const checkoutSuccess = searchParams.get('checkout_success');
   const [loading, setLoading] = useState(true);
   const [subscription, setSubscription] = useState(mockSubscriptionData);
   const [usage, setUsage] = useState(mockUsageData);
@@ -98,12 +100,24 @@ export default function BillingPage() {
   });
   const [backendError, setBackendError] = useState(false);
   const [usingMockData, setUsingMockData] = useState(false);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
 
   // Check if user is logged in
   useEffect(() => {
     if (!user) {
       router.push('/auth/login');
       return;
+    }
+
+    // Check for checkout success parameter
+    if (checkoutSuccess === 'true') {
+      setShowSuccessMessage(true);
+      // Hide the success message after 5 seconds
+      const timer = setTimeout(() => {
+        setShowSuccessMessage(false);
+      }, 5000);
+      
+      return () => clearTimeout(timer);
     }
 
     // Fetch billing data
@@ -120,18 +134,77 @@ export default function BillingPage() {
           return;
         }
         
-        // Fetch real billing data from the API
-        const billingData = await getBillingInfo();
-        
-        if (billingData) {
-          setSubscription(billingData.subscription || mockSubscriptionData);
-          setUsage(billingData.usage || mockUsageData);
-          setPaymentMethods(billingData.payment_methods || mockPaymentMethods);
-          setBillingHistory(billingData.invoices || mockBillingHistory);
+        // Fetch real subscription data from the API
+        try {
+          const subscriptionResponse = await fetch(`https://upscaloro.onrender.com/subscription/${user.id}`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session?.access_token || ''}`
+            }
+          });
           
-          // Check if we're using mock data (this happens when the backend doesn't have billing endpoints)
-          if (billingData === mockBillingData) {
-            setUsingMockData(true);
+          if (subscriptionResponse.ok) {
+            const subscriptionData = await subscriptionResponse.json();
+            
+            if (subscriptionData.status === 'success') {
+              // Create subscription object from real data
+              const realSubscription = {
+                plan: subscriptionData.data.subscription_tier || 'Free',
+                status: subscriptionData.data.subscription_status || 'active',
+                renewalDate: subscriptionData.data.current_period_end 
+                  ? new Date(subscriptionData.data.current_period_end).toISOString()
+                  : new Date(new Date().getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(), // Default to 30 days from now
+                price: subscriptionData.data.subscription_tier === 'pro' ? '$15.00' : '$0.00',
+                billingCycle: 'monthly',
+                features: subscriptionData.data.subscription_tier === 'pro' 
+                  ? [
+                      "Unlimited images",
+                      "Up to 16x upscaling",
+                      "All upscaling modes",
+                      "API access",
+                      "Priority support"
+                    ]
+                  : [
+                      "Up to 3 images per month",
+                      "2x and 4x upscaling",
+                      "Basic upscaling mode",
+                      "Standard support"
+                    ]
+              };
+              
+              setSubscription(realSubscription);
+              
+              // If we have real subscription data, but no other billing data,
+              // we'll still use mock data for the rest
+              setUsage(mockUsageData);
+              setPaymentMethods(mockPaymentMethods);
+              setBillingHistory(mockBillingHistory);
+              
+              // We're using partial real data
+              setUsingMockData(true);
+            } else {
+              throw new Error(subscriptionData.message || 'Failed to fetch subscription data');
+            }
+          } else {
+            throw new Error(`Failed to fetch subscription data: ${subscriptionResponse.statusText}`);
+          }
+        } catch (subscriptionError) {
+          console.error('Error fetching subscription data:', subscriptionError);
+          
+          // Fall back to fetching billing data from the billing endpoint
+          const billingData = await getBillingInfo();
+          
+          if (billingData) {
+            setSubscription(billingData.subscription || mockSubscriptionData);
+            setUsage(billingData.usage || mockUsageData);
+            setPaymentMethods(billingData.payment_methods || mockPaymentMethods);
+            setBillingHistory(billingData.invoices || mockBillingHistory);
+            
+            // Check if we're using mock data (this happens when the backend doesn't have billing endpoints)
+            if (billingData === mockBillingData) {
+              setUsingMockData(true);
+            }
           }
         }
       } catch (error: any) {
@@ -302,6 +375,18 @@ export default function BillingPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <h1 className="text-3xl font-bold text-white mb-8">Billing & Subscription</h1>
+      
+      {showSuccessMessage && (
+        <div className="bg-green-900/50 backdrop-blur-sm rounded-xl p-6 border border-green-800/50 shadow-xl mb-8">
+          <div className="flex items-center mb-4">
+            <CheckCircle className="h-6 w-6 text-green-500 mr-2" />
+            <h2 className="text-xl font-semibold text-white">Payment Successful</h2>
+          </div>
+          <p className="text-gray-300 mb-4">
+            Thank you for your payment! Your subscription has been updated successfully.
+          </p>
+        </div>
+      )}
       
       {backendError && (
         <BackendDebug />
