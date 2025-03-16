@@ -208,8 +208,8 @@ export default function PricingSection() {
           plan_id: plan.id,
           price_id: priceId,
           billing_cycle: cycleType,
-          success_url: "".concat(window.location.origin, "/pricing?success=true&plan=").concat(plan.id),
-          cancel_url: "".concat(window.location.origin, "/pricing?success=false"),
+          success_url: `${window.location.origin}/account?checkout_success=true`,
+          cancel_url: `${window.location.origin}/pricing?checkout_canceled=true`,
           skip_auth: !user && allowUnauthCheckout
         })
       });

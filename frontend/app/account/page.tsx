@@ -1,22 +1,36 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser } from '@/hooks/useUser';
 import SubscriptionInfo from '@/components/SubscriptionInfo';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2 } from 'lucide-react';
+import { Loader2, CheckCircle } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function AccountPage() {
   const { user, loading } = useUser();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const checkoutSuccess = searchParams.get('checkout_success');
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
       router.push('/login');
     }
-  }, [user, loading, router]);
+    
+    if (checkoutSuccess === 'true') {
+      setShowSuccessMessage(true);
+      // Hide the success message after 5 seconds
+      const timer = setTimeout(() => {
+        setShowSuccessMessage(false);
+      }, 5000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [user, loading, router, checkoutSuccess]);
 
   if (loading) {
     return (
@@ -33,6 +47,16 @@ export default function AccountPage() {
   return (
     <div className="container mx-auto py-10 space-y-8">
       <h1 className="text-3xl font-bold">Account Settings</h1>
+      
+      {showSuccessMessage && (
+        <Alert className="bg-green-50 border-green-200">
+          <CheckCircle className="h-5 w-5 text-green-500" />
+          <AlertTitle className="text-green-800">Payment Successful!</AlertTitle>
+          <AlertDescription className="text-green-700">
+            Thank you for your purchase. Your subscription has been activated.
+          </AlertDescription>
+        </Alert>
+      )}
       
       <Tabs defaultValue="subscription">
         <TabsList>
