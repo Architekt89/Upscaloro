@@ -141,46 +141,279 @@ class PaymentHandler:
                 user_id = session.metadata.get("user_id")
                 logger.info(f"Checkout session completed for user: {user_id}")
                 
-                # TODO: Update user subscription in database
-                # This would connect to your user database and update the subscription status
+                # Extract necessary data from the session
+                customer_id = session.customer
+                subscription_id = session.subscription
+                plan_id = session.metadata.get("plan_id")
+                billing_cycle = session.metadata.get("billing_cycle", "monthly")
+                
+                if not user_id or not subscription_id or not plan_id:
+                    logger.error(f"Missing required data in checkout session: user_id={user_id}, subscription_id={subscription_id}, plan_id={plan_id}")
+                    return {
+                        "status": "error",
+                        "message": "Missing required data in checkout session"
+                    }
+                
+                # Retrieve the subscription details from Stripe
+                try:
+                    subscription = stripe.Subscription.retrieve(subscription_id)
+                    current_period_end = subscription.current_period_end
+                    status = subscription.status
+                    
+                    # Get the price ID from the subscription
+                    if subscription.items and subscription.items.data:
+                        price_id = subscription.items.data[0].price.id
+                    else:
+                        logger.error(f"No price found in subscription: {subscription_id}")
+                        price_id = None
+                    
+                    logger.info(f"Retrieved subscription details: status={status}, price_id={price_id}, current_period_end={current_period_end}")
+                except stripe.error.StripeError as e:
+                    logger.error(f"Error retrieving subscription from Stripe: {str(e)}")
+                    return {
+                        "status": "error",
+                        "message": f"Error retrieving subscription: {str(e)}"
+                    }
+                
+                # Update the user's subscription in the database
+                try:
+                    # Prepare the subscription data
+                    subscription_data = {
+                        "subscription_tier": plan_id,
+                        "stripe_customer_id": customer_id,
+                        "stripe_subscription_id": subscription_id,
+                        "subscription_status": status,
+                        "subscription_price_id": price_id,
+                        "subscription_current_period_end": datetime.fromtimestamp(current_period_end).isoformat(),
+                        "subscription_billing_cycle": billing_cycle,
+                        "updated_at": datetime.now().isoformat()
+                    }
+                    
+                    # Update the user in the database
+                    from backend.database import DatabaseHandler
+                    updated_user = await DatabaseHandler.update_user(user_id, subscription_data)
+                    
+                    if updated_user:
+                        logger.info(f"Successfully updated subscription for user: {user_id}")
+                    else:
+                        logger.error(f"Failed to update user in database: {user_id}")
+                        return {
+                            "status": "error",
+                            "message": f"Failed to update user in database: {user_id}"
+                        }
+                except Exception as e:
+                    logger.error(f"Error updating user subscription in database: {str(e)}")
+                    return {
+                        "status": "error",
+                        "message": f"Error updating user subscription in database: {str(e)}"
+                    }
                 
                 return {
                     "status": "success",
                     "message": f"Subscription created for user {user_id}",
                 }
+                
             elif event.type == "customer.subscription.created":
                 subscription = event.data.object
                 customer_id = subscription.customer
                 logger.info(f"Subscription created for customer: {customer_id}")
                 
-                # TODO: Update user subscription in database
+                # Extract necessary data from the subscription
+                subscription_id = subscription.id
+                status = subscription.status
+                current_period_end = subscription.current_period_end
+                
+                # Get the price ID and plan ID from the subscription
+                if subscription.items and subscription.items.data:
+                    price_id = subscription.items.data[0].price.id
+                    
+                    # Find the plan ID that corresponds to this price ID
+                    plan_id = None
+                    for plan, plan_price_id in SUBSCRIPTION_PLANS.items():
+                        if plan_price_id == price_id:
+                            plan_id = plan
+                            break
+                    
+                    if not plan_id:
+                        logger.error(f"No matching plan found for price ID: {price_id}")
+                else:
+                    logger.error(f"No price found in subscription: {subscription_id}")
+                    price_id = None
+                    plan_id = None
+                
+                # Find the user associated with this customer ID
+                try:
+                    from backend.database import DatabaseHandler
+                    # This is a simplified approach - in a real app, you would have a mapping between
+                    # Stripe customer IDs and your user IDs
+                    # For now, we'll assume the user ID is stored in the subscription metadata
+                    user_id = subscription.metadata.get("user_id")
+                    
+                    if not user_id:
+                        logger.error(f"No user ID found in subscription metadata: {subscription_id}")
+                        return {
+                            "status": "error",
+                            "message": "No user ID found in subscription metadata"
+                        }
+                    
+                    # Update the user's subscription in the database
+                    subscription_data = {
+                        "subscription_tier": plan_id or "pro",  # Default to pro if plan_id is not found
+                        "stripe_customer_id": customer_id,
+                        "stripe_subscription_id": subscription_id,
+                        "subscription_status": status,
+                        "subscription_price_id": price_id,
+                        "subscription_current_period_end": datetime.fromtimestamp(current_period_end).isoformat(),
+                        "updated_at": datetime.now().isoformat()
+                    }
+                    
+                    updated_user = await DatabaseHandler.update_user(user_id, subscription_data)
+                    
+                    if updated_user:
+                        logger.info(f"Successfully updated subscription for user: {user_id}")
+                    else:
+                        logger.error(f"Failed to update user in database: {user_id}")
+                        return {
+                            "status": "error",
+                            "message": f"Failed to update user in database: {user_id}"
+                        }
+                except Exception as e:
+                    logger.error(f"Error updating user subscription in database: {str(e)}")
+                    return {
+                        "status": "error",
+                        "message": f"Error updating user subscription in database: {str(e)}"
+                    }
                 
                 return {
                     "status": "success",
                     "message": f"Subscription created for customer {customer_id}",
                 }
+                
             elif event.type == "customer.subscription.updated":
                 subscription = event.data.object
                 customer_id = subscription.customer
                 logger.info(f"Subscription updated for customer: {customer_id}")
                 
-                # TODO: Update user subscription in database
+                # Extract necessary data from the subscription
+                subscription_id = subscription.id
+                status = subscription.status
+                current_period_end = subscription.current_period_end
+                
+                # Get the price ID and plan ID from the subscription
+                if subscription.items and subscription.items.data:
+                    price_id = subscription.items.data[0].price.id
+                    
+                    # Find the plan ID that corresponds to this price ID
+                    plan_id = None
+                    for plan, plan_price_id in SUBSCRIPTION_PLANS.items():
+                        if plan_price_id == price_id:
+                            plan_id = plan
+                            break
+                    
+                    if not plan_id:
+                        logger.error(f"No matching plan found for price ID: {price_id}")
+                else:
+                    logger.error(f"No price found in subscription: {subscription_id}")
+                    price_id = None
+                    plan_id = None
+                
+                # Find the user associated with this customer ID
+                try:
+                    from backend.database import DatabaseHandler
+                    # This is a simplified approach - in a real app, you would have a mapping between
+                    # Stripe customer IDs and your user IDs
+                    # For now, we'll assume the user ID is stored in the subscription metadata
+                    user_id = subscription.metadata.get("user_id")
+                    
+                    if not user_id:
+                        logger.error(f"No user ID found in subscription metadata: {subscription_id}")
+                        return {
+                            "status": "error",
+                            "message": "No user ID found in subscription metadata"
+                        }
+                    
+                    # Update the user's subscription in the database
+                    subscription_data = {
+                        "subscription_tier": plan_id or "pro",  # Default to pro if plan_id is not found
+                        "stripe_subscription_id": subscription_id,
+                        "subscription_status": status,
+                        "subscription_price_id": price_id,
+                        "subscription_current_period_end": datetime.fromtimestamp(current_period_end).isoformat(),
+                        "updated_at": datetime.now().isoformat()
+                    }
+                    
+                    updated_user = await DatabaseHandler.update_user(user_id, subscription_data)
+                    
+                    if updated_user:
+                        logger.info(f"Successfully updated subscription for user: {user_id}")
+                    else:
+                        logger.error(f"Failed to update user in database: {user_id}")
+                        return {
+                            "status": "error",
+                            "message": f"Failed to update user in database: {user_id}"
+                        }
+                except Exception as e:
+                    logger.error(f"Error updating user subscription in database: {str(e)}")
+                    return {
+                        "status": "error",
+                        "message": f"Error updating user subscription in database: {str(e)}"
+                    }
                 
                 return {
                     "status": "success",
                     "message": f"Subscription updated for customer {customer_id}",
                 }
+                
             elif event.type == "customer.subscription.deleted":
                 subscription = event.data.object
                 customer_id = subscription.customer
                 logger.info(f"Subscription deleted for customer: {customer_id}")
                 
-                # TODO: Update user subscription in database
+                # Find the user associated with this customer ID
+                try:
+                    from backend.database import DatabaseHandler
+                    # This is a simplified approach - in a real app, you would have a mapping between
+                    # Stripe customer IDs and your user IDs
+                    # For now, we'll assume the user ID is stored in the subscription metadata
+                    user_id = subscription.metadata.get("user_id")
+                    
+                    if not user_id:
+                        logger.error(f"No user ID found in subscription metadata: {subscription.id}")
+                        return {
+                            "status": "error",
+                            "message": "No user ID found in subscription metadata"
+                        }
+                    
+                    # Update the user's subscription in the database
+                    subscription_data = {
+                        "subscription_tier": "free",  # Downgrade to free tier
+                        "subscription_status": "canceled",
+                        "subscription_current_period_end": datetime.fromtimestamp(subscription.current_period_end).isoformat(),
+                        "updated_at": datetime.now().isoformat()
+                    }
+                    
+                    updated_user = await DatabaseHandler.update_user(user_id, subscription_data)
+                    
+                    if updated_user:
+                        logger.info(f"Successfully updated subscription for user: {user_id}")
+                    else:
+                        logger.error(f"Failed to update user in database: {user_id}")
+                        return {
+                            "status": "error",
+                            "message": f"Failed to update user in database: {user_id}"
+                        }
+                except Exception as e:
+                    logger.error(f"Error updating user subscription in database: {str(e)}")
+                    return {
+                        "status": "error",
+                        "message": f"Error updating user subscription in database: {str(e)}"
+                    }
                 
                 return {
                     "status": "success",
                     "message": f"Subscription deleted for customer {customer_id}",
                 }
+                
             elif event.type == "invoice.paid":
                 invoice = event.data.object
                 customer_id = invoice.customer
@@ -192,6 +425,7 @@ class PaymentHandler:
                     "status": "success",
                     "message": f"Invoice paid for customer {customer_id}",
                 }
+                
             elif event.type == "invoice.payment_failed":
                 invoice = event.data.object
                 customer_id = invoice.customer
@@ -203,19 +437,24 @@ class PaymentHandler:
                     "status": "success",
                     "message": f"Invoice payment failed for customer {customer_id}",
                 }
-            else:
-                logger.info(f"Unhandled event type: {event.type}")
-                return {
-                    "status": "ignored",
-                    "message": f"Unhandled event type: {event.type}",
-                }
+            
+            # Return a response for unhandled event types
+            return {
+                "status": "success",
+                "message": f"Unhandled event type: {event.type}",
+            }
         except ValueError as e:
-            # Invalid payload or signature
-            logger.error(f"Invalid webhook payload or signature: {str(e)}")
-            raise
+            logger.error(f"Error verifying webhook signature: {str(e)}")
+            return {
+                "status": "error",
+                "message": f"Error verifying webhook signature: {str(e)}",
+            }
         except Exception as e:
             logger.error(f"Error handling webhook: {str(e)}")
-            raise
+            return {
+                "status": "error",
+                "message": f"Error handling webhook: {str(e)}",
+            }
     
     @staticmethod
     async def create_api_usage_record(
