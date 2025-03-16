@@ -13,14 +13,14 @@ try:
     from .image_processor import ImageProcessor, VALID_MODES, VALID_SCALE_FACTORS, VALID_OUTPUT_FORMATS, MODE_TO_MODEL
     from .auth import get_current_active_user, User
     from .database import DatabaseHandler
-    from .billing import BillingHandler, CheckoutSessionRequest
+    from .billing import BillingHandler, CheckoutSessionRequest, SUBSCRIPTION_PLANS, CheckoutSessionResponse
     from .payment import PaymentHandler
 except ImportError as e:
     # Fall back to absolute imports
     from backend.image_processor import ImageProcessor, VALID_MODES, VALID_SCALE_FACTORS, VALID_OUTPUT_FORMATS, MODE_TO_MODEL
     from backend.auth import get_current_active_user, User
     from backend.database import DatabaseHandler
-    from backend.billing import BillingHandler, CheckoutSessionRequest
+    from backend.billing import BillingHandler, CheckoutSessionRequest, SUBSCRIPTION_PLANS, CheckoutSessionResponse
     from backend.payment import PaymentHandler
 
 # Load environment variables
@@ -616,7 +616,7 @@ async def create_checkout_session(
 
 @app.post("/billing/create-checkout-session")
 async def create_checkout_session(
-    request: billing.CheckoutSessionRequest,
+    request: CheckoutSessionRequest,
     current_user: Optional[User] = Depends(get_current_active_user)
 ):
     """
@@ -645,11 +645,11 @@ async def create_checkout_session(
         user_id = current_user.username if current_user else "anonymous-user"
         
         # Validate the plan ID
-        if request.plan_id not in billing.SUBSCRIPTION_PLANS:
+        if request.plan_id not in SUBSCRIPTION_PLANS:
             logger.error(f"Invalid plan ID: {request.plan_id}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid plan ID: {request.plan_id}. Available plans: {list(billing.SUBSCRIPTION_PLANS.keys())}"
+                detail=f"Invalid plan ID: {request.plan_id}. Available plans: {list(SUBSCRIPTION_PLANS.keys())}"
             )
         
         # Create the checkout session
@@ -663,7 +663,7 @@ async def create_checkout_session(
         )
         
         logger.info(f"Checkout session created: {result}")
-        return billing.CheckoutSessionResponse(
+        return CheckoutSessionResponse(
             url=result["url"],
             session_id=result["session_id"]
         )
@@ -679,7 +679,7 @@ async def create_checkout_session(
 
 @app.post("/billing/create-checkout-session-alt")
 async def create_checkout_session_alt(
-    request: billing.CheckoutSessionRequest
+    request: CheckoutSessionRequest
 ):
     """
     Alternative endpoint for creating a Stripe checkout session without authentication.
@@ -698,11 +698,11 @@ async def create_checkout_session_alt(
         user_id = "anonymous-user"
         
         # Validate the plan ID
-        if request.plan_id not in billing.SUBSCRIPTION_PLANS:
+        if request.plan_id not in SUBSCRIPTION_PLANS:
             logger.error(f"Invalid plan ID: {request.plan_id}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid plan ID: {request.plan_id}. Available plans: {list(billing.SUBSCRIPTION_PLANS.keys())}"
+                detail=f"Invalid plan ID: {request.plan_id}. Available plans: {list(SUBSCRIPTION_PLANS.keys())}"
             )
         
         # Create the checkout session
@@ -716,7 +716,7 @@ async def create_checkout_session_alt(
         )
         
         logger.info(f"Alternative checkout session created: {result}")
-        return billing.CheckoutSessionResponse(
+        return CheckoutSessionResponse(
             url=result["url"],
             session_id=result["session_id"]
         )
