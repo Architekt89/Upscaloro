@@ -256,7 +256,7 @@ class DatabaseHandler:
                 "email": email
             }
             
-            result = cls.supabase.table("subscriptions").upsert(subscription_data).execute()
+            result = supabase.table("subscriptions").upsert(subscription_data).execute()
             
             if result.data:
                 logger.info(f"Successfully upserted subscription for user: {user_id}")
@@ -282,7 +282,7 @@ class DatabaseHandler:
         try:
             logger.info(f"Getting subscription for user: {user_id}")
             
-            result = cls.supabase.table("subscriptions").select("*").eq("id", user_id).execute()
+            result = supabase.table("subscriptions").select("*").eq("id", user_id).execute()
             
             if result.data and len(result.data) > 0:
                 logger.info(f"Found subscription for user: {user_id}")
