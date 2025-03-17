@@ -433,7 +433,7 @@ class PaymentHandler:
                     # This is a simplified approach - in a real app, you would have a mapping between
                     # Stripe customer IDs and your user IDs
                     # For now, we'll assume the user ID is stored in the subscription metadata
-                    user_id = subscription.metadata.get("user_id")
+                user_id = subscription.metadata.get("user_id")
                     
                     if not user_id:
                         logger.error(f"No user ID found in subscription metadata: {subscription.id}")
@@ -696,7 +696,7 @@ class PaymentHandler:
             return {
                 "status": "error",
                 "message": f"Error verifying webhook signature: {str(e)}",
-            }
+                }
         except Exception as e:
             logger.error(f"Error handling webhook: {str(e)}")
             return {
