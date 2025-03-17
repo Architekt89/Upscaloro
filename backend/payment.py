@@ -204,13 +204,42 @@ class PaymentHandler:
                     try:
                         customer = stripe.Customer.retrieve(customer_id)
                         customer_email = customer.email
+                        logger.info(f"Retrieved customer email: {customer_email}")
                     except Exception as e:
                         logger.warning(f"Could not retrieve customer email: {str(e)}")
                     
-                    # Update the user record with subscription details
+                    # Import here to avoid circular imports
                     from backend.database import DatabaseHandler
                     
-                    # First update the user's subscription tier
+                    # First check if the user exists
+                    user = await DatabaseHandler.get_user(user_id)
+                    if not user:
+                        logger.error(f"User not found in database: {user_id}")
+                        # Try to create the user if we have an email
+                        if customer_email:
+                            logger.info(f"Creating new user with ID {user_id} and email {customer_email}")
+                            user_data = {
+                                "id": user_id,
+                                "email": customer_email,
+                                "username": customer_email.split("@")[0],
+                                "created_at": datetime.now().isoformat(),
+                                "updated_at": datetime.now().isoformat()
+                            }
+                            created_user = await DatabaseHandler.create_user(user_data)
+                            if not created_user:
+                                logger.error(f"Failed to create user: {user_id}")
+                                return {
+                                    "status": "error",
+                                    "message": f"User not found and could not be created: {user_id}"
+                                }
+                            logger.info(f"User created successfully: {user_id}")
+                        else:
+                            return {
+                                "status": "error",
+                                "message": f"User not found: {user_id}"
+                            }
+                    
+                    # Update the user record with subscription details
                     subscription_data = {
                         "subscription_tier": plan_id,
                         "stripe_customer_id": customer_id,
@@ -222,9 +251,18 @@ class PaymentHandler:
                         "updated_at": datetime.now().isoformat()
                     }
                     
+                    logger.info(f"Updating user record with subscription data: {subscription_data}")
                     updated_user = await DatabaseHandler.update_user(user_id, subscription_data)
+                    if not updated_user:
+                        logger.error(f"Failed to update user record: {user_id}")
+                        return {
+                            "status": "error",
+                            "message": f"Failed to update user record: {user_id}"
+                        }
+                    logger.info(f"User record updated successfully: {user_id}")
                     
                     # Then upsert the subscription record
+                    logger.info(f"Upserting subscription record for user: {user_id}")
                     subscription_result = await DatabaseHandler.upsert_subscription(
                         user_id=user_id,
                         stripe_customer_id=customer_id,
