@@ -736,6 +736,39 @@ async def create_checkout_session_alt(
             detail=f"Error creating checkout session: {str(e)}"
         )
 
+@app.post("/billing/webhook")
+async def billing_webhook(request: Request):
+    """
+    Handle Stripe webhook events specifically for billing.
+    This is an alternative endpoint to /api/webhook.
+    """
+    try:
+        # Get the webhook signature from the header
+        stripe_signature = request.headers.get("stripe-signature")
+        if not stripe_signature:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Missing Stripe signature"
+            )
+        
+        # Read the request body
+        payload = await request.body()
+        
+        logger.info(f"Received billing webhook event with signature: {stripe_signature[:10]}...")
+        
+        # Process the webhook event
+        result = await PaymentHandler.handle_webhook(payload, stripe_signature)
+        
+        logger.info(f"Billing webhook processed: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Error processing billing webhook: {str(e)}")
+        # Return a 200 response to prevent Stripe from retrying the webhook
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"status": "error", "message": str(e)}
+        )
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True) 
