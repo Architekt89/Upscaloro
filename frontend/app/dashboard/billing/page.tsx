@@ -104,6 +104,8 @@ export default function BillingPage() {
 
   // Check if user is logged in
   useEffect(() => {
+    let successMessageTimer: NodeJS.Timeout | null = null;
+    
     if (!user) {
       router.push('/auth/login');
       return;
@@ -113,11 +115,11 @@ export default function BillingPage() {
     if (checkoutSuccess === 'true') {
       setShowSuccessMessage(true);
       // Hide the success message after 5 seconds
-      const timer = setTimeout(() => {
+      successMessageTimer = setTimeout(() => {
         setShowSuccessMessage(false);
       }, 5000);
       
-      return () => clearTimeout(timer);
+      // Don't return here, continue to fetch billing data
     }
 
     // Fetch billing data
@@ -250,7 +252,14 @@ export default function BillingPage() {
     if (user) {
       fetchBillingData();
     }
-  }, [user, router]);
+    
+    // Cleanup function
+    return () => {
+      if (successMessageTimer) {
+        clearTimeout(successMessageTimer);
+      }
+    };
+  }, [user, router, session, checkoutSuccess]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
