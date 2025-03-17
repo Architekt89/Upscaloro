@@ -95,6 +95,8 @@ class PaymentHandler:
                 cancel_url=cancel_url,
                 metadata={
                     "user_id": user_id,
+                    "plan_id": plan_id,
+                    "billing_cycle": "monthly"
                 },
             )
             
@@ -126,14 +128,34 @@ class PaymentHandler:
                 logger.error("Webhook secret not found in environment variables")
                 raise ValueError("Webhook secret not configured")
                 
-            logger.info("Constructing Stripe event from webhook payload")
+            logger.info(f"Constructing Stripe event from webhook payload with signature: {signature[:10]}...")
+            logger.info(f"Using webhook secret (first 4 chars): {webhook_secret[:4] if webhook_secret and len(webhook_secret) > 4 else 'None'}")
             
-            # Verify the webhook signature
-            event = stripe.Webhook.construct_event(
-                payload, signature, webhook_secret
-            )
+            try:
+                # Verify the webhook signature
+                event = stripe.Webhook.construct_event(
+                    payload, signature, webhook_secret
+                )
+            except stripe.error.SignatureVerificationError as e:
+                logger.error(f"Webhook signature verification failed: {str(e)}")
+                return {
+                    "status": "error",
+                    "message": f"Webhook signature verification failed: {str(e)}"
+                }
             
             logger.info(f"Received Stripe webhook event: {event.type}")
+            
+            # Log more details about the event
+            try:
+                logger.info(f"Event object ID: {event.data.object.id}")
+                if hasattr(event.data.object, 'metadata') and event.data.object.metadata:
+                    logger.info(f"Event metadata: {event.data.object.metadata}")
+                if event.type == "checkout.session.completed" and hasattr(event.data.object, 'customer'):
+                    logger.info(f"Customer ID: {event.data.object.customer}")
+                if event.type == "checkout.session.completed" and hasattr(event.data.object, 'subscription'):
+                    logger.info(f"Subscription ID: {event.data.object.subscription}")
+            except Exception as e:
+                logger.warning(f"Could not log all event details: {str(e)}")
             
             # Handle the event based on its type
             if event.type == "checkout.session.completed":
