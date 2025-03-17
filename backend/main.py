@@ -42,7 +42,7 @@ app = FastAPI(
 )
 
 # Get CORS origins from environment variable
-cors_origins_str = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
+cors_origins_str = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000,https://upscaloro.vercel.app")
 cors_origins = [origin.strip() for origin in cors_origins_str.split(",")]
 
 # Log the allowed origins for debugging
