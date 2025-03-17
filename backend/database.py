@@ -247,7 +247,7 @@ class DatabaseHandler:
             logger.info(f"Upserting subscription for user: {user_id}")
             
             subscription_data = {
-                "id": user_id,  # Using user_id as the primary key
+                "user_id": user_id,  # Using user_id as a column
                 "stripe_customer_id": stripe_customer_id,
                 "stripe_subscription_id": stripe_subscription_id,
                 "plan": plan,
@@ -256,7 +256,16 @@ class DatabaseHandler:
                 "email": email
             }
             
-            result = supabase.table("subscriptions").upsert(subscription_data).execute()
+            # First check if a subscription already exists for this user
+            existing = supabase.table("subscriptions").select("id").eq("user_id", user_id).execute()
+            
+            if existing.data and len(existing.data) > 0:
+                # Update existing subscription
+                subscription_id = existing.data[0]["id"]
+                result = supabase.table("subscriptions").update(subscription_data).eq("id", subscription_id).execute()
+            else:
+                # Create new subscription with a generated UUID
+                result = supabase.table("subscriptions").insert(subscription_data).execute()
             
             if result.data:
                 logger.info(f"Successfully upserted subscription for user: {user_id}")
@@ -282,7 +291,7 @@ class DatabaseHandler:
         try:
             logger.info(f"Getting subscription for user: {user_id}")
             
-            result = supabase.table("subscriptions").select("*").eq("id", user_id).execute()
+            result = supabase.table("subscriptions").select("*").eq("user_id", user_id).execute()
             
             if result.data and len(result.data) > 0:
                 logger.info(f"Found subscription for user: {user_id}")
