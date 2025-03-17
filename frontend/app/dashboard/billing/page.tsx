@@ -134,8 +134,12 @@ export default function BillingPage() {
           return;
         }
         
+        console.log(`Fetching subscription data for user: ${user.id}`);
+        
         // Fetch real subscription data from the API
         try {
+          console.log(`Making request to /subscription/${user.id} with token: ${session?.access_token ? 'Token exists' : 'No token'}`);
+          
           const subscriptionResponse = await fetch(`https://upscaloro.onrender.com/subscription/${user.id}`, {
             method: 'GET',
             headers: {
@@ -144,8 +148,11 @@ export default function BillingPage() {
             }
           });
           
+          console.log(`Subscription response status: ${subscriptionResponse.status}`);
+          
           if (subscriptionResponse.ok) {
             const subscriptionData = await subscriptionResponse.json();
+            console.log('Subscription data received:', subscriptionData);
             
             if (subscriptionData.status === 'success') {
               // Create subscription object from real data
@@ -173,6 +180,7 @@ export default function BillingPage() {
                     ]
               };
               
+              console.log('Setting subscription data:', realSubscription);
               setSubscription(realSubscription);
               
               // If we have real subscription data, but no other billing data,
@@ -184,31 +192,54 @@ export default function BillingPage() {
               // We're using partial real data
               setUsingMockData(true);
             } else {
+              console.error('Subscription data error:', subscriptionData.message);
               throw new Error(subscriptionData.message || 'Failed to fetch subscription data');
             }
           } else {
+            const errorText = await subscriptionResponse.text();
+            console.error(`Failed to fetch subscription data: ${subscriptionResponse.status} - ${errorText}`);
             throw new Error(`Failed to fetch subscription data: ${subscriptionResponse.statusText}`);
           }
         } catch (subscriptionError) {
           console.error('Error fetching subscription data:', subscriptionError);
           
           // Fall back to fetching billing data from the billing endpoint
-          const billingData = await getBillingInfo();
-          
-          if (billingData) {
-            setSubscription(billingData.subscription || mockSubscriptionData);
-            setUsage(billingData.usage || mockUsageData);
-            setPaymentMethods(billingData.payment_methods || mockPaymentMethods);
-            setBillingHistory(billingData.invoices || mockBillingHistory);
+          console.log('Falling back to billing endpoint');
+          try {
+            const billingData = await getBillingInfo();
             
-            // Check if we're using mock data (this happens when the backend doesn't have billing endpoints)
-            if (billingData === mockBillingData) {
+            if (billingData) {
+              console.log('Billing data received:', billingData);
+              setSubscription(billingData.subscription || mockSubscriptionData);
+              setUsage(billingData.usage || mockUsageData);
+              setPaymentMethods(billingData.payment_methods || mockPaymentMethods);
+              setBillingHistory(billingData.invoices || mockBillingHistory);
+              
+              // Check if we're using mock data (this happens when the backend doesn't have billing endpoints)
+              if (billingData === mockBillingData) {
+                setUsingMockData(true);
+              }
+            } else {
+              console.error('No billing data received');
+              // Fall back to mock data
+              setSubscription(mockSubscriptionData);
+              setUsage(mockUsageData);
+              setPaymentMethods(mockPaymentMethods);
+              setBillingHistory(mockBillingHistory);
               setUsingMockData(true);
             }
+          } catch (billingError) {
+            console.error('Error fetching billing data:', billingError);
+            // Fall back to mock data
+            setSubscription(mockSubscriptionData);
+            setUsage(mockUsageData);
+            setPaymentMethods(mockPaymentMethods);
+            setBillingHistory(mockBillingHistory);
+            setUsingMockData(true);
           }
         }
       } catch (error: any) {
-        console.error('Error fetching billing data:', error);
+        console.error('Error in fetchBillingData:', error);
         
         // Set backend error flag
         if (error.message === 'Network Error' || 
@@ -242,6 +273,11 @@ export default function BillingPage() {
         }
         
         // Fall back to mock data
+        setSubscription(mockSubscriptionData);
+        setUsage(mockUsageData);
+        setPaymentMethods(mockPaymentMethods);
+        setBillingHistory(mockBillingHistory);
+        setUsingMockData(true);
       } finally {
         setLoading(false);
       }
@@ -249,6 +285,8 @@ export default function BillingPage() {
 
     if (user) {
       fetchBillingData();
+    } else {
+      setLoading(false); // Ensure loading is set to false if there's no user
     }
   }, [user, router]);
 
