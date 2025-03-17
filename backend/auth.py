@@ -1,5 +1,5 @@
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
@@ -201,14 +201,81 @@ async def get_user_from_db(username: str):
     return None
 
 async def get_or_create_user_from_supabase(user_id: str, email: Optional[str] = None):
-    # TODO: Implement actual database integration
-    # For now, create a simple user object
-    logger.info(f"Creating user object for Supabase user: {user_id}")
-    return User(
-        username=user_id,
-        email=email,
-        full_name=None,
-        disabled=False,
-        subscription_tier="free",
-        images_processed_this_month=0
-    ) 
+    """
+    Gets or creates a user in our database based on Supabase authentication.
+    
+    Args:
+        user_id: The Supabase user ID
+        email: The user's email address
+        
+    Returns:
+        User: The user object
+    """
+    try:
+        from backend.database import DatabaseHandler
+        
+        # First, try to get the user from our database
+        existing_user = await DatabaseHandler.get_user(user_id)
+        
+        if existing_user:
+            logger.info(f"Found existing user in database: {user_id}")
+            # Update last_login time
+            await DatabaseHandler.update_user(user_id, {"last_login": datetime.utcnow().isoformat()})
+            
+            # Return user object
+            return User(
+                username=user_id,
+                email=existing_user.get("email"),
+                full_name=existing_user.get("username"),
+                disabled=False,
+                subscription_tier=existing_user.get("subscription_tier", "free"),
+                images_processed_this_month=existing_user.get("images_processed_this_month", 0)
+            )
+        else:
+            logger.info(f"Creating new user in database: {user_id}")
+            # Create new user in our database
+            user_data = {
+                "id": user_id,
+                "email": email,
+                "username": email.split("@")[0] if email else user_id[:8],
+                "subscription_tier": "free",
+                "subscription_status": "active",
+                "images_processed_this_month": 0,
+                "total_images_processed": 0,
+                "last_login": datetime.utcnow().isoformat()
+            }
+            
+            created_user = await DatabaseHandler.create_user(user_data)
+            
+            if not created_user:
+                logger.error(f"Failed to create user in database: {user_id}")
+                # Return a basic user object even if database creation failed
+                return User(
+                    username=user_id,
+                    email=email,
+                    full_name=None,
+                    disabled=False,
+                    subscription_tier="free",
+                    images_processed_this_month=0
+                )
+            
+            logger.info(f"Successfully created user in database: {user_id}")
+            return User(
+                username=user_id,
+                email=email,
+                full_name=user_data.get("username"),
+                disabled=False,
+                subscription_tier="free",
+                images_processed_this_month=0
+            )
+    except Exception as e:
+        logger.error(f"Error in get_or_create_user_from_supabase: {str(e)}")
+        # Return a basic user object even if there was an error
+        return User(
+            username=user_id,
+            email=email,
+            full_name=None,
+            disabled=False,
+            subscription_tier="free",
+            images_processed_this_month=0
+        ) 
