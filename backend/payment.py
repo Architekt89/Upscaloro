@@ -496,7 +496,89 @@ class PaymentHandler:
                 customer_id = invoice.customer
                 logger.info(f"Invoice paid for customer: {customer_id}")
                 
-                # TODO: Update user billing history in database
+                # Get the subscription ID from the invoice
+                subscription_id = invoice.subscription
+                
+                if not subscription_id:
+                    logger.warning(f"No subscription ID found in invoice: {invoice.id}")
+                    return {
+                        "status": "success",
+                        "message": f"Invoice paid for customer {customer_id} (no subscription)"
+                    }
+                
+                try:
+                    # Retrieve the subscription details from Stripe
+                    subscription = stripe.Subscription.retrieve(subscription_id)
+                    current_period_end = subscription.current_period_end
+                    status = subscription.status
+                    
+                    # Get the price ID from the subscription
+                    if subscription.items and subscription.items.data:
+                        price_id = subscription.items.data[0].price.id
+                        
+                        # Find the plan ID that corresponds to this price ID
+                        plan_id = None
+                        for plan, plan_price_id in SUBSCRIPTION_PLANS.items():
+                            if plan_price_id == price_id:
+                                plan_id = plan
+                                break
+                        
+                        if not plan_id:
+                            logger.error(f"No matching plan found for price ID: {price_id}")
+                            plan_id = "pro"  # Default to pro if no match found
+                    else:
+                        logger.error(f"No price found in subscription: {subscription_id}")
+                        price_id = None
+                        plan_id = "pro"  # Default to pro if no price found
+                    
+                    # Get the user ID from the subscription metadata
+                    user_id = subscription.metadata.get("user_id")
+                    
+                    # If no user_id in metadata, try to find the user by customer ID
+                    if not user_id:
+                        logger.warning(f"No user ID found in subscription metadata, using customer ID: {customer_id}")
+                        user_id = customer_id
+                    
+                    # Get the customer email
+                    customer_email = None
+                    try:
+                        customer = stripe.Customer.retrieve(customer_id)
+                        customer_email = customer.email
+                    except Exception as e:
+                        logger.warning(f"Could not retrieve customer email: {str(e)}")
+                    
+                    # Update the subscription in the database
+                    from backend.database import DatabaseHandler
+                    
+                    # Upsert the subscription record
+                    subscription_result = await DatabaseHandler.upsert_subscription(
+                        user_id=user_id,
+                        stripe_customer_id=customer_id,
+                        stripe_subscription_id=subscription_id,
+                        plan=plan_id,
+                        status=status,
+                        current_period_end=datetime.fromtimestamp(current_period_end),
+                        email=customer_email
+                    )
+                    
+                    if subscription_result:
+                        logger.info(f"Successfully updated subscription for invoice: {invoice.id}")
+                        return {
+                            "status": "success",
+                            "message": f"Subscription updated for invoice: {invoice.id}"
+                        }
+                    else:
+                        logger.error(f"Failed to update subscription for invoice: {invoice.id}")
+                        return {
+                            "status": "error",
+                            "message": f"Failed to update subscription for invoice: {invoice.id}"
+                        }
+                except Exception as e:
+                    logger.error(f"Error processing invoice.paid: {str(e)}")
+                    return {
+                        "status": "error",
+                        "message": f"Error processing invoice: {str(e)}"
+                    }
                 
                 return {
                     "status": "success",
@@ -514,6 +596,95 @@ class PaymentHandler:
                     "status": "success",
                     "message": f"Invoice payment failed for customer {customer_id}",
                 }
+            
+            elif event.type == "invoice.payment_succeeded":
+                invoice = event.data.object
+                customer_id = invoice.customer
+                logger.info(f"Invoice payment succeeded for customer: {customer_id}")
+                
+                # Get the subscription ID from the invoice
+                subscription_id = invoice.subscription
+                
+                if not subscription_id:
+                    logger.error(f"No subscription ID found in invoice: {invoice.id}")
+                    return {
+                        "status": "error",
+                        "message": "No subscription ID found in invoice"
+                    }
+                
+                try:
+                    # Retrieve the subscription details from Stripe
+                    subscription = stripe.Subscription.retrieve(subscription_id)
+                    current_period_end = subscription.current_period_end
+                    status = subscription.status
+                    
+                    # Get the price ID from the subscription
+                    if subscription.items and subscription.items.data:
+                        price_id = subscription.items.data[0].price.id
+                        
+                        # Find the plan ID that corresponds to this price ID
+                        plan_id = None
+                        for plan, plan_price_id in SUBSCRIPTION_PLANS.items():
+                            if plan_price_id == price_id:
+                                plan_id = plan
+                                break
+                        
+                        if not plan_id:
+                            logger.error(f"No matching plan found for price ID: {price_id}")
+                            plan_id = "pro"  # Default to pro if no match found
+                    else:
+                        logger.error(f"No price found in subscription: {subscription_id}")
+                        price_id = None
+                        plan_id = "pro"  # Default to pro if no price found
+                    
+                    # Get the user ID from the subscription metadata
+                    user_id = subscription.metadata.get("user_id")
+                    
+                    # If no user_id in metadata, try to find the user by customer ID
+                    if not user_id:
+                        logger.warning(f"No user ID found in subscription metadata, using customer ID: {customer_id}")
+                        user_id = customer_id
+                    
+                    # Get the customer email
+                    customer_email = None
+                    try:
+                        customer = stripe.Customer.retrieve(customer_id)
+                        customer_email = customer.email
+                    except Exception as e:
+                        logger.warning(f"Could not retrieve customer email: {str(e)}")
+                    
+                    # Update the subscription in the database
+                    from backend.database import DatabaseHandler
+                    
+                    # Upsert the subscription record
+                    subscription_result = await DatabaseHandler.upsert_subscription(
+                        user_id=user_id,
+                        stripe_customer_id=customer_id,
+                        stripe_subscription_id=subscription_id,
+                        plan=plan_id,
+                        status=status,
+                        current_period_end=datetime.fromtimestamp(current_period_end),
+                        email=customer_email
+                    )
+                    
+                    if subscription_result:
+                        logger.info(f"Successfully updated subscription for invoice payment: {invoice.id}")
+                        return {
+                            "status": "success",
+                            "message": f"Subscription updated for invoice payment: {invoice.id}"
+                        }
+                    else:
+                        logger.error(f"Failed to update subscription for invoice payment: {invoice.id}")
+                        return {
+                            "status": "error",
+                            "message": f"Failed to update subscription for invoice payment: {invoice.id}"
+                        }
+                except Exception as e:
+                    logger.error(f"Error processing invoice.payment_succeeded: {str(e)}")
+                    return {
+                        "status": "error",
+                        "message": f"Error processing invoice payment: {str(e)}"
+                    }
             
             # Return a response for unhandled event types
             return {
