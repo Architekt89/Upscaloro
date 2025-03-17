@@ -1,8 +1,13 @@
 import logging
-from fastapi import HTTPException, Request
+from fastapi import HTTPException, Request, status, Depends
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 import uuid
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(
@@ -13,39 +18,28 @@ logger = logging.getLogger(__name__)
 
 # Import database handler and supabase client
 from backend.database import DatabaseHandler, supabase
+from backend.auth import get_current_active_user, User
 
-async def get_subscription(user_id: str, request: Request):
+async def get_subscription(user_id: str, current_user: Optional[User] = Depends(get_current_active_user)):
     """
     Get subscription information for a user
     """
     try:
-        # Verify the user is authenticated
-        auth_header = request.headers.get("Authorization")
-        if not auth_header or not auth_header.startswith("Bearer "):
+        # Ensure the user is authenticated
+        if not current_user:
             raise HTTPException(
-                status_code=401,
-                detail="Not authenticated"
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required",
+                headers={"WWW-Authenticate": "Bearer"},
             )
         
-        # Extract the token
-        token = auth_header.split(" ")[1]
-        
-        # Verify the token (this is a simplified approach)
-        # In a real app, you would verify the token with your auth provider
-        # and ensure the requesting user has permission to access this user's data
-        try:
-            # For now, we'll just check if the user exists
-            user = await DatabaseHandler.get_user(user_id)
-            if not user:
-                raise HTTPException(
-                    status_code=404,
-                    detail="User not found"
-                )
-        except Exception as e:
-            logger.error(f"Error verifying user: {str(e)}")
+        # For now, allow users to only see their own subscription
+        # Admin users could bypass this check
+        if current_user.username != user_id:
+            logger.warning(f"User {current_user.username} attempted to access subscription for {user_id}")
             raise HTTPException(
-                status_code=401,
-                detail="Invalid authentication credentials"
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to access this subscription"
             )
         
         # Query the subscriptions table
@@ -54,17 +48,36 @@ async def get_subscription(user_id: str, request: Request):
             subscription = await DatabaseHandler.get_subscription(user_id)
             
             if not subscription:
-                return {
-                    "status": "success",
-                    "data": {
-                        "has_subscription": False,
-                        "subscription_tier": "free",
-                        "subscription_status": None,
-                        "current_period_end": None
+                logger.info(f"No subscription found for user: {user_id}")
+                # If no subscription is found, check the user record for subscription info
+                user = await DatabaseHandler.get_user(user_id)
+                if user and user.get("subscription_tier") != "free":
+                    # User has subscription info in the user record but not in subscriptions table
+                    # This is likely due to a migration or data inconsistency
+                    logger.info(f"User has subscription info in user record: {user.get('subscription_tier')}")
+                    return {
+                        "status": "success",
+                        "data": {
+                            "has_subscription": True,
+                            "subscription_tier": user.get("subscription_tier", "free"),
+                            "subscription_status": user.get("subscription_status", "active"),
+                            "current_period_end": user.get("subscription_current_period_end")
+                        }
                     }
-                }
+                else:
+                    # Truly no subscription
+                    return {
+                        "status": "success",
+                        "data": {
+                            "has_subscription": False,
+                            "subscription_tier": "free",
+                            "subscription_status": None,
+                            "current_period_end": None
+                        }
+                    }
             
             # Return the subscription data
+            logger.info(f"Subscription found for user: {user_id}, plan: {subscription.get('plan', 'free')}")
             return {
                 "status": "success",
                 "data": {
@@ -75,10 +88,10 @@ async def get_subscription(user_id: str, request: Request):
                 }
             }
         except Exception as e:
-            logger.error(f"Error retrieving subscription: {str(e)}")
+            logger.error(f"Error fetching subscription: {str(e)}")
             raise HTTPException(
-                status_code=500,
-                detail=f"Error retrieving subscription: {str(e)}"
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error fetching subscription: {str(e)}"
             )
     except HTTPException as e:
         # Re-raise HTTP exceptions
@@ -86,7 +99,7 @@ async def get_subscription(user_id: str, request: Request):
     except Exception as e:
         logger.error(f"Error in get_subscription: {str(e)}")
         raise HTTPException(
-            status_code=500,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Internal server error: {str(e)}"
         )
 
