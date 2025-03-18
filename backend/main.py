@@ -6,7 +6,7 @@ from typing import Optional, List, Dict, Any
 import os
 import logging
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Try relative imports first
 try:
@@ -557,9 +557,14 @@ async def stripe_webhook(request: Request):
     Handle Stripe webhook events.
     """
     try:
+        # Log full request details 
+        logger.info(f"Received webhook request at: {datetime.now().isoformat()}")
+        logger.info(f"Request headers: {dict(request.headers)}")
+        
         # Get the webhook signature from the header
         stripe_signature = request.headers.get("stripe-signature")
         if not stripe_signature:
+            logger.error("Missing Stripe signature in webhook request")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Missing Stripe signature"
@@ -743,9 +748,14 @@ async def billing_webhook(request: Request):
     This is an alternative endpoint to /api/webhook.
     """
     try:
+        # Log full request details
+        logger.info(f"Received billing webhook request at: {datetime.now().isoformat()}")
+        logger.info(f"Request headers: {dict(request.headers)}")
+        
         # Get the webhook signature from the header
         stripe_signature = request.headers.get("stripe-signature")
         if not stripe_signature:
+            logger.error("Missing Stripe signature in billing webhook request")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Missing Stripe signature"
@@ -767,6 +777,91 @@ async def billing_webhook(request: Request):
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content={"status": "error", "message": str(e)}
+        )
+
+@app.post("/billing/manual-upgrade")
+async def manual_upgrade(
+    user_id: str = Body(..., embed=True),
+    plan_id: str = Body(..., embed=True)
+):
+    """
+    Manually upgrade a user's subscription (for testing purposes only).
+    
+    Args:
+        user_id: The user ID to upgrade
+        plan_id: The plan ID to upgrade to
+        
+    Returns:
+        dict: The result of the upgrade
+    """
+    try:
+        logger.info(f"Manually upgrading user {user_id} to plan {plan_id}")
+        
+        # Validate the plan ID
+        if plan_id not in SUBSCRIPTION_PLANS:
+            logger.error(f"Invalid plan ID: {plan_id}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid plan ID: {plan_id}. Available plans: {list(SUBSCRIPTION_PLANS.keys())}"
+            )
+        
+        # Check if the user exists
+        from backend.database import DatabaseHandler
+        user = await DatabaseHandler.get_user(user_id)
+        if not user:
+            logger.error(f"User not found: {user_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User not found: {user_id}"
+            )
+        
+        # Update user's subscription data
+        current_time = datetime.now()
+        expiry_time = current_time + timedelta(days=30)  # 30-day subscription
+        
+        subscription_data = {
+            "subscription_tier": plan_id,
+            "subscription_status": "active",
+            "subscription_current_period_end": expiry_time.isoformat(),
+            "updated_at": current_time.isoformat()
+        }
+        
+        # Update the user record
+        updated_user = await DatabaseHandler.update_user(user_id, subscription_data)
+        
+        # Create or update subscription record
+        subscription_result = await DatabaseHandler.upsert_subscription(
+            user_id=user_id,
+            stripe_customer_id="manual_upgrade",
+            stripe_subscription_id="manual_upgrade",
+            plan=plan_id,
+            status="active",
+            current_period_end=expiry_time,
+            email=user.get("email")
+        )
+        
+        if updated_user and subscription_result:
+            logger.info(f"Successfully upgraded user {user_id} to plan {plan_id}")
+            return {
+                "status": "success",
+                "message": f"User {user_id} upgraded to {plan_id} plan",
+                "user": updated_user,
+                "subscription": subscription_result
+            }
+        else:
+            logger.error(f"Failed to upgrade user {user_id}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to upgrade user"
+            )
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        logger.error(f"Error upgrading user: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error upgrading user: {str(e)}"
         )
 
 if __name__ == "__main__":

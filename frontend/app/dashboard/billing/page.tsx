@@ -83,7 +83,7 @@ const mockBillingHistory = [
 ];
 
 export default function BillingPage() {
-  const { user, session } = useAuth();
+  const { user, session, refreshUser } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const checkoutSuccess = searchParams.get('checkout_success');
@@ -114,6 +114,20 @@ export default function BillingPage() {
     // Check for checkout success parameter
     if (checkoutSuccess === 'true') {
       setShowSuccessMessage(true);
+      
+      // Force refresh user data after successful checkout
+      const refreshAfterPayment = async () => {
+        try {
+          await refreshUser(); // This will update the user data from Supabase
+          toast.success('Subscription data refreshed successfully');
+        } catch (error) {
+          console.error('Error refreshing user data after payment:', error);
+          toast.error('Failed to refresh subscription data');
+        }
+      };
+      
+      refreshAfterPayment();
+      
       // Hide the success message after 5 seconds
       successMessageTimer = setTimeout(() => {
         setShowSuccessMessage(false);
@@ -133,6 +147,49 @@ export default function BillingPage() {
         if (!user) {
           toast.error('Please log in to view billing information');
           router.push('/auth/login');
+          return;
+        }
+        
+        // Direct use of user subscription data when available
+        if (user && 'subscription_tier' in user.user_metadata) {
+          console.log('Using subscription data from user metadata:', user.user_metadata);
+          
+          // Create subscription object from user metadata
+          const userMetadata = user.user_metadata;
+          const realSubscription = {
+            plan: userMetadata.subscription_tier || 'Free',
+            status: userMetadata.subscription_status || 'active',
+            renewalDate: userMetadata.subscription_current_period_end 
+              ? new Date(userMetadata.subscription_current_period_end).toISOString()
+              : new Date(new Date().getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            price: userMetadata.subscription_tier === 'pro' ? '$15.00' : '$0.00',
+            billingCycle: userMetadata.subscription_billing_cycle || 'monthly',
+            features: userMetadata.subscription_tier === 'pro' 
+              ? [
+                  "Unlimited images",
+                  "Up to 16x upscaling",
+                  "All upscaling modes",
+                  "API access",
+                  "Priority support"
+                ]
+              : [
+                  "Up to 3 images per month",
+                  "2x and 4x upscaling",
+                  "Basic upscaling mode",
+                  "Standard support"
+                ]
+          };
+          
+          setSubscription(realSubscription);
+          
+          // If we have real subscription data, but no other billing data,
+          // we'll still use mock data for the rest
+          setUsage(mockUsageData);
+          setPaymentMethods(mockPaymentMethods);
+          setBillingHistory(mockBillingHistory);
+          
+          // We're using partial real data
+          setUsingMockData(true);
           return;
         }
         
@@ -259,7 +316,7 @@ export default function BillingPage() {
         clearTimeout(successMessageTimer);
       }
     };
-  }, [user, router, session, checkoutSuccess]);
+  }, [user, router, session, checkoutSuccess, refreshUser]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -382,18 +439,29 @@ export default function BillingPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <h1 className="text-3xl font-bold text-white mb-8">Billing & Subscription</h1>
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-3xl font-bold mb-6">Billing &amp; Subscription</h1>
       
+      {/* Success message after checkout */}
       {showSuccessMessage && (
-        <div className="bg-green-900/50 backdrop-blur-sm rounded-xl p-6 border border-green-800/50 shadow-xl mb-8">
-          <div className="flex items-center mb-4">
-            <CheckCircle className="h-6 w-6 text-green-500 mr-2" />
-            <h2 className="text-xl font-semibold text-white">Payment Successful</h2>
-          </div>
-          <p className="text-gray-300 mb-4">
-            Thank you for your payment! Your subscription has been updated successfully.
-          </p>
+        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-6" role="alert">
+          <strong className="font-bold">Success! </strong>
+          <span className="block sm:inline">Your payment was processed successfully! Your subscription has been updated.</span>
+        </div>
+      )}
+      
+      {/* Debug information */}
+      {(process.env.NODE_ENV === 'development' || searchParams.get('debug') === 'true') && user && (
+        <div className="bg-gray-100 border border-gray-400 text-gray-700 px-4 py-3 rounded relative mb-6 overflow-auto max-h-96">
+          <strong className="font-bold">User Metadata (Debug): </strong>
+          <pre className="mt-2 text-xs">
+            {JSON.stringify(user.user_metadata, null, 2)}
+          </pre>
+          <hr className="my-2" />
+          <strong className="font-bold">Subscription State (Debug): </strong>
+          <pre className="mt-2 text-xs">
+            {JSON.stringify(subscription, null, 2)}
+          </pre>
         </div>
       )}
       
