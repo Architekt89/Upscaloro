@@ -120,6 +120,43 @@ export default function BillingPage() {
         try {
           await refreshUser(); // This will update the user data from Supabase
           toast.success('Subscription data refreshed successfully');
+          
+          // If subscriptions table is empty but payment was successful, try manual upgrade
+          const manualUpgrade = async () => {
+            try {
+              if (!user || !user.id) return;
+              
+              // Call manual upgrade endpoint
+              const response = await fetch(`https://upscaloro.onrender.com/billing/manual-upgrade`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  user_id: user.id,
+                  plan_id: 'pro'
+                })
+              });
+              
+              if (response.ok) {
+                const data = await response.json();
+                console.log('Manual upgrade successful:', data);
+                toast.success('Manual upgrade successful. Refreshing data...');
+                
+                // Refresh user data again after manual upgrade
+                setTimeout(() => refreshUser(), 1000);
+              } else {
+                console.error('Manual upgrade failed:', await response.text());
+              }
+            } catch (error) {
+              console.error('Error during manual upgrade:', error);
+            }
+          };
+          
+          // If user doesn't have subscription tier in metadata, try manual upgrade
+          if (!user.user_metadata?.subscription_tier || user.user_metadata?.subscription_tier === 'free') {
+            manualUpgrade();
+          }
         } catch (error) {
           console.error('Error refreshing user data after payment:', error);
           toast.error('Failed to refresh subscription data');
@@ -193,9 +230,39 @@ export default function BillingPage() {
           return;
         }
         
-        // Fetch real subscription data from the API
+        // Fetch real subscription data from the API with timeout and retry
         try {
-          const subscriptionResponse = await fetch(`https://upscaloro.onrender.com/subscription/${user.id}`, {
+          const fetchWithTimeout = async (url: string, options: any, timeout = 10000): Promise<any> => {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), timeout);
+            
+            try {
+              const response = await fetch(url, {
+                ...options,
+                signal: controller.signal
+              });
+              clearTimeout(id);
+              return response;
+            } catch (error) {
+              clearTimeout(id);
+              throw error;
+            }
+          };
+          
+          const retryFetch = async (url: string, options: any, retries = 2): Promise<Response> => {
+            try {
+              return await fetchWithTimeout(url, options);
+            } catch (err) {
+              if (retries <= 0) throw err;
+              
+              // Wait before retrying
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              console.log(`Retrying fetch, ${retries} attempts left`);
+              return retryFetch(url, options, retries - 1);
+            }
+          };
+          
+          const subscriptionResponse = await retryFetch(`https://upscaloro.onrender.com/subscription/${user.id}`, {
             method: 'GET',
             headers: {
               'Content-Type': 'application/json',
@@ -271,9 +338,48 @@ export default function BillingPage() {
         
         // Set backend error flag
         if (error.message === 'Network Error' || 
+            error.message === 'Failed to fetch' ||
             (axios.isAxiosError(error) && error.response?.status === 404)) {
           setBackendError(true);
-          toast.error('Cannot connect to the backend server. Using mock data instead.');
+          
+          // Special handling for render.com resource limitations
+          if (error.message === 'Failed to fetch' || 
+              (error.message && error.message.includes('ERR_INSUFFICIENT_RESOURCES'))) {
+            
+            toast.error('The server is experiencing resource limitations. Using local data instead.');
+            
+            // If the user has already completed checkout, use pro plan for display
+            if (checkoutSuccess === 'true' && user) {
+              const proSubscription = {
+                plan: 'Pro',
+                status: 'active',
+                renewalDate: new Date(new Date().getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+                price: '$15.00',
+                billingCycle: 'monthly',
+                features: [
+                  'Unlimited images',
+                  'Up to 16x upscaling',
+                  'All upscaling modes',
+                  'API access',
+                  'Priority support',
+                ]
+              };
+              
+              setSubscription(proSubscription);
+              setUsage(mockUsageData);
+              setPaymentMethods(mockPaymentMethods);
+              setBillingHistory(mockBillingHistory);
+              setUsingMockData(true);
+              
+              // Show a special message about the situation
+              toast('Your payment was successful! The updated subscription will be available once the server recovers.', 
+                { icon: '👍', duration: 6000 });
+            } else {
+              toast.error('Cannot connect to the backend server. Using mock data instead.');
+            }
+          } else {
+            toast.error('Cannot connect to the backend server. Using mock data instead.');
+          }
         } else if (error.message === 'Authentication required') {
           toast.error('Your session has expired. Please log in again.');
           router.push('/auth/login');
@@ -447,6 +553,55 @@ export default function BillingPage() {
         <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-6" role="alert">
           <strong className="font-bold">Success! </strong>
           <span className="block sm:inline">Your payment was processed successfully! Your subscription has been updated.</span>
+        </div>
+      )}
+      
+      {/* Resource Limitations Warning */}
+      {checkoutSuccess === 'true' && backendError && (
+        <div className="bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-3 rounded relative mb-6" role="alert">
+          <strong className="font-bold">Server Resource Limitation: </strong>
+          <span className="block sm:inline">
+            Your payment was successful, but our server on Render.com is experiencing resource limitations. 
+            Your subscription may not update immediately.
+          </span>
+          <div className="mt-3">
+            <button 
+              onClick={async () => {
+                if (!user || !user.id) return;
+                
+                try {
+                  const response = await fetch(`https://upscaloro.onrender.com/billing/manual-upgrade`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                      user_id: user.id,
+                      plan_id: 'pro'
+                    })
+                  });
+                  
+                  if (response.ok) {
+                    const data = await response.json();
+                    console.log('Manual upgrade successful:', data);
+                    toast.success('Manual upgrade successful. Refreshing data...');
+                    
+                    // Refresh user data again after manual upgrade
+                    setTimeout(() => refreshUser(), 1000);
+                  } else {
+                    console.error('Manual upgrade failed:', await response.text());
+                    toast.error('Manual upgrade failed. Server is still experiencing resource limitations.');
+                  }
+                } catch (error) {
+                  console.error('Error during manual upgrade:', error);
+                  toast.error('Could not connect to the server. Please try again later.');
+                }
+              }}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Manually Upgrade Account
+            </button>
+          </div>
         </div>
       )}
       
