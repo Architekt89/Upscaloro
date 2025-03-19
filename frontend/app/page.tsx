@@ -7,7 +7,8 @@ import BeforeAfterSection from '@/components/BeforeAfterSection';
 import NatureEnhancementSection from '@/components/NatureEnhancementSection';
 import AnimeEnhancementSection from '@/components/AnimeEnhancementSection';
 import PortraitsEnhancementSection from '@/components/PortraitsEnhancementSection';
-import TypewriterText from '@/components/TypewriterText';
+import { TypewriterEffectSmooth } from '@/components/ui/typewriter-effect';
+import { BackgroundBeamsWithCollision } from '@/components/ui/background-beams';
 import HeroCTAButton from '@/components/HeroCTAButton';
 
 export default function HomePage() {
@@ -16,18 +17,27 @@ export default function HomePage() {
       <main className="flex-grow">
         {/* Hero Section */}
         <div className="relative overflow-hidden bg-[#000000] min-h-[90vh] flex items-start pt-[10.5vh]">
+          {/* Background Beams Effect */}
+          <BackgroundBeamsWithCollision 
+            className="absolute inset-0 z-0" 
+            numberOfBeams={25}
+          />
+          
           {/* Content */}
-          <div className="relative w-full">
+          <div className="relative w-full z-10">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
               <div className="text-center">
                 <h1 className="flex flex-col items-center font-extrabold tracking-tight mb-8 drop-shadow-2xl">
-                  <div className="overflow-visible mb-2">
-                    <span className="text-orange-500 bg-clip-text text-transparent bg-gradient-to-r from-orange-400 to-orange-600 text-4xl md:text-5xl lg:text-6xl tracking-wider leading-relaxed py-2 inline-block">
-                    <TypewriterText 
-                      text="Stop settling for blurred pixels."
-                      typingSpeed={50}
-                    />
-                    </span>
+                  <div className="overflow-visible mb-0">
+                    <div className="text-orange-500 bg-clip-text text-transparent bg-gradient-to-r from-orange-400 to-orange-600 text-4xl md:text-5xl lg:text-6xl tracking-wider leading-relaxed py-0 inline-block">
+                      <TypewriterEffectSmooth 
+                        words={[
+                          { text: "Stop settling for blurred pixels." }
+                        ]}
+                        className="bg-clip-text text-transparent"
+                        cursorClassName="bg-orange-500"
+                      />
+                    </div>
                   </div>
                   <span className="text-white text-4xl md:text-5xl lg:text-6xl break-words">
                   Present images that command attention at every scale.

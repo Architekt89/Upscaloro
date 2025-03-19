@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { InfiniteMovingCards } from '@/components/ui/infinite-moving-cards';
 
 interface Testimonial {
   id: number;
@@ -33,58 +34,37 @@ const testimonials: Testimonial[] = [
     name: "Emily Rodriguez",
     title: "Marketing Director",
     image: "/testimonials/user3.jpg"
+  },
+  {
+    id: 4,
+    quote: "picluxe's AI algorithms are remarkable. I've tried other upscaling tools, but none match the quality and natural results I get with picluxe.",
+    name: "David Wilson",
+    title: "Content Creator",
+    image: "/testimonials/user4.jpg"
+  },
+  {
+    id: 5,
+    quote: "After using picluxe, I can't imagine going back to traditional upscaling methods. The quality and speed are unmatched.",
+    name: "Jessica Lee",
+    title: "Social Media Manager",
+    image: "/testimonials/user5.jpg"
   }
 ];
 
 export default function TestimonialSection() {
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [isMobile, setIsMobile] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
-  const carouselRef = useRef<HTMLDivElement>(null);
 
   // Handle client-side mounting to prevent hydration errors
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // Check if mobile on mount and window resize
-  useEffect(() => {
-    if (!isMounted) return;
-    
-    const checkIfMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    
-    checkIfMobile();
-    window.addEventListener('resize', checkIfMobile);
-    
-    return () => {
-      window.removeEventListener('resize', checkIfMobile);
-    };
-  }, [isMounted]);
-
-  const nextSlide = () => {
-    setActiveIndex((prevIndex) => 
-      prevIndex === testimonials.length - 1 ? 0 : prevIndex + 1
-    );
-  };
-
-  const prevSlide = () => {
-    setActiveIndex((prevIndex) => 
-      prevIndex === 0 ? testimonials.length - 1 : prevIndex - 1
-    );
-  };
-
-  useEffect(() => {
-    if (!isMounted) return;
-    
-    if (carouselRef.current && isMobile) {
-      carouselRef.current.scrollTo({
-        left: activeIndex * carouselRef.current.offsetWidth,
-        behavior: 'smooth'
-      });
-    }
-  }, [activeIndex, isMobile, isMounted]);
+  // Format testimonials for the InfiniteMovingCards component
+  const testimonialItems = testimonials.map(item => ({
+    quote: item.quote,
+    name: item.name,
+    title: item.title
+  }));
 
   // If not mounted yet (server-side), render a placeholder
   if (!isMounted) {
@@ -114,134 +94,24 @@ export default function TestimonialSection() {
           </h2>
         </div>
         
-        {/* Desktop View - Grid Layout */}
-        <div className="hidden md:grid md:grid-cols-3 gap-8">
-          {testimonials.map((testimonial) => (
-            <div 
-              key={testimonial.id}
-              className="relative rounded-2xl p-8 bg-[#0a0a0a] border border-gray-800/30 
-                shadow-xl transition-all duration-300 hover:scale-[1.02] hover:border-orange-500/20 group overflow-hidden"
-            >
-              {/* Grid background pattern */}
-              <div className="absolute inset-0 grid grid-cols-12 grid-rows-12 gap-4 pointer-events-none opacity-10">
-                {Array.from({ length: 144 }).map((_, i) => (
-                  <div key={i} className="border border-gray-700/30"></div>
-                ))}
-              </div>
-              
-              {/* Quote Icon */}
-              <div className="text-6xl text-orange-500 opacity-70 group-hover:opacity-100 group-hover:text-orange-400 
-                transition-all duration-300 group-hover:shadow-glow absolute -top-2 left-4">
-                ❝
-              </div>
-              
-              {/* Quote Text */}
-              <div className="pt-8 pb-6 text-gray-300 group-hover:text-white transition-colors duration-300">
-                {testimonial.quote}
-              </div>
-              
-              {/* User Info */}
-              <div className="flex items-center mt-4">
-                <div className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-orange-500/30">
-                  <Image 
-                    src={testimonial.image} 
-                    alt={testimonial.name}
-                    fill
-                    className="object-cover"
-                  />
-                </div>
-                <div className="ml-4">
-                  <div className="font-bold text-white">{testimonial.name}</div>
-                  <div className="text-sm text-gray-400">{testimonial.title}</div>
-                </div>
-              </div>
-            </div>
-          ))}
+        {/* Aceternity UI InfiniteMovingCards */}
+        <div className="mx-auto">
+          <InfiniteMovingCards
+            items={testimonialItems}
+            direction="left"
+            speed="slow"
+            pauseOnHover={true}
+          />
         </div>
         
-        {/* Mobile View - Carousel */}
-        <div className="md:hidden relative">
-          <div 
-            ref={carouselRef}
-            className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-          >
-            {testimonials.map((testimonial, index) => (
-              <div 
-                key={testimonial.id}
-                className={`min-w-full px-4 snap-center`}
-              >
-                <div className="relative rounded-2xl p-8 bg-[#0a0a0a] border border-gray-800/30 
-                  shadow-xl transition-all duration-300 overflow-hidden">
-                  {/* Grid background pattern */}
-                  <div className="absolute inset-0 grid grid-cols-12 grid-rows-12 gap-4 pointer-events-none opacity-10">
-                    {Array.from({ length: 144 }).map((_, i) => (
-                      <div key={i} className="border border-gray-700/30"></div>
-                    ))}
-                  </div>
-                  
-                  {/* Quote Icon */}
-                  <div className="text-5xl text-orange-500 opacity-70 absolute -top-2 left-4">
-                    ❝
-                  </div>
-                  
-                  {/* Quote Text */}
-                  <div className="pt-8 pb-6 text-gray-300">
-                    {testimonial.quote}
-                  </div>
-                  
-                  {/* User Info */}
-                  <div className="flex items-center mt-4">
-                    <div className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-orange-500/30">
-                      <Image 
-                        src={testimonial.image} 
-                        alt={testimonial.name}
-                        fill
-                        className="object-cover"
-                      />
-                    </div>
-                    <div className="ml-4">
-                      <div className="font-bold text-white">{testimonial.name}</div>
-                      <div className="text-sm text-gray-400">{testimonial.title}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-          
-          {/* Carousel Controls */}
-          <div className="flex justify-center items-center mt-8 space-x-4">
-            <button 
-              onClick={prevSlide}
-              className="p-2 rounded-full bg-gray-900 text-white hover:bg-orange-500 transition-colors duration-300"
-              aria-label="Previous testimonial"
-            >
-              <ChevronLeft size={20} />
-            </button>
-            
-            {/* Dots */}
-            <div className="flex space-x-2">
-              {testimonials.map((_, index) => (
-                <button
-                  key={index}
-                  onClick={() => setActiveIndex(index)}
-                  className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                    activeIndex === index ? 'bg-orange-500 w-4' : 'bg-gray-600'
-                  }`}
-                  aria-label={`Go to testimonial ${index + 1}`}
-                />
-              ))}
-            </div>
-            
-            <button 
-              onClick={nextSlide}
-              className="p-2 rounded-full bg-gray-900 text-white hover:bg-orange-500 transition-colors duration-300"
-              aria-label="Next testimonial"
-            >
-              <ChevronRight size={20} />
-            </button>
-          </div>
+        {/* Second row moving in opposite direction */}
+        <div className="mx-auto mt-10">
+          <InfiniteMovingCards
+            items={[...testimonialItems].reverse()}
+            direction="right"
+            speed="slow"
+            pauseOnHover={true}
+          />
         </div>
       </div>
     </section>
