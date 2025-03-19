@@ -192,8 +192,8 @@ export default function BillingPage() {
           return;
         }
         
-        // Direct use of user subscription data when available
-        if (user && 'subscription_tier' in user.user_metadata) {
+        // Direct use of user subscription data when available in metadata
+        if (user && user.user_metadata && 'subscription_tier' in user.user_metadata) {
           console.log('Using subscription data from user metadata:', user.user_metadata);
           
           // Create subscription object from user metadata
@@ -230,9 +230,76 @@ export default function BillingPage() {
           setPaymentMethods(mockPaymentMethods);
           setBillingHistory(mockBillingHistory);
           
-          // We're using partial real data
-          setUsingMockData(true);
+          // Using real subscription data with mock billing info, 
+          // so don't show the "Using Demo Data" banner
+          setUsingMockData(false);
+          setBackendError(false);
           return;
+        }
+        
+        // Fetch user subscription data directly from public.users table
+        try {
+          const { createClient } = await import('@supabase/supabase-js');
+          const supabase = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+          );
+          
+          console.log('Fetching subscription data from users table for user ID:', user.id);
+          
+          const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', user.id)
+            .single();
+          
+          if (userError) {
+            console.error('Error fetching user data from Supabase:', userError);
+            throw new Error('Failed to fetch user subscription data');
+          }
+          
+          if (userData && userData.subscription_tier) {
+            console.log('Found subscription data in users table:', userData);
+            
+            // Create subscription object from database data
+            const realSubscription = {
+              plan: userData.subscription_tier || 'Free',
+              status: userData.subscription_status || 'active',
+              renewalDate: userData.subscription_current_period_end 
+                ? new Date(userData.subscription_current_period_end).toISOString()
+                : new Date(new Date().getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+              price: userData.subscription_tier === 'pro' ? '$15.00' : '$0.00',
+              billingCycle: 'monthly',
+              features: userData.subscription_tier === 'pro' 
+                ? [
+                    "Unlimited images",
+                    "Up to 16x upscaling",
+                    "All upscaling modes",
+                    "API access",
+                    "Priority support"
+                  ]
+                : [
+                    "Up to 3 images per month",
+                    "2x and 4x upscaling",
+                    "Basic upscaling mode",
+                    "Standard support"
+                  ]
+            };
+            
+            setSubscription(realSubscription);
+            setUsage(mockUsageData);
+            setPaymentMethods(mockPaymentMethods);
+            setBillingHistory(mockBillingHistory);
+            
+            // Using real subscription data with mock billing info, 
+            // so don't show the "Using Demo Data" banner
+            setUsingMockData(false);
+            setBackendError(false);
+            return;
+          }
+        } catch (dbError) {
+          console.error('Error accessing Supabase directly:', dbError);
+          // Continue to next fallback method
         }
         
         // Fetch real subscription data from the API with timeout and retry
@@ -720,9 +787,14 @@ export default function BillingPage() {
           
           {/* Usage Section */}
           <div className="bg-gray-900/50 backdrop-blur-sm rounded-xl p-6 border border-gray-800/50 shadow-xl mb-8">
-            <div className="flex items-center mb-6">
-              <BarChart className="h-6 w-6 text-orange-500 mr-2" />
-              <h2 className="text-xl font-semibold text-white">Usage</h2>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center">
+                <BarChart className="h-6 w-6 text-orange-500 mr-2" />
+                <h2 className="text-xl font-semibold text-white">Usage</h2>
+              </div>
+              {!backendError && !usingMockData && subscription.plan === 'pro' && (
+                <span className="text-xs text-gray-400">Demo data - API integration pending</span>
+              )}
             </div>
             
             <div className="space-y-6">
@@ -769,9 +841,14 @@ export default function BillingPage() {
           
           {/* Billing History Section */}
           <div className="bg-gray-900/50 backdrop-blur-sm rounded-xl p-6 border border-gray-800/50 shadow-xl">
-            <div className="flex items-center mb-6">
-              <Receipt className="h-6 w-6 text-orange-500 mr-2" />
-              <h2 className="text-xl font-semibold text-white">Billing History</h2>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center">
+                <Receipt className="h-6 w-6 text-orange-500 mr-2" />
+                <h2 className="text-xl font-semibold text-white">Billing History</h2>
+              </div>
+              {!backendError && !usingMockData && subscription.plan === 'pro' && (
+                <span className="text-xs text-gray-400">Demo data - API integration pending</span>
+              )}
             </div>
             
             <div className="overflow-x-auto">
@@ -826,12 +903,17 @@ export default function BillingPage() {
                 <CreditCard className="h-6 w-6 text-orange-500 mr-2" />
                 <h2 className="text-xl font-semibold text-white">Payment Methods</h2>
               </div>
-              <button 
-                onClick={() => setShowAddPaymentMethod(!showAddPaymentMethod)}
-                className="text-orange-500 hover:text-orange-400 focus:outline-none"
-              >
-                <PlusCircle className="h-5 w-5" />
-              </button>
+              <div className="flex items-center">
+                {!backendError && !usingMockData && subscription.plan === 'pro' && (
+                  <span className="text-xs text-gray-400 mr-2">Demo data - API integration pending</span>
+                )}
+                <button 
+                  onClick={() => setShowAddPaymentMethod(!showAddPaymentMethod)}
+                  className="text-orange-500 hover:text-orange-400 focus:outline-none"
+                >
+                  <PlusCircle className="h-5 w-5" />
+                </button>
+              </div>
             </div>
             
             {showAddPaymentMethod && (

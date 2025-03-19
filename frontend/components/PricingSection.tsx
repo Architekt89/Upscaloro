@@ -33,6 +33,7 @@ const pricingPlans: PricingPlan[] = [
     id: "free",
     name: "Free",
     monthlyPrice: "$0",
+    annualPrice: "$0",
     description: "Great for getting started with basic image upscaling",
     buttonText: "Get Started",
     highlighted: false,
@@ -121,13 +122,67 @@ export default function PricingSection() {
     }
 
     try {
-      // TODO: Replace with actual API call to get user's plan
-      // Example: const response = await fetch('/api/user/plan');
-      // For now, simulate an API call with a delay
       setLoadingPlan("fetching");
-      await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Hardcoded to "free" for now, but this would be replaced with actual API data
+      // Method 1: Check user metadata first (fastest if available)
+      if (user.user_metadata && user.user_metadata.subscription_tier) {
+        console.log('Found subscription tier in user metadata:', user.user_metadata.subscription_tier);
+        setUserPlan(user.user_metadata.subscription_tier.toLowerCase());
+        setLoadingPlan(null);
+        return;
+      }
+      
+      // Method 2: Directly query Supabase users table
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+      );
+      
+      console.log('Fetching subscription data from users table for user ID:', user.id);
+      
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('subscription_tier')
+        .eq('id', user.id)
+        .single();
+      
+      if (userError) {
+        console.error('Error fetching user data from Supabase:', userError);
+        throw new Error('Failed to fetch user subscription data');
+      }
+      
+      if (userData && userData.subscription_tier) {
+        console.log('Found subscription data in users table:', userData);
+        setUserPlan(userData.subscription_tier.toLowerCase());
+        return;
+      }
+      
+      // Method 3: Try backend API as fallback (legacy method)
+      const backendUrl = "https://upscaloro.onrender.com";
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      
+      if (session?.access_token) {
+        headers["Authorization"] = `Bearer ${session.access_token}`;
+      }
+      
+      const response = await fetch(`${backendUrl}/subscription/${user.id}`, {
+        method: "GET",
+        headers
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.status === 'success' && data.data && data.data.subscription_tier) {
+          setUserPlan(data.data.subscription_tier.toLowerCase());
+          return;
+        }
+      }
+      
+      // Default to free if all methods fail
+      console.log('No subscription data found, defaulting to free plan');
       setUserPlan("free");
     } catch (error) {
       console.error("Error fetching user plan:", error);
@@ -137,7 +192,7 @@ export default function PricingSection() {
     } finally {
       setLoadingPlan(null);
     }
-  }, [user]);
+  }, [user, session]);
 
   // Check for success parameter in URL
   useEffect(() => {
@@ -166,18 +221,80 @@ export default function PricingSection() {
       return;
     }
 
+    // Special handling for switching current plan to annual billing
+    if (user && plan.id === userPlan && billingCycle === 'annual' && getButtonText(plan) === "Switch to annual billing") {
+      try {
+        setLoadingPlan(plan.id);
+        
+        // Use the annual price ID
+        const priceId = plan.annualPriceId;
+        
+        // Prepare headers with Authorization token
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        
+        if (user && session?.access_token) {
+          headers["Authorization"] = `Bearer ${session.access_token}`;
+        }
+        
+        // Call the backend to update the subscription to annual billing
+        const backendUrl = "https://upscaloro.onrender.com";
+        let response = await fetch(`${backendUrl}/billing/change-billing-cycle`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            price_id: priceId,
+            billing_cycle: 'yearly',
+            success_url: `${window.location.origin}/dashboard/billing?checkout_success=true&billing_changed=true`,
+            cancel_url: `${window.location.origin}/pricing?checkout_canceled=true`
+          })
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || "Failed to change billing cycle");
+        }
+
+        const { url } = await response.json();
+        
+        // Redirect to Stripe Checkout or billing portal
+        if (url) {
+          window.location.href = url;
+        } else {
+          throw new Error("No URL returned for billing change");
+        }
+        return;
+      } catch (error) {
+        console.error("Error switching to annual billing:", error);
+        toast.error(`Error: ${error instanceof Error ? error.message : "Failed to process your request"}`);
+        setLoadingPlan(null);
+        return;
+      }
+    }
+
     // If the user already has this plan, show a message
     if (user && plan.id === userPlan) {
       toast.success("You're already on this plan!");
       return;
     }
 
-    // Special case for downgrading to free plan
-    if (user && plan.id === "free" && userPlan !== "free") {
+    // Handle downgrade scenarios
+    if (user && (
+      (userPlan === "enterprise" && (plan.id === "pro" || plan.id === "free")) ||
+      (userPlan === "pro" && plan.id === "free")
+    )) {
       toast.success("Please contact our support team to downgrade your plan");
       return;
     }
 
+    // Handle cancellation (current plan is not free, and selected plan is free)
+    if (user && plan.id === "free" && userPlan !== "free") {
+      toast.success("Please contact our support team to cancel your subscription");
+      return;
+    }
+
+    // Regular checkout process for new or upgraded plans
     try {
       setLoadingPlan(plan.id);
       
@@ -258,16 +375,31 @@ export default function PricingSection() {
     
     // If this plan is the user's current plan
     if (plan.id === userPlan) {
+      // If showing the current plan in a different billing cycle than what user has
+      if (billingCycle === 'annual' && userPlan === plan.id) {
+        return "Switch to annual billing";
+      }
       return "Current Plan";
     }
     
-    // If user is on a higher tier and trying to go to free
-    if (plan.id === "free" && userPlan !== "free") {
+    // If user is on a higher tier and trying to go to a lower tier
+    if (
+      (userPlan === "enterprise" && (plan.id === "pro" || plan.id === "free")) ||
+      (userPlan === "pro" && plan.id === "free")
+    ) {
       return "Downgrade";
     }
     
-    // Otherwise, show upgrade text for higher plans
-    return "Upgrade";
+    // If user is on a lower tier and trying to go to a higher tier
+    if (
+      (userPlan === "free" && (plan.id === "pro" || plan.id === "enterprise")) ||
+      (userPlan === "pro" && plan.id === "enterprise")
+    ) {
+      return "Upgrade";
+    }
+    
+    // Default fallback
+    return "Select Plan";
   };
 
   // Add login prompt component
@@ -446,14 +578,15 @@ export default function PricingSection() {
                 <div className="mt-auto">
                   <button
                     onClick={() => handlePlanSelect(plan)}
-                    disabled={loadingPlan === plan.id || !sessionChecked || (!!user && plan.id === userPlan)}
+                    disabled={loadingPlan === plan.id || !sessionChecked || 
+                      (!!user && plan.id === userPlan && !(billingCycle === 'annual' && getButtonText(plan) === "Switch to annual billing"))}
                     className={`
                       block w-full py-3 px-4 rounded-full text-center text-sm font-semibold transition-all duration-300
                       ${plan.highlighted 
                         ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-[0_0_15px_rgba(249,115,22,0.3)] hover:shadow-[0_0_20px_rgba(249,115,22,0.5)] hover:from-orange-400 hover:to-orange-600 hover:scale-[1.03]' 
                         : 'border border-gray-400 text-white hover:bg-orange-500 hover:border-orange-500 hover:text-white hover:scale-[1.03]'
                       }
-                      ${(loadingPlan === plan.id || !sessionChecked || (!!user && plan.id === userPlan)) ? 'opacity-75 cursor-not-allowed' : ''}
+                      ${(loadingPlan === plan.id || !sessionChecked || (!!user && plan.id === userPlan && !(billingCycle === 'annual' && getButtonText(plan) === "Switch to annual billing"))) ? 'opacity-75 cursor-not-allowed' : ''}
                     `}
                   >
                     {loadingPlan === plan.id ? (

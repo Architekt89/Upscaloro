@@ -20,7 +20,7 @@ import { useAuth } from '@/context/AuthContext';
 import ImageComparisonSlider from './ImageComparisonSlider';
 
 interface ImageUploaderProps {
-  userSubscription: 'free' | 'pro';
+  userSubscription: 'free' | 'pro' | 'enterprise';
   imagesProcessedThisMonth: number;
   maxImagesPerMonth: number;
 }
@@ -336,7 +336,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
         <div className="flex flex-col space-y-2">
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-semibold">Upload Image</h2>
-            {userSubscription === 'free' && (
+            {userSubscription === 'free' ? (
               <a 
                 href="/pricing" 
                 className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-full text-white 
@@ -347,6 +347,12 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
               >
                 Upgrade to Pro
               </a>
+            ) : (
+              <span className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-full text-white 
+                bg-gradient-to-r from-gray-700 to-gray-800 
+                shadow-[0_0_10px_rgba(0,0,0,0.2)]">
+                {userSubscription === 'pro' ? 'Pro Plan' : 'Enterprise Plan'}
+              </span>
             )}
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400">
