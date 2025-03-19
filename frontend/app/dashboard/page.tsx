@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import ImageUploader from '@/components/ImageUploader';
 import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast';
+import Link from 'next/link';
 
 export default function DashboardPage() {
   const { user, session } = useAuth();
@@ -26,7 +27,7 @@ export default function DashboardPage() {
           
           // Set limits based on plan
           if (plan === 'pro') {
-            setMaxImagesPerMonth(100);
+            setMaxImagesPerMonth(400); // Updated to reflect actual Pro plan limit
           } else if (plan === 'enterprise') {
             setMaxImagesPerMonth(1000);
           } else {
@@ -63,11 +64,11 @@ export default function DashboardPage() {
             
             // Set limits based on plan
             if (plan === 'pro') {
-              setMaxImagesPerMonth(100);
+              setMaxImagesPerMonth(400); // Updated to reflect actual Pro plan limit
             } else if (plan === 'enterprise') {
               setMaxImagesPerMonth(1000);
             } else {
-              setMaxImagesPerMonth(3);
+              setMaxImagesPerMonth(5); // Daily limit for free tier
             }
             
             setLoading(false);
@@ -106,6 +107,16 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-2 pb-8">
+      <div className="mb-8 flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <Link 
+          href="/dashboard/billing" 
+          className="inline-flex items-center px-4 py-2 text-sm font-medium text-orange-500 bg-transparent border border-orange-500 rounded-md hover:bg-orange-500 hover:text-white transition-colors"
+        >
+          View Billing & Usage
+        </Link>
+      </div>
+      
       <ImageUploader
         userSubscription={userSubscription as "free" | "pro" | "enterprise"}
         imagesProcessedThisMonth={imagesProcessedThisMonth}

@@ -151,16 +151,34 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
       return;
     }
 
-    if (imagesProcessedThisMonth >= maxImagesPerMonth) {
-      toast.error(`You've reached your limit of ${maxImagesPerMonth} images this month. Please upgrade to continue.`);
-      return;
+    // Use the options from the backend to determine limits
+    if (options) {
+      // Check if selected features are available for the user's plan
+      if (options.scale_factors && !options.scale_factors.includes(scaleFactor)) {
+        toast.error(`Scale factor ${scaleFactor}x is not available on your ${userSubscription} plan.`);
+        return;
+      }
+
+      if (options.modes && !options.modes.includes(mode)) {
+        toast.error(`${MODE_NAMES[mode as keyof typeof MODE_NAMES] || mode} is not available on your ${userSubscription} plan.`);
+        return;
+      }
     }
 
-    // Check if user is on free plan and trying to use pro features
-    if (userSubscription === 'free' && scaleFactor > 2) {
-      toast.error('Scale factors above 2x are only available on the Pro plan');
-      return;
+    // Check monthly usage limit
+    if (userSubscription === 'free') {
+      // The actual check will be done server-side for daily limit
+      if (imagesProcessedThisMonth >= maxImagesPerMonth) {
+        toast.error(`You've reached your daily limit of ${maxImagesPerMonth} images. Please upgrade to process more images.`);
+        return;
+      }
+    } else if (userSubscription === 'pro') {
+      if (imagesProcessedThisMonth >= maxImagesPerMonth) {
+        toast.error(`You've reached your monthly limit of ${maxImagesPerMonth} images. Please upgrade to Enterprise for unlimited processing.`);
+        return;
+      }
     }
+    // Enterprise has no limits to check
 
     setIsProcessing(true);
     const formData = new FormData();
@@ -193,7 +211,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
     });
 
     try {
-      const loadingToast = toast.loading('Processing... Meanwhile, grab a snack. Or two. Maybe a whole meal.');
+      const loadingToast = toast.loading('Processing... This may take a minute.');
       
       const response = await uploadFile('/upscale', formData);
       console.log('Upload response received:', {
@@ -205,7 +223,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
 
       const processedImageUrl = URL.createObjectURL(response.data);
       setProcessedImage(processedImageUrl);
-      toast.success('Image processed successfully with Replicate AI!');
+      toast.success('Image processed successfully!');
       toast.dismiss(loadingToast);
     } catch (error) {
       console.error('Error processing image:', error);
@@ -506,6 +524,50 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
           >
             {isProcessing ? 'Processing...' : 'Process Image'}
           </button>
+        </div>
+
+        {/* Add usage information section */}
+        <div className="mb-6 mt-4 rounded-md bg-gray-50 p-4 dark:bg-gray-800">
+          <h3 className="mb-2 text-sm font-medium text-gray-900 dark:text-white">Your Plan Limits</h3>
+          <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
+            <div className="flex justify-between">
+              <span>Subscription:</span>
+              <span className="font-medium capitalize">{userSubscription} Plan</span>
+            </div>
+            
+            {userSubscription === 'free' ? (
+              <div className="flex justify-between">
+                <span>Daily limit:</span>
+                <span className="font-medium">{maxImagesPerMonth} images per day</span>
+              </div>
+            ) : userSubscription === 'pro' ? (
+              <div className="flex justify-between">
+                <span>Monthly limit:</span>
+                <span className="font-medium">{maxImagesPerMonth} images per month</span>
+              </div>
+            ) : (
+              <div className="flex justify-between">
+                <span>Monthly limit:</span>
+                <span className="font-medium">Unlimited</span>
+              </div>
+            )}
+            
+            <div className="flex justify-between">
+              <span>Processed this month:</span>
+              <span className="font-medium">{imagesProcessedThisMonth} images</span>
+            </div>
+            
+            {userSubscription !== 'enterprise' && (
+              <div className="mt-2 text-center">
+                <a 
+                  href="/pricing" 
+                  className="text-orange-500 hover:text-orange-600 hover:underline"
+                >
+                  Upgrade your plan for more features
+                </a>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

@@ -17,6 +17,7 @@ import {
 import BackendDebug from './debug';
 import axios from 'axios';
 import Link from 'next/link';
+import UsageStats from '@/components/UsageStats';
 
 // Mock data for demonstration
 const mockSubscriptionData = {
@@ -620,7 +621,15 @@ export default function BillingPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-6">Billing &amp; Subscription</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">Billing &amp; Subscription</h1>
+        <Link 
+          href="/dashboard" 
+          className="inline-flex items-center px-4 py-2 text-sm font-medium text-orange-500 bg-transparent border border-orange-500 rounded-md hover:bg-orange-500 hover:text-white transition-colors"
+        >
+          Back to Dashboard
+        </Link>
+      </div>
       
       {/* Success message after checkout */}
       {showSuccessMessage && (
@@ -792,51 +801,68 @@ export default function BillingPage() {
                 <BarChart className="h-6 w-6 text-orange-500 mr-2" />
                 <h2 className="text-xl font-semibold text-white">Usage</h2>
               </div>
-              {!backendError && !usingMockData && subscription.plan === 'pro' && (
-                <span className="text-xs text-gray-400">Demo data - API integration pending</span>
-              )}
             </div>
             
-            <div className="space-y-6">
-              <div>
-                <div className="flex justify-between mb-2">
-                  <span className="text-gray-300">Images Processed</span>
-                  <span className="text-gray-300">{usage.imagesProcessed} / {usage.imagesLimit}</span>
-                </div>
-                <div className="w-full bg-gray-700 rounded-full h-2.5">
-                  <div 
-                    className="bg-orange-500 h-2.5 rounded-full" 
-                    style={{ width: `${(usage.imagesProcessed / usage.imagesLimit) * 100}%` }}
-                  ></div>
-                </div>
-              </div>
-              
-              <div>
-                <div className="flex justify-between mb-2">
-                  <span className="text-gray-300">API Calls</span>
-                  <span className="text-gray-300">{usage.apiCalls} / {usage.apiCallsLimit}</span>
-                </div>
-                <div className="w-full bg-gray-700 rounded-full h-2.5">
-                  <div 
-                    className="bg-orange-500 h-2.5 rounded-full" 
-                    style={{ width: `${(usage.apiCalls / usage.apiCallsLimit) * 100}%` }}
-                  ></div>
+            {/* Use our UsageStats component instead of the demo usage data */}
+            {user && session ? (
+              <div className="relative group">
+                <UsageStats 
+                  userId={user.id} 
+                  token={session.access_token} 
+                />
+                {/* Overlay with refresh button that appears on hover */}
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30 rounded-lg backdrop-blur-sm">
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors"
+                  >
+                    Refresh Stats
+                  </button>
                 </div>
               </div>
-              
-              <div>
-                <div className="flex justify-between mb-2">
-                  <span className="text-gray-300">Storage Used</span>
-                  <span className="text-gray-300">{usage.storageUsed} / {usage.storageLimit}</span>
+            ) : (
+              <div className="space-y-6">
+                {/* Fallback to the original demo usage UI if user or session is missing */}
+                <div>
+                  <div className="flex justify-between mb-2">
+                    <span className="text-gray-300">Images Processed</span>
+                    <span className="text-gray-300">{usage.imagesProcessed} / {usage.imagesLimit}</span>
+                  </div>
+                  <div className="w-full bg-gray-700 rounded-full h-2.5">
+                    <div 
+                      className="bg-orange-500 h-2.5 rounded-full" 
+                      style={{ width: `${(usage.imagesProcessed / usage.imagesLimit) * 100}%` }}
+                    ></div>
+                  </div>
                 </div>
-                <div className="w-full bg-gray-700 rounded-full h-2.5">
-                  <div 
-                    className="bg-orange-500 h-2.5 rounded-full" 
-                    style={{ width: `${(parseInt(usage.storageUsed) / parseInt(usage.storageLimit)) * 100}%` }}
-                  ></div>
+                
+                <div>
+                  <div className="flex justify-between mb-2">
+                    <span className="text-gray-300">API Calls</span>
+                    <span className="text-gray-300">{usage.apiCalls} / {usage.apiCallsLimit}</span>
+                  </div>
+                  <div className="w-full bg-gray-700 rounded-full h-2.5">
+                    <div 
+                      className="bg-orange-500 h-2.5 rounded-full" 
+                      style={{ width: `${(usage.apiCalls / usage.apiCallsLimit) * 100}%` }}
+                    ></div>
+                  </div>
+                </div>
+                
+                <div>
+                  <div className="flex justify-between mb-2">
+                    <span className="text-gray-300">Storage Used</span>
+                    <span className="text-gray-300">{usage.storageUsed} / {usage.storageLimit}</span>
+                  </div>
+                  <div className="w-full bg-gray-700 rounded-full h-2.5">
+                    <div 
+                      className="bg-orange-500 h-2.5 rounded-full" 
+                      style={{ width: `${(parseInt(usage.storageUsed) / parseInt(usage.storageLimit)) * 100}%` }}
+                    ></div>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
           
           {/* Billing History Section */}
