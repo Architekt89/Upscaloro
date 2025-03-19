@@ -105,6 +105,7 @@ export default function BillingPage() {
   // Check if user is logged in
   useEffect(() => {
     let successMessageTimer: NodeJS.Timeout | null = null;
+    let refreshCompleted = false;
     
     if (!user) {
       router.push('/auth/login');
@@ -112,7 +113,7 @@ export default function BillingPage() {
     }
 
     // Check for checkout success parameter
-    if (checkoutSuccess === 'true') {
+    if (checkoutSuccess === 'true' && !refreshCompleted) {
       setShowSuccessMessage(true);
       
       // Force refresh user data after successful checkout
@@ -120,6 +121,12 @@ export default function BillingPage() {
         try {
           await refreshUser(); // This will update the user data from Supabase
           toast.success('Subscription data refreshed successfully');
+          refreshCompleted = true;
+          
+          // Clear checkout_success parameter from URL without full page reload
+          const newUrl = new URL(window.location.href);
+          newUrl.searchParams.delete('checkout_success');
+          window.history.replaceState({}, '', newUrl.toString());
           
           // If subscriptions table is empty but payment was successful, try manual upgrade
           const manualUpgrade = async () => {
@@ -143,7 +150,7 @@ export default function BillingPage() {
                 console.log('Manual upgrade successful:', data);
                 toast.success('Manual upgrade successful. Refreshing data...');
                 
-                // Refresh user data again after manual upgrade
+                // Refresh user data again after manual upgrade (only once)
                 setTimeout(() => refreshUser(), 1000);
               } else {
                 console.error('Manual upgrade failed:', await response.text());
@@ -169,8 +176,6 @@ export default function BillingPage() {
       successMessageTimer = setTimeout(() => {
         setShowSuccessMessage(false);
       }, 5000);
-      
-      // Don't return here, continue to fetch billing data
     }
 
     // Fetch billing data
@@ -421,6 +426,8 @@ export default function BillingPage() {
       if (successMessageTimer) {
         clearTimeout(successMessageTimer);
       }
+      // Clear all toasts when component unmounts to prevent duplicates
+      toast.dismiss();
     };
   }, [user, router, session, checkoutSuccess, refreshUser]);
 
