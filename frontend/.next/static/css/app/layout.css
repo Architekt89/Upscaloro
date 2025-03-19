@@ -796,6 +796,9 @@ video {
 .mt-auto {
   margin-top: auto;
 }
+.mt-0 {
+  margin-top: 0px;
+}
 .block {
   display: block;
 }
@@ -1690,6 +1693,11 @@ video {
   --tw-gradient-to: rgb(249 115 22 / 0) var(--tw-gradient-to-position);
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
 }
+.from-gray-100 {
+  --tw-gradient-from: #f3f4f6 var(--tw-gradient-from-position);
+  --tw-gradient-to: rgb(243 244 246 / 0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
 .via-gray-950 {
   --tw-gradient-to: rgb(3 7 18 / 0)  var(--tw-gradient-to-position);
   --tw-gradient-stops: var(--tw-gradient-from), #030712 var(--tw-gradient-via-position), var(--tw-gradient-to);
@@ -2325,6 +2333,14 @@ video {
   --tw-drop-shadow: drop-shadow(0 4px 3px rgb(0 0 0 / 0.07)) drop-shadow(0 2px 2px rgb(0 0 0 / 0.06));
   filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
 }
+.drop-shadow-\[0_0_10px_rgba\(249\2c 115\2c 22\2c 0\.5\)\] {
+  --tw-drop-shadow: drop-shadow(0 0 10px rgba(249,115,22,0.5));
+  filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
+}
+.drop-shadow-\[0_0_10px_rgba\(255\2c 255\2c 255\2c 0\.5\)\] {
+  --tw-drop-shadow: drop-shadow(0 0 10px rgba(255,255,255,0.5));
+  filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
+}
 .filter {
   filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
 }
@@ -2403,6 +2419,12 @@ video {
 .\[mask-image\:radial-gradient\(ellipse_at_center\2c transparent_20\%\2c black\)\] {
   -webkit-mask-image: radial-gradient(ellipse at center,transparent 20%,black);
           mask-image: radial-gradient(ellipse at center,transparent 20%,black);
+}
+.\[text-shadow\:_0_0_15px_rgba\(249\2c 115\2c 22\2c 0\.3\)\] {
+  text-shadow: 0 0 15px rgba(249,115,22,0.3);
+}
+.\[text-shadow\:_0_0_15px_rgba\(255\2c 255\2c 255\2c 0\.3\)\] {
+  text-shadow: 0 0 15px rgba(255,255,255,0.3);
 }
 
 :root {
