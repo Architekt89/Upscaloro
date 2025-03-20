@@ -1,53 +1,56 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import ImageUploader from '@/components/ImageUploader';
 import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast';
-import Link from 'next/link';
 
 export default function DashboardPage() {
   const { user, session } = useAuth();
   const [userSubscription, setUserSubscription] = useState<"free" | "pro" | "enterprise">("free");
   const [imagesProcessedThisMonth, setImagesProcessedThisMonth] = useState(0);
   const [maxImagesPerMonth, setMaxImagesPerMonth] = useState(3);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const dataFetchedRef = useRef(false);
 
-  // Fetch user subscription data
+  // Prefetch user subscription data as soon as possible
   useEffect(() => {
+    // Only run once and skip if no user
+    if (dataFetchedRef.current || !user) return;
+    dataFetchedRef.current = true;
+
     const fetchUserData = async () => {
       try {
-        setLoading(true);
+        // Skip showing loading indicator for faster perceived performance
+        setLoading(false);
         
-        // Step 1: Check user metadata first (fastest if available)
+        // Optimized data fetching approach
+        // Step 1: Check user metadata (fastest method)
         if (user?.user_metadata?.subscription_tier) {
           const plan = user.user_metadata.subscription_tier.toLowerCase();
-          console.log('Found subscription tier in user metadata:', plan);
           setUserSubscription(plan as "free" | "pro" | "enterprise");
           
           // Set limits based on plan
           if (plan === 'pro') {
-            setMaxImagesPerMonth(400); // Updated to reflect actual Pro plan limit
+            setMaxImagesPerMonth(400);
           } else if (plan === 'enterprise') {
             setMaxImagesPerMonth(1000);
           } else {
             setMaxImagesPerMonth(3);
           }
-          
-          setLoading(false);
           return;
         }
         
         // Step 2: Directly query Supabase users table
         if (user?.id) {
+          // Use dynamic import to reduce initial bundle size
           const { createClient } = await import('@supabase/supabase-js');
           const supabase = createClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL || '',
             process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
           );
           
-          console.log('Fetching subscription data from users table for user ID:', user.id);
-          
+          // Query with minimal fields for faster response
           const { data: userData, error: userError } = await supabase
             .from('users')
             .select('subscription_tier, images_processed_this_month')
@@ -55,72 +58,46 @@ export default function DashboardPage() {
             .single();
           
           if (!userError && userData) {
-            console.log('Found subscription data in users table:', userData);
             const plan = userData.subscription_tier?.toLowerCase() || 'free';
             setUserSubscription(plan as "free" | "pro" | "enterprise");
-            
-            // Set images processed
             setImagesProcessedThisMonth(userData.images_processed_this_month || 0);
             
-            // Set limits based on plan
             if (plan === 'pro') {
-              setMaxImagesPerMonth(400); // Updated to reflect actual Pro plan limit
+              setMaxImagesPerMonth(400);
             } else if (plan === 'enterprise') {
               setMaxImagesPerMonth(1000);
             } else {
-              setMaxImagesPerMonth(5); // Daily limit for free tier
+              setMaxImagesPerMonth(5);
             }
-            
-            setLoading(false);
             return;
           }
         }
           
         // Fallback to default values
         setUserSubscription("free");
-        setImagesProcessedThisMonth(1);
+        setImagesProcessedThisMonth(0);
         setMaxImagesPerMonth(3);
       } catch (error) {
         console.error('Error fetching user data:', error);
-        toast.error('Failed to load user data');
-        // Use default values on error
-        setUserSubscription("free");
-        setImagesProcessedThisMonth(0);
-        setMaxImagesPerMonth(3);
+        // Silent error handling for better UX - only show error if critical
+        // toast.error('Failed to load user data');
       } finally {
         setLoading(false);
       }
     };
 
-    if (user) {
-      fetchUserData();
-    }
-  }, [user, session]);
+    // Start fetching immediately
+    fetchUserData();
+  }, [user]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
-      </div>
-    );
-  }
-
+  // Render immediately with default values
   return (
-    <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-2 pb-8">
-      <div className="mb-8 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <Link 
-          href="/dashboard/billing" 
-          className="inline-flex items-center px-4 py-2 text-sm font-medium text-orange-500 bg-transparent border border-orange-500 rounded-md hover:bg-orange-500 hover:text-white transition-colors"
-        >
-          View Billing & Usage
-        </Link>
-      </div>
-      
+    <div className="mx-auto px-0">
       <ImageUploader
-        userSubscription={userSubscription as "free" | "pro" | "enterprise"}
+        userSubscription={userSubscription}
         imagesProcessedThisMonth={imagesProcessedThisMonth}
         maxImagesPerMonth={maxImagesPerMonth}
+        isLoading={loading}
       />
     </div>
   );

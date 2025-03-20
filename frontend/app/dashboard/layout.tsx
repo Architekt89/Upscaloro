@@ -12,7 +12,7 @@ export default function DashboardLayout({
     <ProtectedRoute>
       <div className="min-h-screen bg-black">
         <Header />
-        <main className="pb-12 pt-24">{children}</main>
+        <main className="pb-0" style={{ paddingLeft: '0.5rem', paddingRight: '0.5rem', paddingTop: '0.5rem' }}>{children}</main>
       </div>
     </ProtectedRoute>
   );

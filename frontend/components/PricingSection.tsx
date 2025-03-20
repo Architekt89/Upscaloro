@@ -63,7 +63,7 @@ const pricingPlans: PricingPlan[] = [
       { text: "Email support", included: true },
       { text: "Fast processing speed", included: true },
       { text: "All AI models", included: true },
-      { text: "Batch processing", included: true },
+      { text: "Batch processing (up to 10 images)", included: true },
       { text: "Priority support", included: false },
     ],
     monthlyPriceId: "price_1R1UVUBQ1z6vW0DwWfGtyIW0",

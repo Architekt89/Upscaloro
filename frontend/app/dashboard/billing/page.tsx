@@ -193,9 +193,9 @@ export default function BillingPage() {
           return;
         }
         
-        // Direct use of user subscription data when available in metadata
-        if (user && user.user_metadata && 'subscription_tier' in user.user_metadata) {
-          console.log('Using subscription data from user metadata:', user.user_metadata);
+        // Check for user metadata first (fastest if available)
+        if (user?.user_metadata?.subscription_tier) {
+          console.log('Found subscription tier in user metadata:', user.user_metadata);
           
           // Create subscription object from user metadata
           const userMetadata = user.user_metadata;
@@ -212,6 +212,7 @@ export default function BillingPage() {
                   "Unlimited images",
                   "Up to 16x upscaling",
                   "All upscaling modes",
+                  "Batch image processing",
                   "API access",
                   "Priority support"
                 ]
@@ -276,6 +277,7 @@ export default function BillingPage() {
                     "Unlimited images",
                     "Up to 16x upscaling",
                     "All upscaling modes",
+                    "Batch image processing",
                     "API access",
                     "Priority support"
                   ]
@@ -361,6 +363,7 @@ export default function BillingPage() {
                       "Unlimited images",
                       "Up to 16x upscaling",
                       "All upscaling modes",
+                      "Batch image processing",
                       "API access",
                       "Priority support"
                     ]

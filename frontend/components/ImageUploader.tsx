@@ -23,6 +23,7 @@ interface ImageUploaderProps {
   userSubscription: 'free' | 'pro' | 'enterprise';
   imagesProcessedThisMonth: number;
   maxImagesPerMonth: number;
+  isLoading?: boolean;  // Optional prop to indicate data is loading
 }
 
 // Define valid parameter values
@@ -41,12 +42,19 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   userSubscription,
   imagesProcessedThisMonth,
   maxImagesPerMonth,
+  isLoading = false,  // Default to false
 }) => {
   const { user, session } = useAuth();
   const [file, setFile] = useState<File | null>(null);
+  const [batchFiles, setBatchFiles] = useState<File[]>([]);
   const [preview, setPreview] = useState<string | null>(null);
+  const [batchPreviews, setBatchPreviews] = useState<string[]>([]);
   const [processedImage, setProcessedImage] = useState<string | null>(null);
+  const [batchProcessedImages, setBatchProcessedImages] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+  const [batchProgress, setBatchProgress] = useState(0);
+  const [batchMode, setBatchMode] = useState(false);
   const [scaleFactor, setScaleFactor] = useState<number>(2);
   const [mode, setMode] = useState<string>("block_mode");
   const [dynamic, setDynamic] = useState<number>(25);
@@ -119,16 +127,54 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
     }
   }, [options]);
 
+  // Update the onDrop callback to handle multiple files for Pro and Enterprise users
   const onDrop = useCallback((acceptedFiles: File[]) => {
+    if (userSubscription === 'free') {
+      // Free users can only upload one file at a time
     const selectedFile = acceptedFiles[0];
     if (selectedFile) {
       setFile(selectedFile);
       const objectUrl = URL.createObjectURL(selectedFile);
       setPreview(objectUrl);
       setProcessedImage(null);
+        // Reset batch mode
+        setBatchMode(false);
+        setBatchFiles([]);
+        setBatchPreviews([]);
+        setBatchProcessedImages([]);
+      }
+    } else {
+      // Pro and Enterprise users can upload multiple files
+      if (acceptedFiles.length === 1 && !batchMode) {
+        // Single file upload mode
+        const selectedFile = acceptedFiles[0];
+        setFile(selectedFile);
+        const objectUrl = URL.createObjectURL(selectedFile);
+        setPreview(objectUrl);
+        setProcessedImage(null);
+      } else {
+        // Batch mode
+        setBatchMode(true);
+        setBatchFiles(prev => {
+          // Limit to 10 files max to prevent performance issues
+          const newFiles = [...prev, ...acceptedFiles].slice(0, 10);
+          
+          // Create preview URLs for each file
+          const newPreviews = newFiles.map(file => URL.createObjectURL(file));
+          setBatchPreviews(newPreviews);
+          
+          return newFiles;
+        });
+        
+        // Reset single file state
+        setFile(null);
+        setPreview(null);
+        setProcessedImage(null);
+      }
     }
-  }, []);
+  }, [userSubscription, batchMode]);
 
+  // Update the dropzone configuration to allow multiple files for Pro and Enterprise users
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
@@ -136,9 +182,226 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
       'image/png': [],
       'image/webp': [],
     },
-    maxFiles: 1,
-    multiple: false,
+    maxFiles: userSubscription === 'free' ? 1 : 10,
+    multiple: userSubscription !== 'free',
   });
+  
+  // Add a function to remove a file from batch files
+  const removeFromBatch = (index: number) => {
+    setBatchFiles(prev => {
+      const newFiles = [...prev];
+      newFiles.splice(index, 1);
+      
+      // Also update previews
+      setBatchPreviews(prev => {
+        const newPreviews = [...prev];
+        URL.revokeObjectURL(newPreviews[index]); // Clean up URL
+        newPreviews.splice(index, 1);
+        return newPreviews;
+      });
+      
+      // Also update processed images if any
+      if (batchProcessedImages.length > index) {
+        setBatchProcessedImages(prev => {
+          const newProcessed = [...prev];
+          if (newProcessed[index]) {
+            URL.revokeObjectURL(newProcessed[index]); // Clean up URL
+          }
+          newProcessed.splice(index, 1);
+          return newProcessed;
+        });
+      }
+      
+      // If no files left, reset batch mode
+      if (newFiles.length === 0) {
+        setBatchMode(false);
+      }
+      
+      return newFiles;
+    });
+  };
+  
+  // Add function to toggle batch mode for Pro and Enterprise users
+  const toggleBatchMode = () => {
+    if (userSubscription === 'free') {
+      toast.error('Batch processing is only available for Pro and Enterprise plans');
+      return;
+    }
+    
+    setBatchMode(!batchMode);
+    if (!batchMode) {
+      // Switching to batch mode - clear single file state
+      setFile(null);
+      setPreview(null);
+      setProcessedImage(null);
+    } else {
+      // Switching to single mode - clear batch state
+      setBatchFiles([]);
+      setBatchPreviews([]);
+      setBatchProcessedImages([]);
+    }
+  };
+
+  // Add batch processing function
+  const handleBatchProcess = async () => {
+    if (batchFiles.length === 0) {
+      toast.error('Please upload at least one image first');
+      return;
+    }
+
+    if (!user || !session) {
+      toast.error('You must be logged in to process images');
+      return;
+    }
+    
+    // Check if there are enough remaining images for the user's plan
+    const totalToProcess = batchFiles.length;
+    
+    if (userSubscription === 'pro') {
+      const remaining = maxImagesPerMonth - imagesProcessedThisMonth;
+      if (totalToProcess > remaining) {
+        toast.error(`You only have ${remaining} images left in your monthly limit. Please reduce batch size or upgrade to Enterprise for unlimited processing.`);
+        return;
+      }
+    }
+    
+    setIsBatchProcessing(true);
+    setBatchProgress(0);
+    setBatchProcessedImages([]);
+    
+    const loadingToast = toast.loading(`Processing ${batchFiles.length} images... This may take a while.`);
+    
+    try {
+      // Process images one by one
+      for (let i = 0; i < batchFiles.length; i++) {
+        const file = batchFiles[i];
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('scale_factor', scaleFactor.toString());
+        formData.append('mode', mode);
+        formData.append('dynamic', dynamic.toString());
+        formData.append('handfix', handfix.toString());
+        formData.append('creativity', creativity.toString());
+        formData.append('resemblance', resemblance.toString());
+        formData.append('output_format', outputFormat);
+        
+        // Update progress indicator
+        setBatchProgress(Math.round(((i) / batchFiles.length) * 100));
+        toast.loading(`Processing image ${i + 1} of ${batchFiles.length}... (${Math.round(((i) / batchFiles.length) * 100)}%)`, 
+          { id: loadingToast });
+        
+        try {
+          const response = await uploadFile('/upscale', formData);
+          const processedImageUrl = URL.createObjectURL(response.data);
+          
+          // Add to processed images array
+          setBatchProcessedImages(prev => [...prev, processedImageUrl]);
+        } catch (error) {
+          console.error(`Error processing image ${i + 1}:`, error);
+          if (axios.isAxiosError(error) && error.response?.data) {
+            let errorMessage = 'Processing failed';
+            if (typeof error.response.data === 'object') {
+              errorMessage = error.response.data.detail || errorMessage;
+            } else if (typeof error.response.data === 'string') {
+              errorMessage = error.response.data;
+            }
+            
+            // Add placeholder for failed image
+            setBatchProcessedImages(prev => [...prev, '']);
+            toast.error(`Failed to process image ${i + 1}: ${errorMessage}`);
+          }
+        }
+      }
+      
+      setBatchProgress(100);
+      toast.success(`Successfully processed ${batchProcessedImages.length} out of ${batchFiles.length} images!`, 
+        { id: loadingToast });
+    } catch (error) {
+      console.error('Error in batch processing:', error);
+      toast.error('Batch processing failed', { id: loadingToast });
+    } finally {
+      setIsBatchProcessing(false);
+    }
+  };
+
+  // Add batch download function
+  const handleBatchDownload = async () => {
+    if (batchProcessedImages.length === 0) {
+      toast.error('No processed images available to download');
+      return;
+    }
+    
+    toast.loading('Preparing downloads...');
+    
+    // Create a zip file of all processed images
+    try {
+      // Use dynamic import for the JSZip library
+      try {
+        // First check if JSZip is already available (it might be installed)
+        const JSZip = (await import('jszip')).default;
+        const zip = new JSZip();
+        
+        // Add each processed image to the zip
+        for (let i = 0; i < batchProcessedImages.length; i++) {
+          if (!batchProcessedImages[i]) continue; // Skip failed images
+          
+          const response = await fetch(batchProcessedImages[i]);
+          const blob = await response.blob();
+          
+          // Get original filename without extension
+          const originalName = batchFiles[i].name;
+          const baseName = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
+          const extension = outputFormat.toLowerCase();
+          const fileName = `upscaled_${baseName}.${extension}`;
+          
+          zip.file(fileName, blob);
+        }
+        
+        // Generate the zip file
+        const content = await zip.generateAsync({ type: 'blob' });
+        
+        // Create download link
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(content);
+        link.download = `upscaloro_batch_${new Date().toISOString().slice(0, 10)}.zip`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        toast.dismiss();
+        toast.success('Batch download started');
+      } catch (importError) {
+        // JSZip is not installed, fall back to individual downloads
+        console.error('JSZip not available:', importError);
+        throw new Error('JSZip library not available');
+      }
+    } catch (error) {
+      console.error('Error creating zip file:', error);
+      toast.dismiss();
+      toast.error('Failed to create zip file for download');
+      
+      // Fallback: Download each image individually
+      toast.success('Downloading images individually instead...');
+      for (let i = 0; i < batchProcessedImages.length; i++) {
+        if (!batchProcessedImages[i]) continue; // Skip failed images
+        
+        const originalName = batchFiles[i].name;
+        const baseName = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
+        const extension = outputFormat.toLowerCase();
+        const fileName = `upscaled_${baseName}.${extension}`;
+        
+        const link = document.createElement('a');
+        link.href = batchProcessedImages[i];
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Add a small delay between downloads to avoid browser throttling
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+  };
 
   const handleProcess = async () => {
     if (!file) {
@@ -156,12 +419,12 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
       // Check if selected features are available for the user's plan
       if (options.scale_factors && !options.scale_factors.includes(scaleFactor)) {
         toast.error(`Scale factor ${scaleFactor}x is not available on your ${userSubscription} plan.`);
-        return;
-      }
+      return;
+    }
 
       if (options.modes && !options.modes.includes(mode)) {
         toast.error(`${MODE_NAMES[mode as keyof typeof MODE_NAMES] || mode} is not available on your ${userSubscription} plan.`);
-        return;
+      return;
       }
     }
 
@@ -348,34 +611,56 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-8">
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
       {/* Left Section - Parameters and Upload (full width on mobile, 1/4 width on desktop) */}
-      <div className="space-y-6 p-4 md:p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
-        <div className="flex flex-col space-y-2">
+      <div className="space-y-4 p-4 bg-[#171b24] rounded-lg">
+        <div className="flex flex-col space-y-1">
           <div className="flex justify-between items-center">
-            <h2 className="text-xl font-semibold">Upload Image</h2>
-            {userSubscription === 'free' ? (
+            <h2 className="text-lg font-medium">Upload Image</h2>
+            {isLoading ? (
+              <div className="w-24 h-8 animate-pulse bg-gray-700 rounded-full"></div>
+            ) : userSubscription === 'free' ? (
               <a 
                 href="/pricing" 
                 className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-full text-white 
-                bg-gradient-to-r from-orange-500 to-orange-600 
-                hover:from-orange-400 hover:to-orange-600
-                shadow-[0_0_10px_rgba(249,115,22,0.2)]
-                transition-all duration-300 hover:scale-105"
+                bg-orange-500 hover:bg-orange-600
+                transition-all duration-300"
               >
                 Upgrade to Pro
               </a>
             ) : (
               <span className="inline-flex items-center px-3 py-1.5 text-sm font-medium rounded-full text-white 
-                bg-gradient-to-r from-gray-700 to-gray-800 
-                shadow-[0_0_10px_rgba(0,0,0,0.2)]">
+                bg-gray-700">
                 {userSubscription === 'pro' ? 'Pro Plan' : 'Enterprise Plan'}
               </span>
             )}
           </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          {isLoading ? (
+            <div className="h-4 w-36 bg-gray-700 rounded animate-pulse"></div>
+          ) : (
+            <p className="text-sm text-gray-400">
             {imagesProcessedThisMonth} / {maxImagesPerMonth} images processed this month
           </p>
+          )}
+          
+          {/* Batch processing toggle for Pro and Enterprise users */}
+          {userSubscription !== 'free' && (
+            <div className="mt-2 space-y-1">
+              <div className="flex items-center">
+                <Switch
+                  checked={batchMode}
+                  onCheckedChange={toggleBatchMode}
+                  id="batchMode"
+                />
+                <Label htmlFor="batchMode" className="ml-2 text-sm text-gray-300">
+                  Batch Processing Mode
+                </Label>
+              </div>
+              <p className="text-xs text-gray-500">
+                Process multiple images at once with the same settings.
+              </p>
+            </div>
+          )}
         </div>
         
         {/* Upload Area */}
@@ -384,7 +669,60 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
           className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 md:p-6 text-center cursor-pointer hover:border-primary-500 transition-colors"
         >
           <input {...getInputProps()} />
-          {preview ? (
+          {batchMode ? (
+            <div className="space-y-2">
+              {batchPreviews.length > 0 ? (
+                <div className="grid grid-cols-2 gap-2">
+                  {batchPreviews.map((preview, index) => (
+                    <div key={index} className="relative">
+                      <Image
+                        src={preview}
+                        alt={`Preview ${index + 1}`}
+                        width={100}
+                        height={100}
+                        className="object-contain max-h-[80px] w-auto mx-auto"
+                      />
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeFromBatch(index);
+                        }}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-xs h-5 w-5 flex items-center justify-center"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex justify-center">
+                    <svg
+                      className="w-8 h-8 md:w-12 md:h-12 text-gray-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                      />
+                    </svg>
+                  </div>
+                  <p className="text-sm md:text-base">Drag & drop multiple images here, or click to select</p>
+                  <p className="text-xs md:text-sm text-gray-500">PNG, JPG, WEBP up to 10MB each (max 10 files)</p>
+                </div>
+              )}
+              <p className="text-sm text-orange-500 mt-2">
+                {batchPreviews.length} {batchPreviews.length === 1 ? 'image' : 'images'} selected
+                {batchPreviews.length < 10 && ' (click or drop to add more)'}
+              </p>
+            </div>
+          ) : (
+            // Single file upload view (existing code)
+            preview ? (
             <Image
               src={preview}
               alt="Preview"
@@ -412,6 +750,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
               <p className="text-sm md:text-base">Drag & drop an image here, or click to select</p>
               <p className="text-xs md:text-sm text-gray-500">PNG, JPG, WEBP up to 10MB</p>
             </div>
+            )
           )}
         </div>
 
@@ -517,6 +856,16 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
             <Label htmlFor="handfix">Improve hand details</Label>
           </div>
 
+          {/* Processing button for single or batch mode */}
+          {batchMode ? (
+            <button
+              onClick={handleBatchProcess}
+              disabled={batchFiles.length === 0 || isBatchProcessing}
+              className="w-full py-2 px-4 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isBatchProcessing ? `Processing... ${batchProgress}%` : `Process ${batchFiles.length} Images`}
+            </button>
+          ) : (
           <button
             onClick={handleProcess}
             disabled={!file || isProcessing}
@@ -524,6 +873,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
           >
             {isProcessing ? 'Processing...' : 'Process Image'}
           </button>
+          )}
         </div>
 
         {/* Add usage information section */}
@@ -572,9 +922,104 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
       </div>
 
       {/* Right Section - Result (full width on mobile, 3/4 width on desktop) */}
-      <div className="col-span-1 md:col-span-3 p-4 md:p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
-        <h2 className="text-xl font-semibold mb-4">Result</h2>
-        {preview && processedImage ? (
+      <div className="col-span-1 md:col-span-3 p-4 bg-[#171b24] rounded-lg">
+        <h2 className="text-lg font-medium mb-3">Result</h2>
+        
+        {batchMode ? (
+          // Batch results view
+          <div className="space-y-4">
+            {batchProcessedImages.length > 0 ? (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {batchProcessedImages.map((processedImage, index) => (
+                    <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                      {processedImage ? (
+                        <div className="relative">
+                          {/* Before/After comparison using a simple hoverable approach */}
+                          <div className="group relative h-[200px]">
+                            {/* "Before" image (visible on hover) */}
+                            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                              <Image
+                                src={batchPreviews[index]}
+                                alt={`Original ${index + 1}`}
+                                width={300}
+                                height={200}
+                                className="w-full h-full object-contain"
+                              />
+                              <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                                Original
+                              </div>
+                            </div>
+                            
+                            {/* "After" image (default visible) */}
+                            <div className="absolute inset-0 group-hover:opacity-0 transition-opacity duration-300">
+                              <Image
+                                src={processedImage}
+                                alt={`Processed ${index + 1}`}
+                                width={300}
+                                height={200}
+                                className="w-full h-full object-contain"
+                              />
+                              <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                                Processed
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {/* Image filename */}
+                          <div className="p-2 bg-gray-100 dark:bg-gray-800 text-xs truncate">
+                            {batchFiles[index].name}
+                          </div>
+                          
+                          {/* Individual download button */}
+                          <a 
+                            href={processedImage}
+                            download={`upscaled_${batchFiles[index].name}`}
+                            className="block w-full text-center py-2 text-sm bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                          >
+                            Download
+                          </a>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center h-[200px] bg-red-100 dark:bg-red-900/30">
+                          <p className="text-red-500 dark:text-red-400 text-sm px-4 text-center">
+                            Processing failed for this image
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Batch download button */}
+                <div className="flex justify-center mt-6">
+                  <button
+                    onClick={handleBatchDownload}
+                    className="py-2 px-6 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
+                  >
+                    Download All as ZIP
+                  </button>
+                </div>
+              </>
+            ) : (
+              isBatchProcessing ? (
+                <div className="h-[300px] md:h-[500px] flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500 mx-auto mb-4"></div>
+                    <p className="text-gray-500">Processing {batchFiles.length} images...</p>
+                    <p className="text-gray-500 text-sm mt-2">{batchProgress}% complete</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="h-[300px] md:h-[500px] lg:h-[700px] flex items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
+                  <p className="text-gray-500">Processed images will appear here</p>
+                </div>
+              )
+            )}
+          </div>
+        ) : (
+          // Single image result view (existing code)
+          preview && processedImage ? (
           <div className="space-y-4">
             <ImageComparisonSlider
               beforeImage={preview}
@@ -594,6 +1039,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
           <div className="h-[300px] md:h-[500px] lg:h-[700px] flex items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
             <p className="text-gray-500">Processed image will appear here</p>
           </div>
+          )
         )}
       </div>
     </div>

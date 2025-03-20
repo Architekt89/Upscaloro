@@ -2,14 +2,39 @@
 
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { useState, useEffect } from 'react';
-import { Menu, X } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Menu, X, User, CreditCard, LogOut, Terminal, ChevronDown } from 'lucide-react';
 import Logo from './Logo';
+import Image from 'next/image';
 
 export default function Header() {
   const { user, signOut } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const profileRef = useRef<HTMLDivElement>(null);
+
+  // Set auth loading state
+  useEffect(() => {
+    // When user state changes (either loaded or confirmed as null)
+    // we can mark auth loading as complete
+    setIsAuthLoading(false);
+  }, [user]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+        setProfileOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   // Handle scroll effect
   useEffect(() => {
@@ -39,6 +64,10 @@ export default function Header() {
     setMobileMenuOpen(!mobileMenuOpen);
   };
 
+  const toggleProfileMenu = () => {
+    setProfileOpen(!profileOpen);
+  };
+
   return (
     <header 
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 border-none shadow-none ${
@@ -54,9 +83,9 @@ export default function Header() {
           <div className="flex-shrink-0 flex items-center">
             <Link href="/" className="flex items-center">
               <Logo 
-                width={55} 
-                height={55} 
-                className="w-[55px] h-[55px] sm:w-[66px] sm:h-[66px] md:w-[80px] md:h-[80px]" 
+                width={71} 
+                height={71} 
+                className="w-[71px] h-[71px] sm:w-[86px] sm:h-[86px] md:w-[104px] md:h-[104px]" 
               />
             </Link>
           </div>
@@ -91,33 +120,94 @@ export default function Header() {
             </nav>
           </div>
           
-          {/* CTA Buttons - Right Section */}
-          <div className="hidden md:flex items-center space-x-4">
-            {user ? (
-              <div className="flex items-center space-x-4">
-                <Link
-                  href="/dashboard"
-                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full shadow-sm text-white 
-                  bg-gradient-to-r from-orange-500 to-orange-600 
-                  hover:from-orange-400 hover:to-orange-600
-                  shadow-[0_0_15px_rgba(249,115,22,0.2)]
-                  hover:shadow-[0_0_20px_rgba(249,115,22,0.4)]
-                  transition-all duration-300 hover:scale-105"
+          {/* Profile/CTA Section - Right Section */}
+          <div className="hidden md:flex items-center">
+            {isAuthLoading ? (
+              <div className="w-8 h-8 rounded-full bg-gray-700 animate-pulse"></div>
+            ) : user ? (
+              <div className="relative" ref={profileRef}>
+                <button 
+                  onClick={toggleProfileMenu}
+                  className="flex items-center space-x-2 rounded-full transition-all hover:bg-gray-800 p-1.5"
                 >
-                  Dashboard
-                </Link>
-                <Link
-                  href="/dashboard/billing"
-                  className="inline-flex items-center px-4 py-2 border border-gray-600 text-sm font-medium rounded-full text-white bg-transparent hover:bg-gray-800 transition-all duration-300"
-                >
-                  Billing
-                </Link>
-                <button
-                  onClick={() => signOut()}
-                  className="inline-flex items-center px-4 py-2 border border-gray-600 text-sm font-medium rounded-full text-white bg-transparent hover:bg-gray-800 transition-all duration-300"
-                >
-                  Sign Out
+                  <div className="flex items-center space-x-2">
+                    {user.user_metadata?.avatar_url ? (
+                      <Image 
+                        src={user.user_metadata.avatar_url} 
+                        alt={user.email || "User profile"} 
+                        width={32} 
+                        height={32} 
+                        className="rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="h-8 w-8 rounded-full bg-orange-500 flex items-center justify-center">
+                        <span className="text-white font-medium text-sm">
+                          {user.email ? user.email.charAt(0).toUpperCase() : "U"}
+                        </span>
+                      </div>
+                    )}
+                    <span className="text-sm font-medium text-white">
+                      {user.user_metadata?.full_name || user.email?.split('@')[0] || "User"}
+                    </span>
+                    <ChevronDown size={16} className={`text-white transition-transform duration-200 ${profileOpen ? 'rotate-180' : ''}`} />
+                  </div>
                 </button>
+                
+                {/* Profile Dropdown Menu */}
+                {profileOpen && (
+                  <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden transform origin-top-right transition-all z-50 border border-gray-200 dark:border-gray-700">
+                    <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        {user.user_metadata?.full_name || user.email?.split('@')[0] || "User"}
+                      </p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                        {user.email}
+                      </p>
+                    </div>
+                    
+                    <div className="py-2">
+                      <Link
+                        href="/dashboard"
+                        className="flex items-center px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        onClick={() => setProfileOpen(false)}
+                      >
+                        <User size={18} className="mr-3 text-gray-500 dark:text-gray-400" />
+                        <span>Dashboard</span>
+                      </Link>
+                      
+                      <Link
+                        href="/dashboard/billing"
+                        className="flex items-center px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        onClick={() => setProfileOpen(false)}
+                      >
+                        <CreditCard size={18} className="mr-3 text-gray-500 dark:text-gray-400" />
+                        <span>Billing</span>
+                      </Link>
+                      
+                      <Link
+                        href="/dashboard/api"
+                        className="flex items-center px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        onClick={() => setProfileOpen(false)}
+                      >
+                        <Terminal size={18} className="mr-3 text-gray-500 dark:text-gray-400" />
+                        <span>API</span>
+                      </Link>
+                      
+                      <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                      
+                      <button
+                        onClick={() => {
+                          signOut();
+                          setProfileOpen(false);
+                        }}
+                        className="flex w-full items-center px-4 py-3 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        <LogOut size={18} className="mr-3" />
+                        <span>Sign out</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex items-center space-x-4">
@@ -138,25 +228,87 @@ export default function Header() {
           
           {/* Mobile menu button */}
           <div className="flex items-center md:hidden">
-            {user && (
-              <>
-                <Link
-                  href="/dashboard"
-                  className="mr-2 inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-full shadow-sm text-white 
-                  bg-gradient-to-r from-orange-500 to-orange-600 
-                  hover:from-orange-400 hover:to-orange-600
-                  shadow-[0_0_10px_rgba(249,115,22,0.2)]
-                  transition-all duration-300"
+            {isAuthLoading ? (
+              <div className="w-8 h-8 rounded-full bg-gray-700 animate-pulse mr-2"></div>
+            ) : user && (
+              <div className="relative mr-2" ref={profileRef}>
+                <button 
+                  onClick={toggleProfileMenu}
+                  className="flex items-center p-1 rounded-full"
                 >
-                  Dashboard
-                </Link>
-                <Link
-                  href="/dashboard/billing"
-                  className="mr-2 inline-flex items-center px-3 py-1.5 border border-gray-600 text-sm font-medium rounded-full text-white bg-transparent hover:bg-gray-800 transition-all duration-300"
-                >
-                  Billing
-                </Link>
-              </>
+                  {user.user_metadata?.avatar_url ? (
+                    <Image 
+                      src={user.user_metadata.avatar_url} 
+                      alt={user.email || "User profile"} 
+                      width={32} 
+                      height={32} 
+                      className="rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="h-8 w-8 rounded-full bg-orange-500 flex items-center justify-center">
+                      <span className="text-white font-medium text-sm">
+                        {user.email ? user.email.charAt(0).toUpperCase() : "U"}
+                      </span>
+                    </div>
+                  )}
+                </button>
+                
+                {/* Mobile Profile Dropdown */}
+                {profileOpen && (
+                  <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden transform origin-top-right transition-all z-50 border border-gray-200 dark:border-gray-700">
+                    <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        {user.user_metadata?.full_name || user.email?.split('@')[0] || "User"}
+                      </p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                        {user.email}
+                      </p>
+                    </div>
+                    
+                    <div className="py-2">
+                      <Link
+                        href="/dashboard"
+                        className="flex items-center px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        onClick={() => setProfileOpen(false)}
+                      >
+                        <User size={18} className="mr-3 text-gray-500 dark:text-gray-400" />
+                        <span>Dashboard</span>
+                      </Link>
+                      
+                      <Link
+                        href="/dashboard/billing"
+                        className="flex items-center px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        onClick={() => setProfileOpen(false)}
+                      >
+                        <CreditCard size={18} className="mr-3 text-gray-500 dark:text-gray-400" />
+                        <span>Billing</span>
+                      </Link>
+                      
+                      <Link
+                        href="/dashboard/api"
+                        className="flex items-center px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        onClick={() => setProfileOpen(false)}
+                      >
+                        <Terminal size={18} className="mr-3 text-gray-500 dark:text-gray-400" />
+                        <span>API</span>
+                      </Link>
+                      
+                      <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                      
+                      <button
+                        onClick={() => {
+                          signOut();
+                          setProfileOpen(false);
+                        }}
+                        className="flex w-full items-center px-4 py-3 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        <LogOut size={18} className="mr-3" />
+                        <span>Sign out</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
             <button
               type="button"
@@ -207,36 +359,10 @@ export default function Header() {
             Blog
           </Link>
           
-          {user ? (
-            <>
-              <Link
-                href="/dashboard"
-                className="text-white/90 hover:text-white block px-3 py-2 rounded-md text-base font-medium"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Dashboard
-              </Link>
-              <Link
-                href="/dashboard/billing"
-                className="text-white/90 hover:text-white block px-3 py-2 rounded-md text-base font-medium"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Billing
-              </Link>
-              <button
-                onClick={() => {
-                  signOut();
-                  setMobileMenuOpen(false);
-                }}
-                className="text-white/90 hover:text-white block px-3 py-2 rounded-md text-base font-medium w-full text-left"
-              >
-                Sign Out
-              </button>
-            </>
-          ) : (
+          {!isAuthLoading && !user && (
             <Link
               href="/auth/login"
-              className="text-white block px-3 py-2 rounded-md text-base font-medium bg-gradient-to-r from-orange-500 to-orange-600 text-center"
+              className="text-white block px-3 py-2 rounded-md text-base font-medium bg-gradient-to-r from-orange-500 to-orange-600 text-center mt-2"
               onClick={() => setMobileMenuOpen(false)}
             >
               Sign In
