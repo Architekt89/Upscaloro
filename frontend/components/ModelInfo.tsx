@@ -117,19 +117,19 @@ const ModelInfo: React.FC = () => {
                 <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
                   <h5 className="font-medium text-gray-900 dark:text-gray-100">Block Mode</h5>
                   <p className="text-sm text-gray-600 dark:text-gray-300">
-                    General purpose upscaling using epicrealism_naturalSinRC1VAE model. Best for most images.
+                    Best for most images.
                   </p>
                 </div>
                 <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
                   <h5 className="font-medium text-gray-900 dark:text-gray-100">Face Mode</h5>
                   <p className="text-sm text-gray-600 dark:text-gray-300">
-                    Face-focused upscaling using juggernaut_reborn model. Best for portraits and images with faces.
+                    Best for portraits and images with faces.
                   </p>
                 </div>
                 <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
                   <h5 className="font-medium text-gray-900 dark:text-gray-100">Waifu Mode</h5>
                   <p className="text-sm text-gray-600 dark:text-gray-300">
-                    Anime-style upscaling using flat2DAnimerge_v45Sharp model. Best for anime/cartoon images.
+                    Best for anime/cartoon images.
                   </p>
                 </div>
               </div>

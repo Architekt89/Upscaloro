@@ -126,7 +126,7 @@ export default function UsageStats({ userId, token }: UsageStatsProps) {
         
         <div className="mt-4 rounded-md bg-gray-700/30 p-3">
           <p className="text-xs text-gray-400">
-            Free plan includes {usageData.limits.daily} images per day with {usageData.limits.max_resolution} resolution. 
+            Free plan includes 5 images per month with {usageData.limits.max_resolution} resolution. 
             <a href="/pricing" className="ml-1 font-medium text-orange-500 hover:text-orange-600">Upgrade for more</a>
           </p>
         </div>
@@ -162,7 +162,7 @@ export default function UsageStats({ userId, token }: UsageStatsProps) {
           </div>
           <p className="mt-1 text-xs text-gray-400">
             {usageData.usage.remaining_monthly === 0 
-              ? "You've reached your monthly limit. Upgrade to Enterprise for unlimited images." 
+              ? "You've reached your monthly limit. Upgrade to Enterprise for 800 images per month." 
               : `${usageData.usage.remaining_monthly} images remaining this month`}
           </p>
         </div>
@@ -218,8 +218,8 @@ export default function UsageStats({ userId, token }: UsageStatsProps) {
       
       <div className="mb-1 mt-6 rounded-md bg-purple-900/30 p-3">
         <p className="text-xs text-gray-400">
-          Enterprise plan includes unlimited image processing, {usageData.limits.max_resolution} max resolution,
-          and access to all upscaling modes. Thank you for your support!
+          Enterprise plan includes 800 images per month, {usageData.limits.max_resolution} max resolution,
+          batch processing, and API access. Thank you for your support!
         </p>
       </div>
     </div>

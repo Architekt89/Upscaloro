@@ -72,9 +72,9 @@ fetch('https://api.upscalor.com/upscale', {
 {
   "modes": ["block_mode", "face_mode", "waifu_mode"],
   "mode_descriptions": {
-    "block_mode": "General purpose upscaling using Real-ESRGAN model...",
-    "face_mode": "Face-focused upscaling using Real-ESRGAN with face enhancement...",
-    "waifu_mode": "Anime-style upscaling using Waifu Diffusion model..."
+    "block_mode": "Best for most images.",
+    "face_mode": "Best for portraits and images with faces.",
+    "waifu_mode": "Best for anime/cartoon images."
   },
   "scale_factors": [2, 4, 6, 8, 16],
   "output_formats": ["jpeg", "png", "jpg", "webp"],

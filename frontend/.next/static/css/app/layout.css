@@ -660,6 +660,9 @@ video {
 .top-1\/2 {
   top: 50%;
 }
+.top-\[60px\] {
+  top: 60px;
+}
 .-z-10 {
   z-index: -10;
 }
@@ -674,6 +677,9 @@ video {
 }
 .z-50 {
   z-index: 50;
+}
+.z-\[100\] {
+  z-index: 100;
 }
 .col-span-1 {
   grid-column: span 1 / span 1;
@@ -3337,6 +3343,10 @@ header {
 
 @media (min-width: 768px) {
 
+  .md\:absolute {
+    position: absolute;
+  }
+
   .md\:bottom-4 {
     bottom: 1rem;
   }
@@ -3347,6 +3357,10 @@ header {
 
   .md\:right-4 {
     right: 1rem;
+  }
+
+  .md\:top-auto {
+    top: auto;
   }
 
   .md\:col-span-3 {
@@ -3363,6 +3377,10 @@ header {
 
   .md\:mt-0 {
     margin-top: 0px;
+  }
+
+  .md\:mt-2 {
+    margin-top: 0.5rem;
   }
 
   .md\:flex {

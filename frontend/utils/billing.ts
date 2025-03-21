@@ -321,15 +321,15 @@ export const getAvailablePlans = async () => {
               price: 30.0,
               interval: "month",
               features: [
-                "Unlimited images",
+                "800 images per month",
                 "Up to 16x upscaling",
                 "All upscaling modes",
                 "Unlimited API access",
-                "Dedicated support",
+                "Email support",
                 "Custom integration"
               ],
               limits: {
-                images_per_month: 1000,
+                images_per_month: 800,
                 max_scale_factor: 16,
                 api_calls_per_month: 5000,
                 storage_mb: 20000

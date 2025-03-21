@@ -38,6 +38,13 @@ const MODE_NAMES = {
   waifu_mode: "Waifu Mode"
 };
 
+// Default mode descriptions (simplified versions)
+const DEFAULT_MODE_DESCRIPTIONS = {
+  block_mode: "Best for most images.",
+  face_mode: "Best for portraits and images with faces.",
+  waifu_mode: "Best for anime/cartoon images."
+};
+
 const ImageUploader: React.FC<ImageUploaderProps> = ({
   userSubscription,
   imagesProcessedThisMonth,
@@ -64,7 +71,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   const [outputFormat, setOutputFormat] = useState<string>("png");
   const [options, setOptions] = useState<any>(null);
   const [isLoadingOptions, setIsLoadingOptions] = useState<boolean>(true);
-  const [modeDescriptions, setModeDescriptions] = useState<Record<string, string>>({});
+  const [modeDescriptions, setModeDescriptions] = useState<Record<string, string>>(DEFAULT_MODE_DESCRIPTIONS);
 
   // Fetch available options from the API
   useEffect(() => {
@@ -126,6 +133,25 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
       }
     }
   }, [options]);
+
+  // Use this effect to reset mode to block_mode if user downgrades from pro/enterprise to free
+  useEffect(() => {
+    if (userSubscription === 'free' && (mode === 'face_mode' || mode === 'waifu_mode')) {
+      setMode('block_mode');
+      toast.error('Face Mode and Waifu Mode are only available on paid plans');
+    }
+  }, [userSubscription, mode]);
+
+  // Use this effect to reset scale factor if user downgrades
+  useEffect(() => {
+    if (userSubscription === 'free' && scaleFactor > 2) {
+      setScaleFactor(2);
+      toast.error('Scale factors above 2x are only available on paid plans');
+    } else if (userSubscription === 'pro' && scaleFactor > 4) {
+      setScaleFactor(4);
+      toast.error('Scale factors above 4x are only available on Enterprise plan');
+    }
+  }, [userSubscription, scaleFactor]);
 
   // Update the onDrop callback to handle multiple files for Pro and Enterprise users
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -251,6 +277,21 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
 
     if (!user || !session) {
       toast.error('You must be logged in to process images');
+      return;
+    }
+    
+    // Check if the selected mode is allowed for the user's subscription
+    if (userSubscription === 'free' && mode !== 'block_mode') {
+      toast.error('Face Mode and Waifu Mode are only available on paid plans');
+      return;
+    }
+    
+    // Check if the selected scale factor is allowed for the user's subscription
+    if (userSubscription === 'free' && scaleFactor > 2) {
+      toast.error('Scale factors above 2x are only available on paid plans');
+      return;
+    } else if (userSubscription === 'pro' && scaleFactor > 4) {
+      toast.error('Scale factors above 4x are only available on Enterprise plan');
       return;
     }
     
@@ -411,6 +452,21 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
 
     if (!user || !session) {
       toast.error('You must be logged in to process images');
+      return;
+    }
+    
+    // Check if the selected mode is allowed for the user's subscription
+    if (userSubscription === 'free' && mode !== 'block_mode') {
+      toast.error('Face Mode and Waifu Mode are only available on paid plans');
+      return;
+    }
+    
+    // Check if the selected scale factor is allowed for the user's subscription
+    if (userSubscription === 'free' && scaleFactor > 2) {
+      toast.error('Scale factors above 2x are only available on paid plans');
+      return;
+    } else if (userSubscription === 'pro' && scaleFactor > 4) {
+      toast.error('Scale factors above 4x are only available on Enterprise plan');
       return;
     }
 
@@ -764,8 +820,13 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
               </SelectTrigger>
               <SelectContent>
                 {VALID_MODES.map((m) => (
-                  <SelectItem key={m} value={m}>
+                  <SelectItem 
+                    key={m} 
+                    value={m}
+                    disabled={userSubscription === 'free' && m !== 'block_mode'}
+                  >
                     {MODE_NAMES[m as keyof typeof MODE_NAMES]}
+                    {userSubscription === 'free' && m !== 'block_mode' && ' (Pro)'}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -786,9 +847,12 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
                   <SelectItem
                     key={factor}
                     value={factor.toString()}
-                    disabled={userSubscription === 'free' && factor > 2}
+                    disabled={(userSubscription === 'free' && factor > 2) || 
+                            (userSubscription === 'pro' && factor > 4)}
                   >
-                    {factor}x {userSubscription === 'free' && factor > 2 && '(Pro)'}
+                    {factor}x {userSubscription === 'free' && factor > 2 ? 
+                         (factor <= 4 ? '(Pro)' : '(Enterprise)') : 
+                         (userSubscription === 'pro' && factor > 4 ? '(Enterprise)' : '')}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -885,22 +949,16 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
               <span className="font-medium capitalize">{userSubscription} Plan</span>
             </div>
             
-            {userSubscription === 'free' ? (
-              <div className="flex justify-between">
-                <span>Daily limit:</span>
-                <span className="font-medium">{maxImagesPerMonth} images per day</span>
-              </div>
-            ) : userSubscription === 'pro' ? (
-              <div className="flex justify-between">
-                <span>Monthly limit:</span>
-                <span className="font-medium">{maxImagesPerMonth} images per month</span>
-              </div>
-            ) : (
-              <div className="flex justify-between">
-                <span>Monthly limit:</span>
-                <span className="font-medium">Unlimited</span>
-              </div>
-            )}
+            <div className="flex justify-between">
+              <span>Monthly limit:</span>
+              {userSubscription === 'free' ? (
+                <span className="font-medium">5 images per month</span>
+              ) : userSubscription === 'pro' ? (
+                <span className="font-medium">400 images per month</span>
+              ) : (
+                <span className="font-medium">800 images per month</span>
+              )}
+            </div>
             
             <div className="flex justify-between">
               <span>Processed this month:</span>

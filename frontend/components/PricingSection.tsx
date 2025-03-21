@@ -38,7 +38,7 @@ const pricingPlans: PricingPlan[] = [
     buttonText: "Get Started",
     highlighted: false,
     features: [
-      { text: "5 images per day", included: true },
+      { text: "5 images per month", included: true },
       { text: "Basic upscaling", included: true },
       { text: "Maximum 2K output resolution", included: true },
       { text: "Community support", included: true },
@@ -57,7 +57,7 @@ const pricingPlans: PricingPlan[] = [
     buttonText: "Upgrade Now",
     highlighted: true,
     features: [
-      { text: "100 images per day", included: true },
+      { text: "400 images per month", included: true },
       { text: "Premium upscaling quality", included: true },
       { text: "Maximum 4K output resolution", included: true },
       { text: "Email support", included: true },
@@ -78,14 +78,14 @@ const pricingPlans: PricingPlan[] = [
     buttonText: "Upgrade to Enterprise",
     highlighted: false,
     features: [
-      { text: "Unlimited images", included: true },
+      { text: "800 images per month", included: true },
       { text: "Highest upscaling quality", included: true },
-      { text: "Maximum 8K output resolution", included: true },
-      { text: "Dedicated support", included: true },
+      { text: "Maximum 16K output resolution", included: true },
+      { text: "Email support", included: true },
       { text: "Ultra-fast processing speed", included: true },
       { text: "All AI models plus beta access", included: true },
-      { text: "Unlimited batch processing", included: true },
-      { text: "Priority 24/7 support", included: true },
+      { text: "Batch processing", included: true },
+      { text: "API access", included: true },
     ],
     monthlyPriceId: "price_1R1UWzBQ1z6vW0DwRDLKndlG",
     annualPriceId: "price_1R1UXlBQ1z6vW0DwMaBDmKaZ"
