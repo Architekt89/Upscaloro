@@ -448,43 +448,17 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   };
 
   const handleProcess = async () => {
+    // Check if we have a file to process
     if (!file) {
-      toast.error('Please upload an image first');
+      toast.error('Please select an image to upscale');
       return;
     }
 
-    if (!user || !session) {
-      toast.error('You must be logged in to process images');
+    // Add file size check - prevent uploads of files that are too large
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error('Image is too large. Maximum size is 10MB.');
       return;
-    }
-    
-    // Check if the selected mode is allowed for the user's subscription
-    if (userSubscription === 'free' && mode !== 'block_mode') {
-      toast.error('Face Mode and Waifu Mode are only available on paid plans');
-      return;
-    }
-    
-    // Check if the selected scale factor is allowed for the user's subscription
-    if (userSubscription === 'free' && scaleFactor > 2) {
-      toast.error('Scale factors above 2x are only available on paid plans');
-      return;
-    } else if (userSubscription === 'pro' && scaleFactor > 4) {
-      toast.error('Scale factors above 4x are only available on Enterprise plan');
-      return;
-    }
-
-    // Use the options from the backend to determine limits
-    if (options) {
-      // Check if selected features are available for the user's plan
-      if (options.scale_factors && !options.scale_factors.includes(scaleFactor)) {
-        toast.error(`Scale factor ${scaleFactor}x is not available on your ${userSubscription} plan.`);
-      return;
-    }
-
-      if (options.modes && !options.modes.includes(mode)) {
-        toast.error(`${MODE_NAMES[mode as keyof typeof MODE_NAMES] || mode} is not available on your ${userSubscription} plan.`);
-      return;
-      }
     }
 
     // Check monthly usage limit
@@ -532,9 +506,10 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
       tokenLength: session?.access_token?.length
     });
 
+    let loadingToast: string | null = toast.loading('Processing... This may take a minute.');
+
     try {
-      const loadingToast = toast.loading('Processing... This may take a minute.');
-      
+      // Start upload with retry mechanism
       const response = await uploadFile('/upscale', formData);
       console.log('Upload response received:', {
         status: response.status,
@@ -543,25 +518,79 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
         dataSize: response.data ? 'has data' : 'no data'
       });
 
+      // Check if we actually got data back
+      if (!response.data || response.data.size === 0) {
+        throw new Error('Empty response received from server');
+      }
+
       const processedImageUrl = URL.createObjectURL(response.data);
       setProcessedImage(processedImageUrl);
       toast.success('Image processed successfully!');
       toast.dismiss(loadingToast);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error processing image:', error);
       
+      // Clean up toast reference
+      if (loadingToast) {
+        toast.dismiss(loadingToast);
+        loadingToast = null;
+      }
+      
+      let errorMessage = 'Error processing image. Please try again.';
+      let errorAction: (() => void) | null = null;
+      
       if (axios.isAxiosError(error)) {
-        // Extract error message from response
-        let errorMessage = 'Error processing image. Please try again.';
+        // Network or server errors
+        if (error.code === 'ECONNABORTED') {
+          errorMessage = 'The request took too long to complete. Please try again with a smaller image or try later.';
+        } else if (error.code === 'ERR_NETWORK') {
+          errorMessage = 'Network error. Check your internet connection and try again.';
+          errorAction = () => {
+            // Offer to retry the request
+            toast.dismiss();
+            setTimeout(() => {
+              toast((t) => (
+                <div>
+                  <p>Would you like to try again?</p>
+                  <div className="mt-2 flex justify-center space-x-2">
+                    <button 
+                      onClick={() => {
+                        toast.dismiss(t.id);
+                        handleProcess();
+                      }}
+                      className="px-2 py-1 bg-blue-500 rounded text-white text-sm"
+                    >
+                      Retry
+                    </button>
+                    <button 
+                      onClick={() => toast.dismiss(t.id)} 
+                      className="px-2 py-1 bg-gray-300 rounded text-gray-800 text-sm"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ), { duration: 10000 });
+            }, 500);
+          };
+        } else if (error.message === 'Network Error') {
+          errorMessage = 'Network connection lost. Please check your internet connection and try again.';
+        }
         
+        // Extract error message from response if available
         if (error.response?.data) {
           // Try to extract the error message from the response
           if (error.response.data instanceof Blob) {
             try {
               // Convert blob to text
               const blobText = await error.response.data.text();
-              const errorData = JSON.parse(blobText);
-              errorMessage = errorData.detail || errorMessage;
+              try {
+                const errorData = JSON.parse(blobText);
+                errorMessage = errorData.detail || errorMessage;
+              } catch (e) {
+                // If it's not JSON, use the text directly
+                errorMessage = blobText || errorMessage;
+              }
             } catch (e) {
               console.error('Error parsing error blob:', e);
             }
@@ -582,6 +611,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
           statusText: error.response?.statusText,
           data: error.response?.data,
           errorMessage,
+          code: error.code,
           headers: error.response?.headers,
           config: {
             url: error.config?.url,
@@ -590,24 +620,40 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
           }
         });
         
-        // Provide more user-friendly error messages
+        // Provide more user-friendly error messages based on status code
         if (error.response?.status === 500) {
-          toast.error(errorMessage || 'The AI service encountered an error. Please try again or use a different image.');
+          errorMessage = errorMessage || 'The AI service encountered an error. Please try again or use a different image.';
+        } else if (error.response?.status === 503) {
+          errorMessage = errorMessage || 'The server is currently overloaded. Please try again in a few minutes.';
         } else if (error.response?.status === 403) {
-          toast.error(errorMessage || 'You need to upgrade your plan to use this feature.');
+          errorMessage = errorMessage || 'You need to upgrade your plan to use this feature.';
         } else if (error.response?.status === 401) {
-          toast.error('Your session has expired. Please log in again.');
+          errorMessage = 'Your session has expired. Please log in again.';
         } else if (error.response?.status === 400) {
-          toast.error(errorMessage || 'Invalid parameters provided. Please check your settings.');
-        } else {
-          toast.error(errorMessage || 'Error processing image. Please try again.');
+          errorMessage = errorMessage || 'Invalid parameters provided. Please check your settings.';
+        } else if (error.response?.status === 404) {
+          errorMessage = 'The upscale service endpoint could not be found. Please contact support.';
+        } else if (error.response?.status === 413) {
+          errorMessage = 'The image is too large. Please use a smaller image or reduce its resolution.';
+        } else if (error.response?.status && error.response.status >= 500) {
+          errorMessage = errorMessage || 'Server error. Our team has been notified and is working on a fix.';
         }
       } else {
-        toast.error('Error processing image. Please try again.');
+        // Handle non-Axios errors
+        const err = error as Error;
+        errorMessage = err.message || 'Error processing image. Please try again.';
       }
       
-      // Always dismiss the loading toast
-      toast.dismiss();
+      // Show error toast with possible action
+      toast.error(errorMessage, {
+        duration: 5000,
+        position: 'bottom-center'
+      });
+      
+      // Execute additional action if defined
+      if (errorAction) {
+        errorAction();
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -1141,8 +1187,8 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
           preview && processedImage ? (
           <div className="space-y-4">
             <ImageComparisonSlider
-              beforeImage={preview}
-              afterImage={processedImage}
+              beforeImage={processedImage}
+              afterImage={preview}
               className="w-full h-[300px] md:h-[500px] lg:h-[700px] rounded-lg overflow-hidden"
             />
             <div className="flex justify-center">

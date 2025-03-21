@@ -102,25 +102,25 @@ const ImageComparisonSlider: React.FC<ImageComparisonSliderProps> = ({
         }
       }}
     >
-      {/* Before Image */}
+      {/* Original Image (Left Side) */}
       <div className="absolute inset-0">
         <img
-          src={beforeImage}
-          alt="Before"
+          src={afterImage}
+          alt="Original"
           className="h-full w-full object-contain"
         />
       </div>
 
-      {/* After Image */}
+      {/* Upscaled Image (Right Side - shown through clip-path) */}
       <div
         className="absolute inset-0"
         style={{
-          clipPath: `inset(0 ${100 - position}% 0 0)`,
+          clipPath: `inset(0 0 0 ${position}%)`,
         }}
       >
         <img
-          src={afterImage}
-          alt="After"
+          src={beforeImage}
+          alt="Upscaled"
           className="h-full w-full object-contain"
         />
       </div>
@@ -162,10 +162,10 @@ const ImageComparisonSlider: React.FC<ImageComparisonSliderProps> = ({
 
       {/* Labels */}
       <div className="absolute bottom-2 md:bottom-4 left-2 md:left-4 rounded bg-black/40 px-2 py-1 text-xs md:text-sm text-white backdrop-blur">
-        Before
+        Original
       </div>
       <div className="absolute bottom-2 md:bottom-4 right-2 md:right-4 rounded bg-black/40 px-2 py-1 text-xs md:text-sm text-white backdrop-blur">
-        After
+        Upscaled
       </div>
     </div>
   );
