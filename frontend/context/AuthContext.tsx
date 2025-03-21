@@ -31,6 +31,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initAttempted, setInitAttempted] = useState(false);
   const router = useRouter();
 
   // Function to check and refresh the session if needed
@@ -43,17 +44,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const now = new Date();
       const minutesUntilExpiry = (expiresAt.getTime() - now.getTime()) / (1000 * 60);
       
-      console.log(`Session expires in ${minutesUntilExpiry.toFixed(2)} minutes`);
+      // More efficient logging
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`Session expires in ${minutesUntilExpiry.toFixed(2)} minutes`);
+      }
       
       // If session expires soon (< 5 minutes), refresh it
       if (minutesUntilExpiry < 5) {
-        console.log('Session expiring soon, refreshing...');
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Session expiring soon, refreshing...');
+        }
+        
         const { data, error } = await supabase.auth.refreshSession();
         
         if (error) {
           console.error('Error refreshing session:', error);
         } else {
-          console.log('Session refreshed successfully');
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Session refreshed successfully');
+          }
+          
           setSession(data.session);
           return data.session;
         }
@@ -66,13 +76,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // Function to refresh the user data
   const refreshUser = async () => {
     try {
-      console.log('Refreshing user data...');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Refreshing user data...');
+      }
       
       // First try to refresh the session if needed
       const refreshedSession = await checkAndRefreshSession();
       
       // Get current user
       const currentUser = await getCurrentUser();
+      
+      // Only update state if component is still mounted (checked via ref)
       setUser(currentUser);
       setSession(refreshedSession || session);
       
@@ -86,7 +100,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // Function to attempt to recover a broken session
   const recoverSession = async (): Promise<boolean> => {
     try {
-      console.log('Attempting to recover session...');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Attempting to recover session...');
+      }
       
       // 1. First try a simple refresh
       const { data, error } = await supabase.auth.refreshSession();
@@ -104,18 +120,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         const { data: sessionData } = await supabase.auth.getSession();
         
         if (sessionData.session) {
-          console.log('Recovered session from cookie');
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Recovered session from cookie');
+          }
+          
           setSession(sessionData.session);
           setUser(sessionData.session.user);
           return true;
         }
         
-        console.log('Session recovery failed');
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Session recovery failed');
+        }
+        
         return false;
       }
       
       if (data?.session) {
-        console.log('Session recovered via refresh');
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Session recovered via refresh');
+        }
+        
         setSession(data.session);
         setUser(data.session.user);
         return true;
@@ -131,7 +156,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // Force sign out (for debugging and recovering from broken sessions)
   const forceSignOut = async () => {
     try {
-      console.log('Forcing sign out...');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Forcing sign out...');
+      }
       
       // Clear all auth data
       await supabase.auth.signOut({ scope: 'global' });
@@ -146,7 +173,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         document.cookie = `supabase-auth-token=;path=/;max-age=0;SameSite=Lax`;
       }
       
-      console.log('Force sign out completed');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Force sign out completed');
+      }
       
       return { success: true };
     } catch (error) {
@@ -158,22 +187,38 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // Handle sign out
   const handleSignOut = async () => {
     try {
-      console.log('Signing out...');
+      setLoading(true);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Signing out...');
+      }
+      
       await supabaseSignOut();
       setUser(null);
       setSession(null);
-      console.log('Sign out successful');
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Sign out successful');
+      }
     } catch (error) {
       console.error('Error signing out:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
   // Effect to initialize auth state
   useEffect(() => {
+    // Skip if we've already attempted initialization
+    if (initAttempted) return;
+    
     const initAuth = async () => {
       try {
         setLoading(true);
-        console.log('Initializing auth state...');
+        setInitAttempted(true);
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Initializing auth state...');
+        }
         
         // Get current user
         const currentUser = await getCurrentUser();
@@ -184,25 +229,32 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setSession(currentSession);
         
         if (currentUser) {
-          console.log('User authenticated:', currentUser.email);
-          console.log('Session info:', {
-            hasSession: !!currentSession,
-            tokenExpiry: currentSession?.expires_at 
-              ? new Date(currentSession.expires_at * 1000).toISOString() 
-              : 'No expiry date',
-            hasToken: !!currentSession?.access_token,
-            tokenLength: currentSession?.access_token?.length
-          });
+          if (process.env.NODE_ENV === 'development') {
+            console.log('User authenticated:', currentUser.email);
+            console.log('Session info:', {
+              hasSession: !!currentSession,
+              tokenExpiry: currentSession?.expires_at 
+                ? new Date(currentSession.expires_at * 1000).toISOString() 
+                : 'No expiry date',
+              hasToken: !!currentSession?.access_token,
+              tokenLength: currentSession?.access_token?.length
+            });
+          }
           
           // If session expires soon (< 5 minutes), refresh it
           await checkAndRefreshSession();
         } else {
-          console.log('No authenticated user found');
+          if (process.env.NODE_ENV === 'development') {
+            console.log('No authenticated user found');
+          }
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
       } finally {
-        setLoading(false);
+        // Short delay to ensure UI doesn't flash
+        setTimeout(() => {
+          setLoading(false);
+        }, 200);
       }
     };
 
@@ -211,24 +263,39 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state changed:', event);
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Auth state changed:', event);
+        }
+        
+        // Always set loading true when auth state changes
+        setLoading(true);
         
         if (session?.user) {
           setUser(session.user);
           setSession(session);
-          console.log('Session updated from auth state change');
+          
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Session updated from auth state change');
+          }
         } else {
           setUser(null);
           setSession(null);
         }
-        setLoading(false);
+        
+        // Short delay to ensure UI doesn't flash
+        setTimeout(() => {
+          setLoading(false);
+        }, 200);
       }
     );
     
     // Set up a periodic session refresh check (every 5 minutes)
     const refreshInterval = setInterval(() => {
       if (user) {
-        console.log('Periodic session refresh check');
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Periodic session refresh check');
+        }
+        
         checkAndRefreshSession();
       }
     }, 5 * 60 * 1000);
@@ -237,7 +304,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       subscription.unsubscribe();
       clearInterval(refreshInterval);
     };
-  }, []);
+  }, [initAttempted]);
 
   return (
     <AuthContext.Provider

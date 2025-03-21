@@ -51,7 +51,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   maxImagesPerMonth,
   isLoading = false,  // Default to false
 }) => {
-  const { user, session } = useAuth();
+  const { user, session, loading: authLoading } = useAuth();
   const [file, setFile] = useState<File | null>(null);
   const [batchFiles, setBatchFiles] = useState<File[]>([]);
   const [preview, setPreview] = useState<string | null>(null);
@@ -72,6 +72,9 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   const [options, setOptions] = useState<any>(null);
   const [isLoadingOptions, setIsLoadingOptions] = useState<boolean>(true);
   const [modeDescriptions, setModeDescriptions] = useState<Record<string, string>>(DEFAULT_MODE_DESCRIPTIONS);
+
+  // Helper to determine if we're in any loading state
+  const isInLoadingState = isLoading || authLoading;
 
   // Fetch available options from the API
   useEffect(() => {
@@ -673,7 +676,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
         <div className="flex flex-col space-y-1">
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-medium">Upload Image</h2>
-            {isLoading ? (
+            {isInLoadingState ? (
               <div className="w-24 h-8 animate-pulse bg-gray-700 rounded-full"></div>
             ) : userSubscription === 'free' ? (
               <a 
@@ -691,16 +694,16 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
               </span>
             )}
           </div>
-          {isLoading ? (
+          {isInLoadingState ? (
             <div className="h-4 w-36 bg-gray-700 rounded animate-pulse"></div>
           ) : (
             <p className="text-sm text-gray-400">
-            {imagesProcessedThisMonth} / {maxImagesPerMonth} images processed this month
-          </p>
+              {imagesProcessedThisMonth} / {maxImagesPerMonth} images processed this month
+            </p>
           )}
           
           {/* Batch processing toggle for Pro and Enterprise users */}
-          {userSubscription !== 'free' && (
+          {!isInLoadingState && userSubscription !== 'free' && (
             <div className="mt-2 space-y-1">
               <div className="flex items-center">
                 <Switch
@@ -719,271 +722,329 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
           )}
         </div>
         
-        {/* Upload Area */}
-        <div
-          {...getRootProps()}
-          className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 md:p-6 text-center cursor-pointer hover:border-primary-500 transition-colors"
-        >
-          <input {...getInputProps()} />
-          {batchMode ? (
-            <div className="space-y-2">
-              {batchPreviews.length > 0 ? (
-                <div className="grid grid-cols-2 gap-2">
-                  {batchPreviews.map((preview, index) => (
-                    <div key={index} className="relative">
-                      <Image
-                        src={preview}
-                        alt={`Preview ${index + 1}`}
-                        width={100}
-                        height={100}
-                        className="object-contain max-h-[80px] w-auto mx-auto"
-                      />
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeFromBatch(index);
-                        }}
-                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-xs h-5 w-5 flex items-center justify-center"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="flex justify-center">
-                    <svg
-                      className="w-8 h-8 md:w-12 md:h-12 text-gray-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                      />
-                    </svg>
-                  </div>
-                  <p className="text-sm md:text-base">Drag & drop multiple images here, or click to select</p>
-                  <p className="text-xs md:text-sm text-gray-500">PNG, JPG, WEBP up to 10MB each (max 10 files)</p>
-                </div>
-              )}
-              <p className="text-sm text-orange-500 mt-2">
-                {batchPreviews.length} {batchPreviews.length === 1 ? 'image' : 'images'} selected
-                {batchPreviews.length < 10 && ' (click or drop to add more)'}
-              </p>
-            </div>
-          ) : (
-            // Single file upload view (existing code)
-            preview ? (
-            <Image
-              src={preview}
-              alt="Preview"
-              width={200}
-              height={200}
-              className="mx-auto object-contain max-h-[150px] md:max-h-[200px] w-auto"
-            />
-          ) : (
-            <div className="space-y-2">
-              <div className="flex justify-center">
-                <svg
-                  className="w-8 h-8 md:w-12 md:h-12 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                  />
-                </svg>
-              </div>
-              <p className="text-sm md:text-base">Drag & drop an image here, or click to select</p>
-              <p className="text-xs md:text-sm text-gray-500">PNG, JPG, WEBP up to 10MB</p>
-            </div>
-            )
-          )}
-        </div>
-
-        {/* Parameters */}
-        <div className="space-y-4">
-          <div>
-            <Label>Mode</Label>
-            <Select value={mode} onValueChange={setMode}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select mode" />
-              </SelectTrigger>
-              <SelectContent>
-                {VALID_MODES.map((m) => (
-                  <SelectItem 
-                    key={m} 
-                    value={m}
-                    disabled={userSubscription === 'free' && m !== 'block_mode'}
-                  >
-                    {MODE_NAMES[m as keyof typeof MODE_NAMES]}
-                    {userSubscription === 'free' && m !== 'block_mode' && ' (Pro)'}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {modeDescriptions[mode] && (
-              <p className="text-xs md:text-sm text-gray-500 mt-1">{modeDescriptions[mode]}</p>
-            )}
-          </div>
-
-          <div>
-            <Label>Scale Factor</Label>
-            <Select value={scaleFactor.toString()} onValueChange={(v) => setScaleFactor(Number(v))}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select scale factor" />
-              </SelectTrigger>
-              <SelectContent>
-                {VALID_SCALE_FACTORS.map((factor) => (
-                  <SelectItem
-                    key={factor}
-                    value={factor.toString()}
-                    disabled={(userSubscription === 'free' && factor > 2) || 
-                            (userSubscription === 'pro' && factor > 4)}
-                  >
-                    {factor}x {userSubscription === 'free' && factor > 2 ? 
-                         (factor <= 4 ? '(Pro)' : '(Enterprise)') : 
-                         (userSubscription === 'pro' && factor > 4 ? '(Enterprise)' : '')}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label>Output Format</Label>
-            <Select value={outputFormat} onValueChange={setOutputFormat}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select output format" />
-              </SelectTrigger>
-              <SelectContent>
-                {VALID_OUTPUT_FORMATS.map((format) => (
-                  <SelectItem key={format} value={format}>
-                    {format.toUpperCase()}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label>Dynamic Range ({dynamic})</Label>
-            <Slider
-              value={[dynamic]}
-              onValueChange={([value]) => setDynamic(value)}
-              min={1}
-              max={50}
-              step={1}
-              className="mt-2"
-            />
-          </div>
-
-          <div>
-            <Label>Creativity ({creativity})</Label>
-            <Slider
-              value={[creativity]}
-              onValueChange={([value]) => setCreativity(value)}
-              min={0}
-              max={1}
-              step={0.1}
-              className="mt-2"
-            />
-          </div>
-
-          <div>
-            <Label>Resemblance ({resemblance})</Label>
-            <Slider
-              value={[resemblance]}
-              onValueChange={([value]) => setResemblance(value)}
-              min={0}
-              max={3}
-              step={0.1}
-              className="mt-2"
-            />
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <Switch
-              checked={handfix}
-              onCheckedChange={setHandfix}
-              id="handfix"
-            />
-            <Label htmlFor="handfix">Improve hand details</Label>
-          </div>
-
-          {/* Processing button for single or batch mode */}
-          {batchMode ? (
-            <button
-              onClick={handleBatchProcess}
-              disabled={batchFiles.length === 0 || isBatchProcessing}
-              className="w-full py-2 px-4 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isBatchProcessing ? `Processing... ${batchProgress}%` : `Process ${batchFiles.length} Images`}
-            </button>
-          ) : (
-          <button
-            onClick={handleProcess}
-            disabled={!file || isProcessing}
-            className="w-full py-2 px-4 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        {/* Upload Area - Only show if not in loading state */}
+        {!isInLoadingState && (
+          <div
+            {...getRootProps()}
+            className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 md:p-6 text-center cursor-pointer hover:border-primary-500 transition-colors"
           >
-            {isProcessing ? 'Processing...' : 'Process Image'}
-          </button>
+            <input {...getInputProps()} />
+            {batchMode ? (
+              <div className="space-y-2">
+                {batchPreviews.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    {batchPreviews.map((preview, index) => (
+                      <div key={index} className="relative">
+                        <Image
+                          src={preview}
+                          alt={`Preview ${index + 1}`}
+                          width={100}
+                          height={100}
+                          className="object-contain max-h-[80px] w-auto mx-auto"
+                        />
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeFromBatch(index);
+                          }}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-xs h-5 w-5 flex items-center justify-center"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex justify-center">
+                      <svg
+                        className="w-8 h-8 md:w-12 md:h-12 text-gray-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                        />
+                      </svg>
+                    </div>
+                    <p className="text-sm md:text-base">Drag & drop multiple images here, or click to select</p>
+                    <p className="text-xs md:text-sm text-gray-500">PNG, JPG, WEBP up to 10MB each (max 10 files)</p>
+                  </div>
+                )}
+                <p className="text-sm text-orange-500 mt-2">
+                  {batchPreviews.length} {batchPreviews.length === 1 ? 'image' : 'images'} selected
+                  {batchPreviews.length < 10 && ' (click or drop to add more)'}
+                </p>
+              </div>
+            ) : (
+              // Single file upload view (existing code)
+              preview ? (
+              <Image
+                src={preview}
+                alt="Preview"
+                width={200}
+                height={200}
+                className="mx-auto object-contain max-h-[150px] md:max-h-[200px] w-auto"
+              />
+            ) : (
+              <div className="space-y-2">
+                <div className="flex justify-center">
+                  <svg
+                    className="w-8 h-8 md:w-12 md:h-12 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                    />
+                  </svg>
+                </div>
+                <p className="text-sm md:text-base">Drag & drop an image here, or click to select</p>
+                <p className="text-xs md:text-sm text-gray-500">PNG, JPG, WEBP up to 10MB</p>
+              </div>
+              )
+            )}
+          </div>
+        )}
+
+        {/* Parameters - Show loading skeletons when in loading state */}
+        <div className="space-y-4">
+          {isInLoadingState ? (
+            <>
+              {/* Loading skeleton for form controls */}
+              <div className="space-y-2">
+                <div className="h-4 w-20 bg-gray-700 rounded animate-pulse"></div>
+                <div className="h-10 w-full bg-gray-700 rounded animate-pulse"></div>
+              </div>
+              <div className="space-y-2">
+                <div className="h-4 w-24 bg-gray-700 rounded animate-pulse"></div>
+                <div className="h-10 w-full bg-gray-700 rounded animate-pulse"></div>
+              </div>
+              <div className="space-y-2">
+                <div className="h-4 w-28 bg-gray-700 rounded animate-pulse"></div>
+                <div className="h-10 w-full bg-gray-700 rounded animate-pulse"></div>
+              </div>
+              <div className="space-y-2">
+                <div className="h-4 w-32 bg-gray-700 rounded animate-pulse"></div>
+                <div className="h-8 w-full bg-gray-700 rounded animate-pulse"></div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <Label>Mode</Label>
+                <Select value={mode} onValueChange={setMode}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select mode" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {VALID_MODES.map((m) => (
+                      <SelectItem 
+                        key={m} 
+                        value={m}
+                        disabled={userSubscription === 'free' && m !== 'block_mode'}
+                      >
+                        {MODE_NAMES[m as keyof typeof MODE_NAMES]}
+                        {userSubscription === 'free' && m !== 'block_mode' && ' (Pro)'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {modeDescriptions[mode] && (
+                  <p className="text-xs md:text-sm text-gray-500 mt-1">{modeDescriptions[mode]}</p>
+                )}
+              </div>
+
+              <div>
+                <Label>Scale Factor</Label>
+                <Select value={scaleFactor.toString()} onValueChange={(v) => setScaleFactor(Number(v))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select scale factor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {VALID_SCALE_FACTORS.map((factor) => (
+                      <SelectItem
+                        key={factor}
+                        value={factor.toString()}
+                        disabled={(userSubscription === 'free' && factor > 2) || 
+                                (userSubscription === 'pro' && factor > 4)}
+                      >
+                        {factor}x {userSubscription === 'free' && factor > 2 ? 
+                             (factor <= 4 ? '(Pro)' : '(Enterprise)') : 
+                             (userSubscription === 'pro' && factor > 4 ? '(Enterprise)' : '')}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>Output Format</Label>
+                <Select value={outputFormat} onValueChange={setOutputFormat}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select output format" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {VALID_OUTPUT_FORMATS.map((format) => (
+                      <SelectItem key={format} value={format}>
+                        {format.toUpperCase()}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>Dynamic Range ({dynamic})</Label>
+                <Slider
+                  value={[dynamic]}
+                  onValueChange={([value]) => setDynamic(value)}
+                  min={1}
+                  max={50}
+                  step={1}
+                  className="mt-2"
+                />
+              </div>
+
+              <div>
+                <Label>Creativity ({creativity})</Label>
+                <Slider
+                  value={[creativity]}
+                  onValueChange={([value]) => setCreativity(value)}
+                  min={0}
+                  max={1}
+                  step={0.1}
+                  className="mt-2"
+                />
+              </div>
+
+              <div>
+                <Label>Resemblance ({resemblance})</Label>
+                <Slider
+                  value={[resemblance]}
+                  onValueChange={([value]) => setResemblance(value)}
+                  min={0}
+                  max={3}
+                  step={0.1}
+                  className="mt-2"
+                />
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Switch
+                  checked={handfix}
+                  onCheckedChange={setHandfix}
+                  id="handfix"
+                />
+                <Label htmlFor="handfix">Improve hand details</Label>
+              </div>
+
+              {/* Processing button for single or batch mode */}
+              {batchMode ? (
+                <button
+                  onClick={handleBatchProcess}
+                  disabled={batchFiles.length === 0 || isBatchProcessing}
+                  className="w-full py-2 px-4 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isBatchProcessing ? `Processing... ${batchProgress}%` : `Process ${batchFiles.length} Images`}
+                </button>
+              ) : (
+                <button
+                  onClick={handleProcess}
+                  disabled={!file || isProcessing}
+                  className="w-full py-2 px-4 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isProcessing ? 'Processing...' : 'Process Image'}
+                </button>
+              )}
+            </>
           )}
         </div>
 
-        {/* Add usage information section */}
-        <div className="mb-6 mt-4 rounded-md bg-gray-50 p-4 dark:bg-gray-800">
-          <h3 className="mb-2 text-sm font-medium text-gray-900 dark:text-white">Your Plan Limits</h3>
-          <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
-            <div className="flex justify-between">
-              <span>Subscription:</span>
-              <span className="font-medium capitalize">{userSubscription} Plan</span>
-            </div>
-            
-            <div className="flex justify-between">
-              <span>Monthly limit:</span>
-              {userSubscription === 'free' ? (
-                <span className="font-medium">5 images per month</span>
-              ) : userSubscription === 'pro' ? (
-                <span className="font-medium">400 images per month</span>
-              ) : (
-                <span className="font-medium">800 images per month</span>
+        {/* Add usage information section - only show when not loading */}
+        {!isInLoadingState && (
+          <div className="mb-6 mt-4 rounded-md bg-gray-50 p-4 dark:bg-gray-800">
+            <h3 className="mb-2 text-sm font-medium text-gray-900 dark:text-white">Your Plan Limits</h3>
+            <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
+              <div className="flex justify-between">
+                <span>Subscription:</span>
+                <span className="font-medium capitalize">{userSubscription} Plan</span>
+              </div>
+              
+              <div className="flex justify-between">
+                <span>Monthly limit:</span>
+                {userSubscription === 'free' ? (
+                  <span className="font-medium">5 images per month</span>
+                ) : userSubscription === 'pro' ? (
+                  <span className="font-medium">400 images per month</span>
+                ) : (
+                  <span className="font-medium">800 images per month</span>
+                )}
+              </div>
+              
+              <div className="flex justify-between">
+                <span>Processed this month:</span>
+                <span className="font-medium">{imagesProcessedThisMonth} images</span>
+              </div>
+              
+              {userSubscription !== 'enterprise' && (
+                <div className="mt-2 text-center">
+                  <a 
+                    href="/pricing" 
+                    className="text-orange-500 hover:text-orange-600 hover:underline"
+                  >
+                    Upgrade your plan for more features
+                  </a>
+                </div>
               )}
             </div>
-            
-            <div className="flex justify-between">
-              <span>Processed this month:</span>
-              <span className="font-medium">{imagesProcessedThisMonth} images</span>
-            </div>
-            
-            {userSubscription !== 'enterprise' && (
-              <div className="mt-2 text-center">
-                <a 
-                  href="/pricing" 
-                  className="text-orange-500 hover:text-orange-600 hover:underline"
-                >
-                  Upgrade your plan for more features
-                </a>
-              </div>
-            )}
           </div>
-        </div>
+        )}
+        
+        {/* Add skeleton loader for plan info during loading */}
+        {isInLoadingState && (
+          <div className="mb-6 mt-4 rounded-md bg-gray-50 p-4 dark:bg-gray-800">
+            <div className="h-4 w-32 bg-gray-700 rounded animate-pulse mb-4"></div>
+            <div className="space-y-3">
+              <div className="flex justify-between">
+                <div className="h-3 w-20 bg-gray-700 rounded animate-pulse"></div>
+                <div className="h-3 w-24 bg-gray-700 rounded animate-pulse"></div>
+              </div>
+              <div className="flex justify-between">
+                <div className="h-3 w-24 bg-gray-700 rounded animate-pulse"></div>
+                <div className="h-3 w-28 bg-gray-700 rounded animate-pulse"></div>
+              </div>
+              <div className="flex justify-between">
+                <div className="h-3 w-28 bg-gray-700 rounded animate-pulse"></div>
+                <div className="h-3 w-16 bg-gray-700 rounded animate-pulse"></div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Right Section - Result (full width on mobile, 3/4 width on desktop) */}
       <div className="col-span-1 md:col-span-3 p-4 bg-[#171b24] rounded-lg">
         <h2 className="text-lg font-medium mb-3">Result</h2>
         
-        {batchMode ? (
+        {isInLoadingState ? (
+          // Loading state skeleton for result section
+          <div className="h-[300px] md:h-[500px] lg:h-[700px] flex items-center justify-center border-2 border-dashed border-gray-700 rounded-lg">
+            <div className="animate-pulse flex flex-col items-center">
+              <div className="rounded-lg bg-gray-700 h-[100px] w-[150px] mb-4"></div>
+              <div className="h-2 bg-gray-700 rounded w-48 mb-2.5"></div>
+              <div className="h-2 bg-gray-700 rounded w-40"></div>
+            </div>
+          </div>
+        ) : batchMode ? (
           // Batch results view
           <div className="space-y-4">
             {batchProcessedImages.length > 0 ? (
@@ -1076,7 +1137,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
             )}
           </div>
         ) : (
-          // Single image result view (existing code)
+          // Single image result view
           preview && processedImage ? (
           <div className="space-y-4">
             <ImageComparisonSlider

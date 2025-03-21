@@ -8,19 +8,17 @@ import Logo from './Logo';
 import Image from 'next/image';
 
 export default function Header() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, loading: authLoading } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const profileRef = useRef<HTMLDivElement>(null);
 
-  // Set auth loading state
+  // Set auth loading state - use the auth context's loading state
   useEffect(() => {
-    // When user state changes (either loaded or confirmed as null)
-    // we can mark auth loading as complete
-    setIsAuthLoading(false);
-  }, [user]);
+    setIsAuthLoading(authLoading);
+  }, [authLoading]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -123,7 +121,11 @@ export default function Header() {
           {/* Profile/CTA Section - Right Section */}
           <div className="hidden md:flex items-center">
             {isAuthLoading ? (
-              <div className="w-8 h-8 rounded-full bg-gray-700 animate-pulse"></div>
+              <div className="flex items-center space-x-2 rounded-full p-1.5">
+                <div className="w-8 h-8 rounded-full bg-gray-700 animate-pulse"></div>
+                <div className="w-24 h-4 bg-gray-700 animate-pulse rounded"></div>
+                <div className="w-4 h-4 bg-gray-700 animate-pulse rounded"></div>
+              </div>
             ) : user ? (
               <div className="relative" ref={profileRef}>
                 <button 
@@ -229,8 +231,11 @@ export default function Header() {
           {/* Mobile menu button */}
           <div className="flex items-center md:hidden">
             {isAuthLoading ? (
-              <div className="w-8 h-8 rounded-full bg-gray-700 animate-pulse mr-2"></div>
-            ) : user && (
+              <div className="flex items-center">
+                <div className="w-8 h-8 rounded-full bg-gray-700 animate-pulse mr-2"></div>
+                <div className="w-6 h-6 bg-gray-700 animate-pulse rounded ml-2"></div>
+              </div>
+            ) : user ? (
               <div className="relative mr-2" ref={profileRef}>
                 <button 
                   onClick={toggleProfileMenu}
@@ -309,7 +314,7 @@ export default function Header() {
                   </div>
                 )}
               </div>
-            )}
+            ) : null}
             <button
               type="button"
               onClick={toggleMobileMenu}
@@ -359,7 +364,7 @@ export default function Header() {
             Blog
           </Link>
           
-          {!isAuthLoading && !user && (
+          {!user && !isAuthLoading && (
             <Link
               href="/auth/login"
               className="text-white block px-3 py-2 rounded-md text-base font-medium bg-gradient-to-r from-orange-500 to-orange-600 text-center mt-2"
@@ -367,6 +372,12 @@ export default function Header() {
             >
               Sign In
             </Link>
+          )}
+          
+          {isAuthLoading && (
+            <div className="px-3 py-2 mt-2">
+              <div className="w-full h-10 bg-gray-700 animate-pulse rounded"></div>
+            </div>
           )}
         </div>
       </div>

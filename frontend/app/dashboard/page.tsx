@@ -6,25 +6,30 @@ import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast';
 
 export default function DashboardPage() {
-  const { user, session } = useAuth();
+  const { user, session, loading: authLoading } = useAuth();
   const [userSubscription, setUserSubscription] = useState<"free" | "pro" | "enterprise">("free");
   const [imagesProcessedThisMonth, setImagesProcessedThisMonth] = useState(0);
   const [maxImagesPerMonth, setMaxImagesPerMonth] = useState(3);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Start with loading true to avoid flashes
   const dataFetchedRef = useRef(false);
 
   // Prefetch user subscription data as soon as possible
   useEffect(() => {
+    // Skip if auth is still loading
+    if (authLoading) return;
+    
     // Only run once and skip if no user
-    if (dataFetchedRef.current || !user) return;
+    if (dataFetchedRef.current || !user) {
+      // If auth is done loading and there's no user, we can stop loading
+      if (!user) setLoading(false);
+      return;
+    }
+    
     dataFetchedRef.current = true;
+    setLoading(true); // Ensure loading is true when starting data fetch
 
     const fetchUserData = async () => {
       try {
-        // Skip showing loading indicator for faster perceived performance
-        setLoading(false);
-        
-        // Optimized data fetching approach
         // Step 1: Check user metadata (fastest method)
         if (user?.user_metadata?.subscription_tier) {
           const plan = user.user_metadata.subscription_tier.toLowerCase();
@@ -38,6 +43,9 @@ export default function DashboardPage() {
           } else {
             setMaxImagesPerMonth(3);
           }
+          
+          // Still need to fetch processed images count
+          await fetchImageCount();
           return;
         }
         
@@ -85,19 +93,46 @@ export default function DashboardPage() {
         setLoading(false);
       }
     };
+    
+    // Helper to fetch just the image count if we already have plan data
+    const fetchImageCount = async () => {
+      try {
+        if (user?.id) {
+          const { createClient } = await import('@supabase/supabase-js');
+          const supabase = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+          );
+          
+          const { data, error } = await supabase
+            .from('users')
+            .select('images_processed_this_month')
+            .eq('id', user.id)
+            .single();
+            
+          if (!error && data) {
+            setImagesProcessedThisMonth(data.images_processed_this_month || 0);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching image count:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
     // Start fetching immediately
     fetchUserData();
-  }, [user]);
+  }, [user, authLoading]);
 
-  // Render immediately with default values
+  // Render immediately with loading state
   return (
     <div className="mx-auto px-0">
       <ImageUploader
         userSubscription={userSubscription}
         imagesProcessedThisMonth={imagesProcessedThisMonth}
         maxImagesPerMonth={maxImagesPerMonth}
-        isLoading={loading}
+        isLoading={loading || authLoading}
       />
     </div>
   );
