@@ -40,6 +40,7 @@ export default function RootLayout({
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
         <style>{headerStyle}</style>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" />
       </head>
       <body className={`${poppins.variable} font-sans bg-black text-white antialiased overflow-x-hidden`} suppressHydrationWarning>
         <Providers>
