@@ -6,7 +6,7 @@ picluxe is a SaaS application that uses AI to upscale and enhance images. It pro
 
 ## Features
 
-- **AI-Powered Image Upscaling**: Enhance image resolution by 2x, 4x, 6x, 8x, or 16x using Replicate's AI models
+- **AI-Powered Image Upscaling**: Enhance image resolution with various scale factors based on your subscription tier
 - **Multiple Upscaling Modes**: 
   - **Block Mode**: General purpose upscaling using epicrealism_naturalSinRC1VAE model
   - **Face Mode**: Optimized for portraits using juggernaut_reborn model
@@ -14,8 +14,10 @@ picluxe is a SaaS application that uses AI to upscale and enhance images. It pro
 - **Advanced Controls**: Fine-tune your results with dynamic, creativity, resemblance, and handfix parameters
 - **Multiple Output Formats**: Save your upscaled images in JPEG, PNG, JPG, or WEBP formats
 - **User-Friendly Interface**: Drag-and-drop interface for easy image uploading
-- **Subscription Plans**: Basic Plan $0/month, Pro Plan $15/month, and Enterprise Plan $30/month with different feature sets
-- **API Access**: RESTful API for developers to integrate image upscaling into their applications
+- **Flexible Subscription Plans**:
+  - **Free Plan**: 5 images per day, basic upscaling (Block mode only), maximum 2K output resolution
+  - **Pro Plan**: 400 images per month, premium upscaling quality (all modes), maximum 8K output resolution, fast processing speed, batch processing
+  - **Enterprise Plan**: Unlimited images, highest upscaling quality (all modes), maximum 16K output resolution, ultra-fast processing speed, batch processing, API access
 - **Secure Authentication**: User authentication and authorization using Supabase
 - **Payment Processing**: Subscription and pay-as-you-go billing using Stripe
 - **User Dashboard**: Comprehensive dashboard for managing upscaled images and account settings

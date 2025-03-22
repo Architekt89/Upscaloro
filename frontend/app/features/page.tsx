@@ -33,48 +33,111 @@ const HowItWorksStep = ({ number, title, description }: { number: number; title:
 
 const ComparisonTable = () => {
   return (
-    <div className="w-full overflow-x-auto">
-      <table className="w-full border-collapse">
-        <thead>
-          <tr>
-            <th className="py-6 px-6 text-left text-base font-semibold text-gray-300 border-b border-gray-800">Feature</th>
-            <th className="py-6 px-6 text-center text-base font-semibold text-gray-300 border-b border-gray-800">Traditional Upscaling</th>
-            <th className="py-6 px-6 text-center text-base font-semibold text-orange-500 border-b border-gray-800">Picluxe AI Upscaling</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td className="py-5 px-6 text-left text-sm text-gray-300 border-b border-gray-800">Image Quality</td>
-            <td className="py-5 px-6 text-center text-sm text-gray-400 border-b border-gray-800">Pixelated, blurry at high resolutions</td>
-            <td className="py-5 px-6 text-center text-sm text-white border-b border-gray-800">Crystal clear, even at 16K resolution</td>
-          </tr>
-          <tr>
-            <td className="py-5 px-6 text-left text-sm text-gray-300 border-b border-gray-800">Detail Enhancement</td>
-            <td className="py-5 px-6 text-center text-sm text-gray-400 border-b border-gray-800">No detail recovery or improvement</td>
-            <td className="py-5 px-6 text-center text-sm text-white border-b border-gray-800">Smart detail enhancement and recovery</td>
-          </tr>
-          <tr>
-            <td className="py-5 px-6 text-left text-sm text-gray-300 border-b border-gray-800">Color Accuracy</td>
-            <td className="py-5 px-6 text-center text-sm text-gray-400 border-b border-gray-800">Colors often fade or distort</td>
-            <td className="py-5 px-6 text-center text-sm text-white border-b border-gray-800">Vibrant, natural color enhancement</td>
-          </tr>
-          <tr>
-            <td className="py-5 px-6 text-left text-sm text-gray-300 border-b border-gray-800">Processing Time</td>
-            <td className="py-5 px-6 text-center text-sm text-gray-400 border-b border-gray-800">Faster but lower quality</td>
-            <td className="py-5 px-6 text-center text-sm text-white border-b border-gray-800">Optimized for speed without sacrificing quality</td>
-          </tr>
-          <tr>
-            <td className="py-5 px-6 text-left text-sm text-gray-300 border-b border-gray-800">Noise Handling</td>
-            <td className="py-5 px-6 text-center text-sm text-gray-400 border-b border-gray-800">Amplifies existing noise</td>
-            <td className="py-5 px-6 text-center text-sm text-white border-b border-gray-800">Intelligent noise reduction</td>
-          </tr>
-          <tr>
-            <td className="py-5 px-6 text-left text-sm text-gray-300">Specific Enhancements</td>
-            <td className="py-5 px-6 text-center text-sm text-gray-400">Generic approach to all images</td>
-            <td className="py-5 px-6 text-center text-sm text-white">Specialized fixes for hands, faces, and detailed elements</td>
-          </tr>
-        </tbody>
-      </table>
+    <div className="w-full">
+      <div className="relative">
+        {/* Main container with three-column grid */}
+        <div className="grid grid-cols-12 mb-6">
+          {/* Left column header (25%) */}
+          <div className="col-span-3 text-gray-400 text-lg font-medium"></div>
+          {/* Middle column header (35%) */}
+          <div className="col-span-4 text-gray-400 text-lg font-medium">TRADITIONAL UPSCALING</div>
+          {/* Right column header (40%) - with container */}
+          <div className="col-span-5 relative">
+            {/* Right column background container */}
+            <div className="absolute -top-8 -bottom-[450px] -right-8 left-0 bg-[#181818] rounded-xl shadow-[0_4px_30px_rgba(0,0,0,0.3)] z-0 border border-[#2A2A2A]"></div>
+            <div className="relative z-10 text-white text-lg font-medium pl-6 py-2">
+              <span className="text-orange-500 font-semibold">picluxe</span> AI Upscaling
+            </div>
+          </div>
+        </div>
+        
+        {/* Table rows */}
+        <div className="relative">
+          {/* Image Quality row */}
+          <div className="border-b border-[#333333] py-5 grid grid-cols-12">
+            <div className="col-span-3 text-white font-bold uppercase">IMAGE QUALITY</div>
+            <div className="col-span-4 text-[#AAAAAA]">Pixelated, blurry at high resolutions</div>
+            <div className="col-span-5 text-white flex items-center pl-6 relative z-10">
+              <span className="bg-green-500 rounded-full p-1 mr-3 flex items-center justify-center w-5 h-5 flex-shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-white" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+              </span>
+              <span>Crystal clear, even at 16K resolution</span>
+            </div>
+          </div>
+          
+          {/* Detail Enhancement row */}
+          <div className="border-b border-[#333333] py-5 grid grid-cols-12">
+            <div className="col-span-3 text-white font-bold uppercase">DETAIL ENHANCEMENT</div>
+            <div className="col-span-4 text-[#AAAAAA]">No detail recovery or improvement</div>
+            <div className="col-span-5 text-white flex items-center pl-6 relative z-10">
+              <span className="bg-green-500 rounded-full p-1 mr-3 flex items-center justify-center w-5 h-5 flex-shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-white" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+              </span>
+              <span>Smart detail enhancement and recovery</span>
+            </div>
+          </div>
+          
+          {/* Color Accuracy row */}
+          <div className="border-b border-[#333333] py-5 grid grid-cols-12">
+            <div className="col-span-3 text-white font-bold uppercase">COLOR ACCURACY</div>
+            <div className="col-span-4 text-[#AAAAAA]">Colors often fade or distort</div>
+            <div className="col-span-5 text-white flex items-center pl-6 relative z-10">
+              <span className="bg-green-500 rounded-full p-1 mr-3 flex items-center justify-center w-5 h-5 flex-shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-white" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+              </span>
+              <span>Vibrant, natural color enhancement</span>
+            </div>
+          </div>
+          
+          {/* Processing Time row */}
+          <div className="border-b border-[#333333] py-5 grid grid-cols-12">
+            <div className="col-span-3 text-white font-bold uppercase">PROCESSING TIME</div>
+            <div className="col-span-4 text-[#AAAAAA]">Faster but lower quality</div>
+            <div className="col-span-5 text-white flex items-center pl-6 relative z-10">
+              <span className="bg-green-500 rounded-full p-1 mr-3 flex items-center justify-center w-5 h-5 flex-shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-white" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+              </span>
+              <span>Optimized for speed without sacrificing quality</span>
+            </div>
+          </div>
+          
+          {/* Noise Handling row */}
+          <div className="border-b border-[#333333] py-5 grid grid-cols-12">
+            <div className="col-span-3 text-white font-bold uppercase">NOISE HANDLING</div>
+            <div className="col-span-4 text-[#AAAAAA]">Amplifies existing noise</div>
+            <div className="col-span-5 text-white flex items-center pl-6 relative z-10">
+              <span className="bg-green-500 rounded-full p-1 mr-3 flex items-center justify-center w-5 h-5 flex-shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-white" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+              </span>
+              <span>Intelligent noise reduction</span>
+            </div>
+          </div>
+          
+          {/* Special Enhancements row */}
+          <div className="py-5 grid grid-cols-12">
+            <div className="col-span-3 text-white font-bold uppercase">SPECIAL ENHANCEMENTS</div>
+            <div className="col-span-4 text-[#AAAAAA]">Generic approach to all images</div>
+            <div className="col-span-5 text-white flex items-center pl-6 relative z-10">
+              <span className="bg-green-500 rounded-full p-1 mr-3 flex items-center justify-center w-5 h-5 flex-shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-white" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+              </span>
+              <span>Specialized fixes for hands, faces, and detailed elements</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
@@ -171,30 +234,6 @@ export default function FeaturesPage() {
   return (
     <div className="min-h-screen flex flex-col bg-black font-sans overflow-x-hidden">
       <main className="flex-grow">
-        {/* Features Hero Section */}
-        <section className="relative overflow-hidden bg-[#000000] py-24">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
-            <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-tight mb-6">
-              <span className="bg-gradient-to-r from-orange-400 to-orange-600 bg-clip-text text-transparent">
-                Powerful Features
-              </span>
-              <span className="text-white"> for Perfect Images</span>
-            </h1>
-            <p className="max-w-2xl mx-auto text-gray-300 text-lg mb-12">
-              Our AI-powered technology transforms your images with precision and quality that standard tools simply can't match.
-            </p>
-          </div>
-          
-          {/* Background pattern */}
-          <div className="absolute inset-0 opacity-30 z-0">
-            <div className="absolute top-0 left-0 w-full h-full grid grid-cols-10 grid-rows-10">
-              {Array.from({ length: 100 }).map((_, i) => (
-                <div key={i} className="border border-gray-700/20"></div>
-              ))}
-            </div>
-          </div>
-        </section>
-
         {/* Features Grid Section */}
         <section className="py-20 bg-[#050505]">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -263,7 +302,7 @@ export default function FeaturesPage() {
               </p>
             </div>
             
-            <div className="bg-[#0a0a0a] rounded-xl border border-gray-800 p-0 sm:p-2 md:p-4 shadow-lg">
+            <div className="bg-[#121212] rounded-xl p-8 shadow-[0_10px_50px_rgba(0,0,0,0.5)] border border-[#1D1D1D] overflow-hidden">
               <ComparisonTable />
             </div>
           </div>

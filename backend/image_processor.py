@@ -74,7 +74,8 @@ class ImageProcessor:
         handfix: bool = False,
         creativity: float = 0.5,
         resemblance: float = 1.5,
-        output_format: str = "png"
+        output_format: str = "png",
+        max_resolution: str = "2K"  # Added parameter for max resolution
     ) -> Tuple[Optional[bytes], Optional[str]]:
         """
         Upscales an image using Replicate's API.
@@ -88,6 +89,7 @@ class ImageProcessor:
             creativity: Creativity parameter (0 to 1)
             resemblance: Resemblance parameter (0 to 3)
             output_format: Output format (jpeg, png, jpg, webp)
+            max_resolution: Maximum output resolution (2K, 4K, 8K, 16K)
             
         Returns:
             Tuple[Optional[bytes], Optional[str]]: (processed_image_data, error_message)
@@ -119,6 +121,46 @@ class ImageProcessor:
             is_valid, error = await ImageProcessor.validate_image(image_data)
             if not is_valid:
                 return None, error
+            
+            # Check image resolution and enforce max resolution
+            img = Image.open(BytesIO(image_data))
+            width, height = img.size
+            logger.info(f"Input image dimensions: {width}x{height} pixels")
+            
+            # Calculate output dimensions
+            output_width = width * scale_factor
+            output_height = height * scale_factor
+            logger.info(f"Expected output dimensions: {output_width}x{output_height} pixels")
+            
+            # Check if output dimensions exceed the max resolution
+            resolution_limits = {
+                "2K": (2048, 2048),  # 2K resolution (approximately)
+                "4K": (3840, 2160),  # 4K resolution
+                "8K": (7680, 4320),  # 8K resolution
+                "16K": (15360, 8640)  # 16K resolution
+            }
+            
+            max_width, max_height = resolution_limits.get(max_resolution, resolution_limits["2K"])
+            
+            if output_width > max_width or output_height > max_height:
+                logger.warning(f"Output dimensions exceed {max_resolution} limit. Adjusting scale factor.")
+                # Calculate the maximum safe scale factor
+                width_scale = max_width / width
+                height_scale = max_height / height
+                safe_scale = min(width_scale, height_scale, scale_factor)
+                
+                # Round down to nearest valid scale factor
+                for valid_scale in sorted(VALID_SCALE_FACTORS, reverse=True):
+                    if valid_scale <= safe_scale:
+                        scale_factor = valid_scale
+                        break
+                
+                logger.info(f"Adjusted scale factor to {scale_factor} to comply with {max_resolution} resolution limit")
+                
+                # Recalculate output dimensions
+                output_width = width * scale_factor
+                output_height = height * scale_factor
+                logger.info(f"Adjusted output dimensions: {output_width}x{output_height} pixels")
             
             # Create a unique ID for this processing job
             job_id = str(uuid.uuid4())

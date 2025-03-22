@@ -28,7 +28,7 @@ class SubscriptionPlan(BaseModel):
     price: float
     interval: str  # 'month' or 'year'
     features: List[str]
-    limits: Dict[str, int]
+    limits: Dict[str, Any]
 
 class PaymentMethod(BaseModel):
     id: str
@@ -83,14 +83,16 @@ SUBSCRIPTION_PLANS = {
         price=0.0,
         interval="month",
         features=[
-            "Up to 3 images per month",
-            "2x and 4x upscaling",
-            "Basic upscaling mode",
+            "5 images per month",
+            "Basic upscaling (Only block mode)",
+            "Maximum 2K output resolution",
             "Standard support"
         ],
         limits={
-            "images_per_month": 3,
-            "max_scale_factor": 4,
+            "images_per_month": 5,
+            "max_scale_factor": 2,
+            "allowed_modes": ["block_mode"],
+            "max_resolution": "2K",
             "api_calls_per_month": 0,
             "storage_mb": 100  # 0.1 GB = 100 MB
         }
@@ -101,15 +103,19 @@ SUBSCRIPTION_PLANS = {
         price=15.0,
         interval="month",
         features=[
-            "Unlimited images",
-            "Up to 16x upscaling",
-            "All upscaling modes",
-            "API access",
-            "Priority support"
+            "400 images per month",
+            "Premium upscaling quality (Block mode, Face mode, and Waifu mode)",
+            "Maximum 4K output resolution",
+            "Fast processing speed",
+            "Batch processing",
+            "Email support"
         ],
         limits={
-            "images_per_month": 100,
-            "max_scale_factor": 16,
+            "images_per_month": 400,
+            "max_scale_factor": 4,
+            "allowed_modes": ["block_mode", "face_mode", "waifu_mode"],
+            "max_resolution": "4K",
+            "batch_processing": True,
             "api_calls_per_month": 500,
             "storage_mb": 5000  # 5 GB = 5000 MB
         }
@@ -120,17 +126,22 @@ SUBSCRIPTION_PLANS = {
         price=30.0,
         interval="month",
         features=[
-            "Unlimited images",
-            "Up to 16x upscaling",
-            "All upscaling modes",
-            "Unlimited API access",
-            "Dedicated support",
+            "800 images per month",
+            "Highest upscaling quality (Block mode, Face mode, and Waifu mode)",
+            "Maximum 16K output resolution",
+            "Ultra-fast processing speed",
+            "Batch processing",
+            "API access",
+            "Email support",
             "Custom integration"
         ],
         limits={
-            "images_per_month": 1000,
+            "images_per_month": 800,
             "max_scale_factor": 16,
-            "api_calls_per_month": 5000,
+            "allowed_modes": ["block_mode", "face_mode", "waifu_mode"],
+            "max_resolution": "16K",
+            "batch_processing": True,
+            "api_calls_per_month": -1,  # -1 indicates unlimited
             "storage_mb": 20000  # 20 GB = 20000 MB
         }
     )

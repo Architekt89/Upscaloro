@@ -48,6 +48,17 @@ CREATE TABLE api_usage (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Create daily_usage table to track images processed per day
+CREATE TABLE daily_usage (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    date DATE NOT NULL,
+    count INTEGER DEFAULT 1,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(user_id, date)
+);
+
 -- Create function to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -68,12 +79,18 @@ BEFORE UPDATE ON api_usage
 FOR EACH ROW
 EXECUTE FUNCTION update_updated_at_column();
 
+CREATE TRIGGER update_daily_usage_updated_at
+BEFORE UPDATE ON daily_usage
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
+
 -- Create RLS (Row Level Security) policies
 -- Enable RLS on all tables
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE processed_images ENABLE ROW LEVEL SECURITY;
 ALTER TABLE api_keys ENABLE ROW LEVEL SECURITY;
 ALTER TABLE api_usage ENABLE ROW LEVEL SECURITY;
+ALTER TABLE daily_usage ENABLE ROW LEVEL SECURITY;
 
 -- Users can only see and update their own data
 CREATE POLICY users_policy ON users
@@ -92,6 +109,11 @@ CREATE POLICY api_keys_policy ON api_keys
 
 -- Users can only see and manage their own API usage
 CREATE POLICY api_usage_policy ON api_usage
+    USING (user_id = auth.uid())
+    WITH CHECK (user_id = auth.uid());
+
+-- Create policy for daily_usage
+CREATE POLICY daily_usage_policy ON daily_usage
     USING (user_id = auth.uid())
     WITH CHECK (user_id = auth.uid());
 

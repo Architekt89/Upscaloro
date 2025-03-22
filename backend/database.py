@@ -301,4 +301,85 @@ class DatabaseHandler:
                 return None
         except Exception as e:
             logger.error(f"Error getting subscription: {str(e)}")
-            return None 
+            return None
+    
+    @staticmethod
+    async def get_images_processed_today(user_id: str) -> int:
+        """
+        Gets the number of images processed by a user today.
+        
+        Args:
+            user_id: The user ID
+            
+        Returns:
+            int: The number of images processed today
+        """
+        try:
+            # Check if the user's last processing date is today
+            today = datetime.now().strftime("%Y-%m-%d")
+            
+            # Get the user's images_processed_today and last_processing_date
+            response = supabase.table("users").select("images_processed_today", "last_processing_date").eq("id", user_id).execute()
+            
+            if response.data and len(response.data) > 0:
+                user_data = response.data[0]
+                last_date = user_data.get("last_processing_date")
+                
+                # If last_processing_date is today, return images_processed_today
+                if last_date and last_date == today:
+                    return user_data.get("images_processed_today", 0)
+                else:
+                    # Last processing date is not today, return 0
+                    return 0
+            else:
+                # No user data, return 0
+                return 0
+        except Exception as e:
+            logger.error(f"Error getting daily processed images count: {str(e)}")
+            return 0
+    
+    @staticmethod
+    async def increment_daily_processed_images(user_id: str) -> bool:
+        """
+        Increments the number of images processed by a user today.
+        
+        Args:
+            user_id: The user ID
+            
+        Returns:
+            bool: Whether the operation was successful
+        """
+        try:
+            # Get the current date
+            today = datetime.now().strftime("%Y-%m-%d")
+            
+            # Get the user's current daily count and last processing date
+            response = supabase.table("users").select("images_processed_today", "last_processing_date").eq("id", user_id).execute()
+            
+            if response.data and len(response.data) > 0:
+                user_data = response.data[0]
+                last_date = user_data.get("last_processing_date")
+                current_count = user_data.get("images_processed_today", 0)
+                
+                # If last_processing_date is not today, reset counter
+                if not last_date or last_date != today:
+                    update_data = {
+                        "images_processed_today": 1,
+                        "last_processing_date": today
+                    }
+                else:
+                    # Increment the counter
+                    update_data = {
+                        "images_processed_today": current_count + 1
+                    }
+                
+                # Update the user
+                update_response = supabase.table("users").update(update_data).eq("id", user_id).execute()
+                
+                return update_response.data is not None
+            else:
+                # No user data, return False
+                return False
+        except Exception as e:
+            logger.error(f"Error incrementing daily processed images count: {str(e)}")
+            return False 

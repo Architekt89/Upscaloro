@@ -140,20 +140,61 @@ async def upscale_image(
                 detail="Resemblance must be between 0 and 3"
             )
         
-        # Check user subscription for pro features
-        if current_user and current_user.subscription_tier == "free":
-            if scale_factor > 2:
+        # Check user subscription for restrictions based on subscription tier
+        if current_user:
+            subscription_tier = current_user.subscription_tier.lower()
+            
+            # Get subscription plan limits
+            plan_limits = SUBSCRIPTION_PLANS.get(subscription_tier, SUBSCRIPTION_PLANS["free"]).limits
+            
+            # Check mode restrictions - Free users can only use block_mode
+            allowed_modes = plan_limits.get("allowed_modes", ["block_mode"])
+            if mode not in allowed_modes:
                 raise HTTPException(
                     status_code=403,
-                    detail="Scale factors above 2x are only available on the Pro plan"
+                    detail=f"{mode} is not available on your {subscription_tier.capitalize()} plan. Please upgrade to access this feature."
                 )
             
-            # Check if the user has reached their monthly limit
-            if current_user.images_processed_this_month >= 3:  # Free tier limit
+            # Check scale factor restrictions
+            # Free users: max 2x, Pro users: max 4x, Enterprise users: max 16x
+            max_scale_factor = plan_limits.get("max_scale_factor", 2)
+            if scale_factor > max_scale_factor:
                 raise HTTPException(
                     status_code=403,
-                    detail="You have reached your monthly limit of 3 images. Please upgrade to the Pro plan."
+                    detail=f"Scale factors above {max_scale_factor}x are not available on your {subscription_tier.capitalize()} plan. Please upgrade to access this feature."
                 )
+            
+            # Check monthly image limit for free tier (changed from daily to monthly)
+            if subscription_tier == "free":
+                # Get images processed this month
+                images_this_month = current_user.images_processed_this_month
+                monthly_limit = plan_limits.get("images_per_month", 5)
+                
+                logger.info(f"User {current_user.username} has processed {images_this_month} images this month (limit: {monthly_limit})")
+                
+                if images_this_month >= monthly_limit:
+                    raise HTTPException(
+                        status_code=403,
+                        detail=f"You have reached your monthly limit of {monthly_limit} images. Please wait until next month or upgrade to the Pro plan."
+                    )
+            
+            # Check monthly image limit for pro tier
+            elif subscription_tier == "pro":
+                monthly_limit = plan_limits.get("images_per_month", 400)
+                if current_user.images_processed_this_month >= monthly_limit:
+                    raise HTTPException(
+                        status_code=403,
+                        detail=f"You have reached your monthly limit of {monthly_limit} images. Please upgrade to the Enterprise plan for more images."
+                    )
+            
+            # Check monthly image limit for enterprise tier
+            elif subscription_tier == "enterprise":
+                monthly_limit = plan_limits.get("images_per_month", 800)
+                if monthly_limit > 0 and current_user.images_processed_this_month >= monthly_limit:
+                    raise HTTPException(
+                        status_code=403,
+                        detail=f"You have reached your monthly limit of {monthly_limit} images."
+                    )
         
         # Read the file
         contents = await file.read()
@@ -163,6 +204,14 @@ async def upscale_image(
         
         # Process the image
         logger.info(f"Processing image with Replicate API using mode: {mode}")
+        
+        # Get max resolution from subscription tier
+        max_resolution = "2K"
+        if current_user:
+            subscription_tier = current_user.subscription_tier.lower()
+            plan_limits = SUBSCRIPTION_PLANS.get(subscription_tier, SUBSCRIPTION_PLANS["free"]).limits
+            max_resolution = plan_limits.get("max_resolution", "2K")
+        
         processed_image, error = await ImageProcessor.upscale_image(
             contents,
             scale_factor,
@@ -171,7 +220,8 @@ async def upscale_image(
             handfix,
             creativity,
             resemblance,
-            output_format
+            output_format,
+            max_resolution
         )
         
         if error:
@@ -196,9 +246,9 @@ async def upscale_image(
             logger.info(f"Incrementing processed images count for user: {current_user.username}")
             await DatabaseHandler.increment_processed_images(current_user.username)
             
-            # Store the image for pro users
-            if current_user.subscription_tier == "pro":
-                logger.info(f"Storing image for pro user: {current_user.username}")
+            # Store the image for pro and enterprise users
+            if subscription_tier in ["pro", "enterprise"]:
+                logger.info(f"Storing image for {subscription_tier} user: {current_user.username}")
                 image_url = await DatabaseHandler.store_image(
                     current_user.username,
                     processed_image,
@@ -223,9 +273,9 @@ async def upscale_image(
         )
 
 @app.get("/upscale/options")
-async def get_upscale_options():
+async def get_upscale_options(current_user: Optional[User] = Depends(get_current_active_user)):
     """
-    Get available upscale options.
+    Get available upscale options based on user's subscription tier.
     
     Returns:
         dict: Available modes, scale factors, and output formats
@@ -235,22 +285,63 @@ async def get_upscale_options():
         
         # Define mode descriptions for better user understanding
         mode_descriptions = {
-            "block_mode": "General purpose upscaling using epicrealism_naturalSinRC1VAE model. Best for most images.",
-            "face_mode": "Face-focused upscaling using juggernaut_reborn model. Best for portraits and images with faces.",
-            "waifu_mode": "Anime-style upscaling using flat2DAnimerge_v45Sharp model. Best for anime/cartoon images."
+            "block_mode": "Best for most images.",
+            "face_mode": "Best for portraits and images with faces.",
+            "waifu_mode": "Best for anime/cartoon images."
         }
         
+        # Default options for free tier
+        subscription_tier = "free"
+        max_scale_factor = 2
+        allowed_modes = ["block_mode"]
+        max_resolution = "2K"
+        
+        # If user is authenticated, get their subscription tier
+        if current_user:
+            subscription_tier = current_user.subscription_tier.lower()
+            # Get plan limits from subscription tier
+            plan_limits = SUBSCRIPTION_PLANS.get(subscription_tier, SUBSCRIPTION_PLANS["free"]).limits
+            max_scale_factor = plan_limits.get("max_scale_factor", 2)
+            allowed_modes = plan_limits.get("allowed_modes", ["block_mode"])
+            max_resolution = plan_limits.get("max_resolution", "2K")
+            
+            logger.info(f"User {current_user.username} has {subscription_tier} tier with max scale factor {max_scale_factor}")
+        
+        # Filter available options based on subscription tier
+        available_scale_factors = [sf for sf in VALID_SCALE_FACTORS if sf <= max_scale_factor]
+        
+        # For free users, we'll still show all modes but mark premium ones as unavailable
+        # This is handled client-side in the UI
+        all_modes_with_status = {}
+        for mode in VALID_MODES:
+            all_modes_with_status[mode] = {
+                "name": mode,
+                "available": mode in allowed_modes,
+                "requires_plan": "free" if mode == "block_mode" else "pro" if mode in ["face_mode", "waifu_mode"] else "enterprise"
+            }
+        
         options = {
-            "modes": VALID_MODES,
+            "modes": VALID_MODES,  # Send all modes, client will handle restrictions
+            "modes_available": all_modes_with_status,  # Additional info about mode availability
             "mode_descriptions": mode_descriptions,
-            "scale_factors": VALID_SCALE_FACTORS,
+            "scale_factors": VALID_SCALE_FACTORS,  # Send all scale factors, client will handle restrictions
+            "scale_factors_available": {
+                "2": {"available": True, "requires_plan": "free"},
+                "4": {"available": subscription_tier in ["pro", "enterprise"], "requires_plan": "pro"},
+                "6": {"available": subscription_tier == "enterprise", "requires_plan": "enterprise"},
+                "8": {"available": subscription_tier == "enterprise", "requires_plan": "enterprise"},
+                "16": {"available": subscription_tier == "enterprise", "requires_plan": "enterprise"}
+            },
             "output_formats": VALID_OUTPUT_FORMATS,
+            "max_resolution": max_resolution,
             "dynamic_range": {"min": 1, "max": 50, "default": 25, "description": "Controls the dynamic range of the output image. Higher values increase contrast."},
             "creativity": {"min": 0, "max": 1, "default": 0.5, "description": "Controls the creativity level of the AI. Higher values produce more creative results but may be less accurate."},
             "resemblance": {"min": 0, "max": 3, "default": 1.5, "description": "Controls how closely the output resembles the input. Higher values produce results more similar to the original."},
-            "handfix": {"description": "Improves the quality of hands in the output image. Recommended for images containing hands."},
-            "powered_by": "Replicate Clarity Upscaler",
-            "api_version": "1.1.0"
+            "user_tier": {
+                "name": subscription_tier,
+                "can_upgrade": subscription_tier != "enterprise",
+                "upgrade_url": "/pricing" if subscription_tier != "enterprise" else None
+            }
         }
         
         logger.info(f"Returning upscale options: {options}")
@@ -259,7 +350,7 @@ async def get_upscale_options():
         logger.error(f"Error getting upscale options: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error getting upscale options: {str(e)}"
+            detail=f"Error getting upscale options: {str(e)}",
         )
 
 @app.get("/usage")
@@ -905,6 +996,82 @@ async def manual_upgrade(
             "message": f"User {user_id} partially upgraded to {plan_id} plan due to resource limitations",
             "error": str(e)
         }
+
+@app.get("/user/usage")
+async def get_user_usage(current_user: User = Depends(get_current_active_user)):
+    """
+    Get current user's usage statistics including limits and used counts.
+    
+    Returns:
+        dict: User's usage data including images processed and limits
+    """
+    try:
+        logger.info(f"Fetching usage data for user: {current_user.username}")
+        
+        # Get user subscription tier
+        subscription_tier = current_user.subscription_tier.lower()
+        
+        # Get plan limits
+        plan_limits = SUBSCRIPTION_PLANS.get(subscription_tier, SUBSCRIPTION_PLANS["free"]).limits
+        
+        # Get images processed data
+        images_processed_this_month = current_user.images_processed_this_month
+        images_processed_today = await DatabaseHandler.get_images_processed_today(current_user.username)
+        
+        # Calculate limits based on plan
+        if subscription_tier == "free":
+            daily_limit = plan_limits.get("images_per_day", 5)
+            monthly_limit = daily_limit * 30  # Approximation
+            remaining_daily = max(0, daily_limit - images_processed_today)
+            remaining_monthly = None  # No monthly limit for free tier
+        elif subscription_tier == "pro":
+            monthly_limit = plan_limits.get("images_per_month", 400)
+            daily_limit = None  # No daily limit for pro tier
+            remaining_daily = None
+            remaining_monthly = max(0, monthly_limit - images_processed_this_month)
+        else:  # Enterprise
+            monthly_limit = -1  # Unlimited
+            daily_limit = -1  # Unlimited
+            remaining_daily = -1
+            remaining_monthly = -1
+        
+        # Get allowed modes
+        allowed_modes = plan_limits.get("allowed_modes", ["block_mode"])
+        max_resolution = plan_limits.get("max_resolution", "2K")
+        max_scale_factor = plan_limits.get("max_scale_factor", 2)
+        
+        # Return usage data
+        usage_data = {
+            "subscription": {
+                "tier": subscription_tier,
+                "name": subscription_tier.capitalize()
+            },
+            "limits": {
+                "daily": daily_limit,
+                "monthly": monthly_limit,
+                "max_resolution": max_resolution,
+                "max_scale_factor": max_scale_factor,
+                "allowed_modes": allowed_modes
+            },
+            "usage": {
+                "today": images_processed_today,
+                "this_month": images_processed_this_month,
+                "remaining_daily": remaining_daily,
+                "remaining_monthly": remaining_monthly,
+                "percentage_used_daily": (images_processed_today / daily_limit * 100) if daily_limit and daily_limit > 0 else None,
+                "percentage_used_monthly": (images_processed_this_month / monthly_limit * 100) if monthly_limit and monthly_limit > 0 else None
+            }
+        }
+        
+        logger.info(f"Returning usage data: {usage_data}")
+        return usage_data
+    
+    except Exception as e:
+        logger.error(f"Error getting user usage: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error getting user usage data: {str(e)}"
+        )
 
 if __name__ == "__main__":
     import uvicorn
