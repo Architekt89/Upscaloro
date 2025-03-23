@@ -515,7 +515,7 @@ export default function PricingSection() {
                   }`}
                 >
                   Yearly billing
-                  <span className="ml-2 bg-orange-500 text-white text-xs px-2 py-0.5 rounded-full">
+                  <span className="ml-2 bg-orange-500 text-white text-xs px-2 py-0.5 rounded-full whitespace-nowrap">
                     Save 20%
                   </span>
                 </button>

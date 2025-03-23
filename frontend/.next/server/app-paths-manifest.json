@@ -1,7 +1,9 @@
 {
-  "/features/page": "app/features/page.js",
   "/page": "app/page.js",
-  "/pricing/page": "app/pricing/page.js",
+  "/features/page": "app/features/page.js",
+  "/refund-policy/page": "app/refund-policy/page.js",
+  "/contact/page": "app/contact/page.js",
+  "/auth/login/page": "app/auth/login/page.js",
   "/blog/page": "app/blog/page.js",
-  "/models/page": "app/models/page.js"
+  "/blog/[id]/page": "app/blog/[id]/page.js"
 }

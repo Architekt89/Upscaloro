@@ -16,20 +16,25 @@ export default function HomePage() {
     <div className="min-h-screen flex flex-col bg-black font-sans overflow-x-hidden">
       <main className="flex-grow">
         {/* Hero Section */}
-        <div className="relative overflow-hidden bg-[#000000] min-h-[90vh] flex items-start pt-[10.5vh]">
+        <div className="relative overflow-hidden bg-[#000000] min-h-[90vh] flex items-start pt-[3.8vh] pb-16 sm:pb-0 sm:pt-[6.3vh]">
           {/* Content */}
           <div className="relative w-full z-10">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
               <div className="text-center">
-                <h1 className="flex flex-col items-center font-extrabold tracking-tight mb-8">
-                  <div className="mb-2">
-                    <div className="text-3xl md:text-4xl lg:text-5xl tracking-wider leading-relaxed py-0 inline-block">
+                <div className="mb-4">
+                  <span className="inline-block text-sm md:text-base text-gray-300 font-medium tracking-wide py-1 px-3 rounded-full bg-white/5 backdrop-blur-sm">
+                    Trusted by 10,000+ users
+                  </span>
+                </div>
+                <h1 className="flex flex-col items-center font-extrabold tracking-tight mb-12">
+                  <div className="mb-6">
+                    <div className="text-4xl md:text-5xl lg:text-6xl tracking-wider leading-relaxed py-0 inline-block">
                       <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-orange-600 drop-shadow-[0_0_10px_rgba(249,115,22,0.5)] [text-shadow:_0_0_15px_rgba(249,115,22,0.3)]">
                         Stop settling for blurred pixels.
                       </span>
                     </div>
                   </div>
-                  <div className="mt-0 flex flex-col">
+                  <div className="mt-4 flex flex-col">
                     <span className="text-3xl md:text-4xl lg:text-5xl text-transparent bg-clip-text bg-gradient-to-r from-gray-100 to-white drop-shadow-[0_0_10px_rgba(255,255,255,0.5)] [text-shadow:_0_0_15px_rgba(255,255,255,0.3)]">
                       Present images that command
                     </span>
@@ -38,7 +43,7 @@ export default function HomePage() {
                     </span>
                   </div>
                 </h1>
-                <p className="max-w-2xl mx-auto text-sm md:text-base text-gray-200 mb-10 tracking-wide font-medium drop-shadow-lg text-shadow-sm">
+                <p className="max-w-2xl mx-auto text-base md:text-lg text-gray-200 mb-16 tracking-wide font-medium drop-shadow-lg text-shadow-sm px-4">
                 picluxe adds vivid detail and depth to your images, so you can showcase them with absolute confidence—no complex editing required.
                 </p>
                 <div className="flex flex-col items-center">
