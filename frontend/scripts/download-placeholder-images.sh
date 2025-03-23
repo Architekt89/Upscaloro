@@ -14,7 +14,7 @@ echo "Downloading blog post cover images..."
 for i in {1..6}
 do
   echo "Downloading post-$i.jpg..."
-  curl -L "https://picsum.photos/800/450?random=$i" -o "../public/blog/post-$i.jpg"
+  curl -L "https://picsum.photos/800/640?random=$i" -o "../public/blog/post-$i.jpg"
   sleep 1 # Avoid rate limiting
 done
 

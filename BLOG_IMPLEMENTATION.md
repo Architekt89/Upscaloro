@@ -114,7 +114,7 @@ This script checks that all required files, directories, and images are present 
 ## Image Assets
 
 The blog requires the following image assets:
-- Blog post cover images: `frontend/public/blog/post-1.jpg` through `post-6.jpg`
+- Blog post cover images: `frontend/public/blog/post-1.jpg` through `post-6.jpg` (5:4 aspect ratio)
 - Author avatars: `frontend/public/avatars/avatar-1.jpg` through `avatar-6.jpg`
 
 During development, these can be generated using the provided script:
@@ -124,4 +124,4 @@ cd frontend/scripts
 ./download-placeholder-images.sh
 ```
 
-For production, these should be replaced with actual blog post images and author photos. 
+For production, these should be replaced with actual blog post images and author photos. All blog post featured images must maintain a 5:4 aspect ratio for consistent display across the site. 

@@ -7,7 +7,7 @@ This directory is intended to store blog post images for the picluxe application
 For the blog to display correctly, you need to add the following images:
 
 1. Blog post cover images:
-   - `post-1.jpg` through `post-6.jpg` (minimum dimensions: 800x450px)
+   - `post-1.jpg` through `post-6.jpg` (minimum dimensions: 800x640px, 5:4 aspect ratio)
 
 2. Author avatars (in the `/public/avatars` directory):
    - `avatar-1.jpg` through `avatar-6.jpg` (square images, minimum 200x200px)
@@ -16,7 +16,7 @@ For the blog to display correctly, you need to add the following images:
 
 - Use high-quality, relevant images that relate to AI image upscaling, technology, or design
 - Optimize images for web (compress without significant quality loss)
-- Maintain consistent aspect ratios (16:9 for post covers, 1:1 for avatars)
+- Maintain consistent aspect ratios (5:4 for post covers, 1:1 for avatars)
 - Consider accessibility (avoid text in images where possible)
 
 ## Placeholder Images
@@ -28,7 +28,7 @@ During development, you can use placeholder image services like:
 - [Lorem Picsum](https://picsum.photos/) - Beautiful placeholder images
 
 Example usage with Lorem Picsum:
-- Blog post: `https://picsum.photos/800/450?random=1`
+- Blog post: `https://picsum.photos/800/640?random=1`
 - Avatar: `https://picsum.photos/200/200?random=1`
 
 ## Production Images

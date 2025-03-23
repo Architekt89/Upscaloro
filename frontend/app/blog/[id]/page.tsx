@@ -152,7 +152,7 @@ export default function BlogPostPage() {
           </div>
           
           {/* Featured Image */}
-          <div className="mt-8 max-w-4xl mx-auto relative h-96 w-full">
+          <div className="mt-8 max-w-4xl mx-auto relative w-full" style={{ aspectRatio: '5/4' }}>
             <Image
               src={post.coverImage}
               alt={post.title}
@@ -176,7 +176,7 @@ export default function BlogPostPage() {
                     key={relatedPost.id} 
                     className="flex flex-col rounded-lg shadow-lg overflow-hidden transition-transform duration-300 hover:transform hover:scale-[1.02] bg-gray-900/50 backdrop-blur-sm border border-gray-800/50"
                   >
-                    <div className="flex-shrink-0 relative h-48 w-full">
+                    <div className="flex-shrink-0 relative w-full" style={{ aspectRatio: '5/4' }}>
                       <Image
                         src={relatedPost.coverImage}
                         alt={relatedPost.title}
