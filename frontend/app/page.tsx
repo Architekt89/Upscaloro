@@ -7,6 +7,7 @@ import BeforeAfterSection from '@/components/BeforeAfterSection';
 import NatureEnhancementSection from '@/components/NatureEnhancementSection';
 import AnimeEnhancementSection from '@/components/AnimeEnhancementSection';
 import PortraitsEnhancementSection from '@/components/PortraitsEnhancementSection';
+import FeaturedOnSection from '@/components/FeaturedOnSection';
 import { TypewriterEffectSmooth } from '@/components/ui/typewriter-effect';
 import HeroCTAButton from '@/components/HeroCTAButton';
 
@@ -76,6 +77,13 @@ export default function HomePage() {
         {/* Pricing Section */}
         <div className="bg-black">
           <PricingSection />
+        </div>
+
+        {/* Featured On Section */}
+        <div className="bg-black py-10">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <FeaturedOnSection />
+          </div>
         </div>
 
         {/* FAQ Section */}

@@ -98,7 +98,7 @@ export default function Header() {
                 Home
               </Link>
               <Link
-                href="/models"
+                href="/features"
                 className="text-white/80 hover:text-white hover:underline underline-offset-8 decoration-orange-500 decoration-2 px-3 py-2 text-sm font-medium transition-all duration-200"
               >
                 Features
@@ -343,7 +343,7 @@ export default function Header() {
             Home
           </Link>
           <Link
-            href="/models"
+            href="/features"
             className="text-white/90 hover:text-white block px-3 py-2 rounded-md text-base font-medium"
             onClick={() => setMobileMenuOpen(false)}
           >
