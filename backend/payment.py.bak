@@ -974,7 +974,7 @@ class PaymentHandler:
                                 "status": "error",
                                 "message": f"Failed to update subscription for invoice: {invoice.id}"
                             }
-                except Exception as e:
+                    except Exception as e:
                         logger.error(f"Error processing invoice.paid: {str(e)}")
                         return {
                             "status": "error",
@@ -1170,7 +1170,7 @@ class PaymentHandler:
                                 "status": "error",
                                 "message": f"Failed to update subscription for invoice payment: {invoice.id}"
                             }
-                except Exception as e:
+                    except Exception as e:
                         logger.error(f"Error processing invoice.payment_succeeded: {str(e)}")
                         return {
                             "status": "error",
