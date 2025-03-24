@@ -248,7 +248,7 @@ class DatabaseHandler:
             return False
     
     @classmethod
-    async def upsert_subscription(cls, user_id, stripe_customer_id, stripe_subscription_id, plan, status, current_period_end, email=None, billing_cycle="monthly"):
+    async def upsert_subscription(cls, user_id, stripe_customer_id, stripe_subscription_id, plan, status, current_period_end, email=None):
         """
         Upsert a subscription record in the database
         
@@ -260,13 +260,12 @@ class DatabaseHandler:
             status (str): The subscription status
             current_period_end (datetime): The end date of the current subscription period
             email (str, optional): The user's email
-            billing_cycle (str, optional): The billing cycle (monthly or yearly)
             
         Returns:
             dict: The upserted subscription data or None if the operation failed
         """
         try:
-            logger.info(f"Upserting subscription for user: {user_id} with plan: {plan}, billing_cycle: {billing_cycle}")
+            logger.info(f"Upserting subscription for user: {user_id}")
             
             subscription_data = {
                 "user_id": user_id,  # Using user_id as a column
@@ -275,8 +274,7 @@ class DatabaseHandler:
                 "plan": plan,
                 "status": status,
                 "current_period_end": current_period_end.isoformat(),
-                "email": email,
-                "billing_cycle": billing_cycle
+                "email": email
             }
             
             # First check if a subscription already exists for this user

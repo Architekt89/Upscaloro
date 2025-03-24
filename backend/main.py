@@ -1264,27 +1264,22 @@ async def change_billing_cycle(
         if not price_id:
             raise HTTPException(status_code=400, detail="Price ID is required")
         
-        # Determine the plan from the price ID
-        from backend.payment import PaymentHandler, PRICE_TO_PLAN_MAPPING
-        
-        plan_id = PRICE_TO_PLAN_MAPPING.get(price_id, "pro")  # Default to pro if price ID is not found
-        logger.info(f"Determined plan '{plan_id}' from price ID {price_id}")
-        
-        # Create checkout session for billing cycle change
+        # Initialize the payment handler
         payment_handler = PaymentHandler()
         
-        checkout_session = await payment_handler.create_checkout_session(
-            user_id=current_user.id,
-            plan_id=plan_id,
+        # Create checkout session for billing cycle change
+        checkout_session = payment_handler.create_checkout_session(
+            customer_email=current_user.email,
+            price_id=price_id,
             success_url=success_url,
             cancel_url=cancel_url,
-            billing_cycle=billing_cycle
+            mode="subscription"
         )
         
-        if not checkout_session or checkout_session.get("status") != "success":
+        if not checkout_session or not checkout_session.get("url"):
             raise HTTPException(
                 status_code=500, 
-                detail=f"Failed to create checkout session for billing cycle change: {checkout_session.get('message', 'Unknown error')}"
+                detail="Failed to create checkout session for billing cycle change"
             )
         
         return {"url": checkout_session["url"]}
@@ -1297,75 +1292,52 @@ async def change_billing_cycle(
 async def fix_subscription_by_email(email: str):
     """
     Emergency endpoint to fix a user's subscription tier by email.
-    """
-    # Import the fix_subscription function
-    from backend.fix_subscription import fix_billing_cycle
-    
-    # Fix the subscription to Enterprise tier
-    result = await fix_billing_cycle(email, "yearly")
-    
-    if result:
-        return {"status": "success", "message": f"Successfully updated {email} to yearly billing cycle"}
-    else:
-        raise HTTPException(status_code=500, detail=f"Failed to update {email} to yearly billing cycle")
-
-@app.get("/fix-billing-cycle/{email}/{cycle}")
-async def fix_billing_cycle_endpoint(email: str, cycle: str):
-    """
-    Emergency endpoint to fix a user's billing cycle by email.
-    
-    Args:
-        email: The user's email address
-        cycle: The billing cycle (yearly or monthly)
-    """
-    if cycle not in ["yearly", "monthly"]:
-        raise HTTPException(status_code=400, detail="Billing cycle must be 'yearly' or 'monthly'")
-    
-    # Import the fix_subscription function
-    from backend.fix_subscription import fix_billing_cycle
-    
-    # Fix the subscription billing cycle
-    result = await fix_billing_cycle(email, cycle)
-    
-    if result:
-        return {"status": "success", "message": f"Successfully updated {email} to {cycle} billing cycle"}
-    else:
-        raise HTTPException(status_code=500, detail=f"Failed to update {email} to {cycle} billing cycle")
-
-@app.get("/api/debug/subscription/{email}")
-async def debug_subscription(email: str):
-    """
-    Debug endpoint to check a user's subscription details.
-    This is only for debugging purposes and should be removed in production.
+    This will immediately set their tier to enterprise.
     """
     try:
-        logger.info(f"Retrieving subscription details for debugging: {email}")
+        logger.info(f"Emergency subscription fix requested for user {email}")
         
-        # Get the user
-        user = await DatabaseHandler.get_user_by_email(email)
+        # Find the user in the database
+        handler = DatabaseHandler()
+        user = await handler.get_user_by_email(email)
+        
         if not user:
-            raise HTTPException(status_code=404, detail=f"User with email {email} not found")
+            logger.error(f"User with email {email} not found")
+            return JSONResponse(
+                status_code=404,
+                content={"error": f"User with email {email} not found"}
+            )
         
         user_id = user.get("id")
         
-        # Get their subscription details
-        subscription = await DatabaseHandler.get_subscription(user_id)
+        # Force upgrade to enterprise
+        payment_handler = PaymentHandler()
+        result = await payment_handler.force_upgrade_to_enterprise(user_id, email)
         
-        # Return the data
-        return {
-            "user": {
-                "id": user.get("id"),
-                "email": user.get("email"),
-                "subscription_tier": user.get("subscription_tier"),
-                "subscription_status": user.get("subscription_status"),
-                "subscription_current_period_end": user.get("subscription_current_period_end")
-            },
-            "subscription": subscription
-        }
-        
+        if result:
+            logger.info(f"Successfully upgraded {email} to enterprise tier")
+            return JSONResponse(
+                content={
+                    "success": True,
+                    "message": f"Successfully upgraded {email} to enterprise tier"
+                }
+            )
+        else:
+            logger.error(f"Failed to upgrade {email} to enterprise tier")
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "success": False,
+                    "error": f"Failed to upgrade {email} to enterprise tier"
+                }
+            )
+            
     except Exception as e:
-        logger.error(f"Error getting subscription details: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error fixing subscription: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Error fixing subscription: {str(e)}"}
+        )
 
 if __name__ == "__main__":
     import uvicorn

@@ -52,9 +52,6 @@ ANNUAL_PRICE_IDS = {
     "enterprise_annual": "price_1R1UXlBQ1z6vW0DwMaBDmKaZ"  # Annual Enterprise plan price ID
 }
 
-# Create a list of all annual price IDs for easy lookup
-ANNUAL_PRICE_ID_LIST = list(ANNUAL_PRICE_IDS.values())
-
 # Add reversed mapping from price ID to plan for lookup
 PRICE_TO_PLAN_MAPPING = {}
 for plan, price_id in SUBSCRIPTION_PLANS.items():
@@ -94,25 +91,11 @@ class PaymentHandler:
         stripe.api_key = stripe_api_key
         
     @staticmethod
-    def is_annual_plan(price_id: str) -> bool:
-        """
-        Determine if a price ID corresponds to an annual plan.
-        
-        Args:
-            price_id: The Stripe price ID
-            
-        Returns:
-            bool: True if the price ID is for an annual plan, False otherwise
-        """
-        return price_id in ANNUAL_PRICE_ID_LIST
-        
-    @staticmethod
     async def create_checkout_session(
         user_id: str,
         plan_id: str,
         success_url: str,
-        cancel_url: str,
-        billing_cycle: str = "monthly"
+        cancel_url: str
     ) -> Dict[str, Any]:
         """
         Create a Stripe checkout session for a subscription plan.
@@ -122,7 +105,6 @@ class PaymentHandler:
             plan_id: The subscription plan ID
             success_url: The URL to redirect to on successful payment
             cancel_url: The URL to redirect to on cancellation
-            billing_cycle: The billing cycle (monthly or yearly)
             
         Returns:
             Dict[str, Any]: Result of the operation
@@ -138,32 +120,21 @@ class PaymentHandler:
                 
             # Normalize the plan ID to lowercase
             plan_id = plan_id.lower()
-            logger.info(f"Creating checkout session for user {user_id} and plan {plan_id} with billing cycle {billing_cycle}")
+            logger.info(f"Creating checkout session for user {user_id} and plan {plan_id}")
             
-            # Set up price ID based on plan and billing cycle
-            if billing_cycle == "yearly":
-                if plan_id == "enterprise":
-                    price_id = ANNUAL_PRICE_IDS["enterprise_annual"]
-                    logger.info(f"Enterprise annual plan selected, using price_id: {price_id}")
-                elif plan_id == "pro":
-                    price_id = ANNUAL_PRICE_IDS["pro_annual"]
-                    logger.info(f"Pro annual plan selected, using price_id: {price_id}")
-                else:
-                    logger.error(f"Unexpected plan ID for annual billing: {plan_id}, defaulting to Pro annual")
-                    price_id = ANNUAL_PRICE_IDS["pro_annual"]
+            # Set up price ID based on plan
+            # The most critical part - ensure Enterprise tier is correctly mapped
+            if plan_id == "enterprise":
+                # Always use the explicit Enterprise price ID
+                price_id = "price_1R1UWzBQ1z6vW0DwRDLKndlG"  # Monthly Enterprise price ID
+                logger.info(f"Enterprise plan selected, using Enterprise price_id: {price_id}")
+            elif plan_id == "pro":
+                # Pro tier price ID
+                price_id = "price_1R1UVUBQ1z6vW0DwWfGtyIW0"  # Monthly Pro price ID
+                logger.info(f"Pro plan selected, using Pro price_id: {price_id}")
             else:
-                # Monthly billing
-                if plan_id == "enterprise":
-                    # Always use the explicit Enterprise price ID
-                    price_id = "price_1R1UWzBQ1z6vW0DwRDLKndlG"  # Monthly Enterprise price ID
-                    logger.info(f"Enterprise plan selected, using Enterprise price_id: {price_id}")
-                elif plan_id == "pro":
-                    # Pro tier price ID
-                    price_id = "price_1R1UVUBQ1z6vW0DwWfGtyIW0"  # Monthly Pro price ID
-                    logger.info(f"Pro plan selected, using Pro price_id: {price_id}")
-                else:
-                    logger.error(f"Unexpected plan ID: {plan_id}, defaulting to Pro")
-                    price_id = "price_1R1UVUBQ1z6vW0DwWfGtyIW0"  # Default to Pro
+                logger.error(f"Unexpected plan ID: {plan_id}, defaulting to Pro")
+                price_id = "price_1R1UVUBQ1z6vW0DwWfGtyIW0"  # Default to Pro
             
             # Create the checkout session with metadata to track the plan
             checkout_session = stripe.checkout.Session.create(
@@ -177,7 +148,7 @@ class PaymentHandler:
                 metadata={
                     "user_id": user_id,
                     "plan_id": plan_id,  # Store the intended plan in metadata
-                    "billing_cycle": billing_cycle
+                    "billing_cycle": "monthly"
                 }
             )
             
@@ -423,11 +394,6 @@ class PaymentHandler:
                 if subscription.items and subscription.items.data:
                     price_id = subscription.items.data[0].price.id
                     
-                    # Determine if this is an annual plan
-                    is_annual = PaymentHandler.is_annual_plan(price_id)
-                    billing_cycle = "yearly" if is_annual else "monthly"
-                    logger.info(f"Price ID {price_id} corresponds to billing cycle: {billing_cycle}")
-                    
                     # Find the plan ID that corresponds to this price ID
                     plan_id = None
                     
@@ -533,7 +499,6 @@ class PaymentHandler:
                     "subscription_status": status,
                     "subscription_price_id": price_id,
                     "subscription_current_period_end": datetime.fromtimestamp(current_period_end).isoformat(),
-                    "subscription_billing_cycle": billing_cycle,  # Add billing cycle information
                     "updated_at": datetime.now().isoformat()
                 }
                 
@@ -553,8 +518,7 @@ class PaymentHandler:
                     plan=plan_id or "pro",  # Default to pro if plan_id is not found
                     status=status,
                     current_period_end=datetime.fromtimestamp(current_period_end),
-                    email=customer_email,
-                    billing_cycle=billing_cycle  # Add billing cycle information
+                    email=customer_email
                 )
                 
                 if updated_user and subscription_result:
@@ -584,11 +548,6 @@ class PaymentHandler:
                 # Get the price ID and plan ID from the subscription
                 if subscription.items and subscription.items.data:
                     price_id = subscription.items.data[0].price.id
-                    
-                    # Determine if this is an annual plan
-                    is_annual = PaymentHandler.is_annual_plan(price_id)
-                    billing_cycle = "yearly" if is_annual else "monthly"
-                    logger.info(f"Price ID {price_id} corresponds to billing cycle: {billing_cycle}")
                     
                     # Find the plan ID that corresponds to this price ID
                     plan_id = None
@@ -695,7 +654,6 @@ class PaymentHandler:
                         "subscription_status": status,
                         "subscription_price_id": price_id,
                         "subscription_current_period_end": datetime.fromtimestamp(current_period_end).isoformat(),
-                        "subscription_billing_cycle": billing_cycle,  # Add billing cycle information
                         "updated_at": datetime.now().isoformat()
                     }
                     
@@ -715,8 +673,7 @@ class PaymentHandler:
                         plan=plan_id or "pro",  # Default to pro if plan_id is not found
                         status=status,
                         current_period_end=datetime.fromtimestamp(current_period_end),
-                        email=customer_email,
-                        billing_cycle=billing_cycle  # Add billing cycle information
+                        email=customer_email
                     )
                     
                     if updated_user and subscription_result:
@@ -771,7 +728,6 @@ class PaymentHandler:
                         "subscription_tier": "free",  # Downgrade to free tier
                         "subscription_status": "canceled",
                         "subscription_current_period_end": datetime.fromtimestamp(subscription.current_period_end).isoformat(),
-                        "subscription_billing_cycle": "monthly",  # Downgrade to monthly billing cycle
                         "updated_at": datetime.now().isoformat()
                     }
                     
@@ -785,8 +741,7 @@ class PaymentHandler:
                         plan="free",  # Downgrade to free tier
                         status="canceled",
                         current_period_end=datetime.fromtimestamp(subscription.current_period_end),
-                        email=customer_email,
-                        billing_cycle="monthly"  # Downgrade to monthly billing cycle
+                        email=customer_email
                     )
                     
                     if updated_user and subscription_result:
@@ -833,11 +788,6 @@ class PaymentHandler:
                     # Get the price ID from the subscription
                     if subscription.items and subscription.items.data:
                         price_id = subscription.items.data[0].price.id
-                        
-                        # Determine if this is an annual plan
-                        is_annual = PaymentHandler.is_annual_plan(price_id)
-                        billing_cycle = "yearly" if is_annual else "monthly"
-                        logger.info(f"Price ID {price_id} corresponds to billing cycle: {billing_cycle}")
                         
                         # Find the plan ID that corresponds to this price ID
                         plan_id = None
@@ -945,11 +895,6 @@ class PaymentHandler:
                         # Update the subscription in the database
                         from backend.database import DatabaseHandler
                         
-                        # Determine if this is an annual plan
-                        is_annual = PaymentHandler.is_annual_plan(price_id)
-                        billing_cycle = "yearly" if is_annual else "monthly"
-                        logger.info(f"Price ID {price_id} corresponds to billing cycle: {billing_cycle}")
-                        
                         # Upsert the subscription record
                         subscription_result = await DatabaseHandler.upsert_subscription(
                             user_id=user_id,
@@ -958,8 +903,7 @@ class PaymentHandler:
                             plan=plan_id,
                             status=status,
                             current_period_end=datetime.fromtimestamp(current_period_end),
-                            email=customer_email,
-                            billing_cycle=billing_cycle  # Add billing cycle information
+                            email=customer_email
                         )
                         
                         if subscription_result:
@@ -974,7 +918,7 @@ class PaymentHandler:
                                 "status": "error",
                                 "message": f"Failed to update subscription for invoice: {invoice.id}"
                             }
-                except Exception as e:
+                    except Exception as e:
                         logger.error(f"Error processing invoice.paid: {str(e)}")
                         return {
                             "status": "error",
@@ -1029,11 +973,6 @@ class PaymentHandler:
                     # Get the price ID from the subscription
                     if subscription.items and subscription.items.data:
                         price_id = subscription.items.data[0].price.id
-                        
-                        # Determine if this is an annual plan
-                        is_annual = PaymentHandler.is_annual_plan(price_id)
-                        billing_cycle = "yearly" if is_annual else "monthly"
-                        logger.info(f"Price ID {price_id} corresponds to billing cycle: {billing_cycle}")
                         
                         # Find the plan ID that corresponds to this price ID
                         plan_id = None
@@ -1141,11 +1080,6 @@ class PaymentHandler:
                         # Update the subscription in the database
                         from backend.database import DatabaseHandler
                         
-                        # Determine if this is an annual plan
-                        is_annual = PaymentHandler.is_annual_plan(price_id)
-                        billing_cycle = "yearly" if is_annual else "monthly"
-                        logger.info(f"Price ID {price_id} corresponds to billing cycle: {billing_cycle}")
-                        
                         # Upsert the subscription record
                         subscription_result = await DatabaseHandler.upsert_subscription(
                             user_id=user_id,
@@ -1154,8 +1088,7 @@ class PaymentHandler:
                             plan=plan_id,
                             status=status,
                             current_period_end=datetime.fromtimestamp(current_period_end),
-                            email=customer_email,
-                            billing_cycle=billing_cycle  # Add billing cycle information
+                            email=customer_email
                         )
                         
                         if subscription_result:
@@ -1170,7 +1103,7 @@ class PaymentHandler:
                                 "status": "error",
                                 "message": f"Failed to update subscription for invoice payment: {invoice.id}"
                             }
-                except Exception as e:
+                    except Exception as e:
                         logger.error(f"Error processing invoice.payment_succeeded: {str(e)}")
                         return {
                             "status": "error",
