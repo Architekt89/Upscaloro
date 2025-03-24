@@ -286,10 +286,48 @@ class BillingHandler:
                     detail=f"Invalid plan ID: {plan_id}"
                 )
             
+            # Get the current user data to check their current plan
+            from backend.database import DatabaseHandler
+            user = await DatabaseHandler.get_user(user_id)
+            current_plan = user.get("subscription_tier", "free") if user else "free"
+            
+            logger.info(f"Upgrading user {user_id} from {current_plan} to {plan_id}")
+            
+            # For Enterprise upgrades, ensure we use force_upgrade_to_enterprise to guarantee success
+            if plan_id == "enterprise":
+                logger.info(f"🔒 Enterprise upgrade detected, using force_upgrade_to_enterprise")
+                from backend.payment import PaymentHandler
+                force_result = await PaymentHandler.force_upgrade_to_enterprise(
+                    user_id=user_id,
+                    customer_email=user.get("email") if user else None
+                )
+                
+                if force_result:
+                    logger.info(f"✅ Successfully forced upgrade to Enterprise for user {user_id}")
+                    
+                    # Return success response with enterprise plan details
+                    plan = SUBSCRIPTION_PLANS[plan_id]
+                    return {
+                        "success": True,
+                        "message": f"Subscription upgraded to {plan.name} plan",
+                        "plan": {
+                            "id": plan.id,
+                            "name": plan.name,
+                            "price": plan.price,
+                            "interval": plan.interval,
+                            "features": plan.features,
+                            "limits": plan.limits
+                        }
+                    }
+                else:
+                    logger.error(f"❌ Failed to force upgrade to Enterprise for user {user_id}")
+                    raise Exception("Failed to upgrade to Enterprise plan")
+            
+            # For non-enterprise plans, proceed with normal flow
+            plan = SUBSCRIPTION_PLANS[plan_id]
+            
             # This is a mock implementation
             # In a real app, you would update the subscription in Stripe and your database
-            
-            plan = SUBSCRIPTION_PLANS[plan_id]
             
             return {
                 "success": True,
@@ -463,6 +501,25 @@ class BillingHandler:
                 logger.error(f"Invalid plan ID: {plan_id}. Available plans: {list(SUBSCRIPTION_PLANS.keys())}")
                 raise ValueError(f"Invalid plan ID: {plan_id}")
             
+            # Special handling for Enterprise plans
+            if plan_id == "enterprise":
+                logger.info(f"🔒 Creating checkout session for Enterprise plan")
+                # Define known Enterprise price IDs for validation
+                ENTERPRISE_PRICE_IDS = {
+                    "monthly": "price_1R1UWzBQ1z6vW0DwRDLKndlG",
+                    "yearly": "price_1R1UXlBQ1z6vW0DwMaBDmKaZ"
+                }
+                
+                # Determine correct enterprise price ID based on billing cycle
+                expected_price_id = ENTERPRISE_PRICE_IDS.get(billing_cycle, ENTERPRISE_PRICE_IDS["monthly"])
+                
+                # Validate the price ID if it doesn't match the expected value
+                if price_id != expected_price_id:
+                    logger.warning(f"⚠️ Price ID {price_id} doesn't match expected enterprise price ID {expected_price_id} for {billing_cycle} billing")
+                    # Override with correct enterprise price ID to ensure proper plan assignment
+                    logger.info(f"🔄 Using expected enterprise price ID instead: {expected_price_id}")
+                    price_id = expected_price_id
+            
             # Create a checkout session
             checkout_session = stripe.checkout.Session.create(
                 payment_method_types=["card"],
@@ -484,18 +541,19 @@ class BillingHandler:
             
             logger.info(f"Checkout session created with ID: {checkout_session.id}")
             return {
+                "status": "success",
                 "session_id": checkout_session.id,
                 "url": checkout_session.url,
             }
         except stripe.error.StripeError as e:
             logger.error(f"Stripe error creating checkout session: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Stripe error: {str(e)}"
-            )
+            return {
+                "status": "error",
+                "message": f"Stripe error: {str(e)}"
+            }
         except Exception as e:
             logger.error(f"Error creating checkout session: {str(e)}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Error creating checkout session: {str(e)}"
-            ) 
+            return {
+                "status": "error",
+                "message": f"Error creating checkout session: {str(e)}"
+            } 

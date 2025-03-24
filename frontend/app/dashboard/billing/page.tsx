@@ -18,6 +18,7 @@ import {
 import BackendDebug from './debug';
 import axios from 'axios';
 import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 
 // Mock data for demonstration
 const mockSubscriptionData = {
@@ -605,6 +606,23 @@ export default function BillingPage() {
     }
   };
 
+  const handleUpgradeToEnterprise = async () => {
+    try {
+      const result = await updateSubscription('enterprise');
+      if (result.success) {
+        toast.success(result.message || 'Subscription upgraded to Enterprise successfully');
+        // Refresh billing data
+        const billingData = await getBillingInfo();
+        if (billingData) {
+          setSubscription(billingData.subscription || mockSubscriptionData);
+        }
+      }
+    } catch (error) {
+      console.error('Error upgrading to Enterprise subscription:', error);
+      toast.error('Failed to upgrade to Enterprise subscription');
+    }
+  };
+
   const handleCancel = async () => {
     try {
       const result = await cancelSubscription();
@@ -850,12 +868,35 @@ export default function BillingPage() {
                 </p>
               </div>
               <div className="mt-4 md:mt-0 space-x-3">
-                <button 
-                  onClick={handleUpgrade}
-                  className="px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg shadow-sm hover:from-orange-600 hover:to-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-gray-900"
-                >
-                  Upgrade Plan
-                </button>
+                {subscription?.plan === 'pro' && (
+                  <div className="mb-6">
+                    <Button 
+                      onClick={handleUpgradeToEnterprise} 
+                      variant="default" 
+                      className="w-full md:w-auto bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700"
+                    >
+                      Upgrade to Enterprise
+                    </Button>
+                  </div>
+                )}
+                {subscription?.plan === 'free' && (
+                  <div className="mb-6 flex flex-col md:flex-row gap-4">
+                    <Button 
+                      onClick={handleUpgrade} 
+                      variant="default" 
+                      className="w-full md:w-auto bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700"
+                    >
+                      Upgrade to Pro
+                    </Button>
+                    <Button 
+                      onClick={handleUpgradeToEnterprise} 
+                      variant="outline" 
+                      className="w-full md:w-auto"
+                    >
+                      Upgrade to Enterprise
+                    </Button>
+                  </div>
+                )}
                 <button 
                   onClick={handleCancel}
                   className="px-4 py-2 border border-gray-600 text-gray-300 rounded-lg shadow-sm hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-900"

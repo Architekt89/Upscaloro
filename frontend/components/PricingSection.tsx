@@ -102,7 +102,7 @@ export default function PricingSection() {
   // Get auth context with refreshUser
   const { user, loading: authLoading, refreshUser, session } = useAuth();
   const [sessionChecked, setSessionChecked] = useState(false);
-  const [userPlan, setUserPlan] = useState<string>("free"); // Default to free plan
+  const [userPlan, setUserPlan] = useState<string>("free");
   const [allowUnauthCheckout, setAllowUnauthCheckout] = useState(false);
 
   // Check session status on component mount
@@ -216,6 +216,8 @@ export default function PricingSection() {
   useEffect(() => {
     const success = searchParams.get('success');
     const plan = searchParams.get('plan');
+    const checkoutSuccess = searchParams.get('checkout_success');
+    const sessionId = searchParams.get('session_id');
     
     if (success === 'true' && plan) {
       toast.success(`Successfully upgraded to ${plan.charAt(0).toUpperCase() + plan.slice(1)} plan!`);
@@ -225,93 +227,159 @@ export default function PricingSection() {
       
       // Refresh the user's plan
       fetchUserPlan();
+    } else if (checkoutSuccess === 'true' || sessionId) {
+      // Additional verification for Stripe checkout success
+      if (user) {
+        // Show immediate feedback
+        toast.success("Processing your upgrade...");
+        
+        // First check if we have a session ID from the URL
+        const verifySessionId = sessionId || searchParams.get('session_id');
+        
+        const verifyUpgrade = async () => {
+          try {
+            const backendUrl = "https://upscaloro.onrender.com";
+            const headers: Record<string, string> = {
+              "Content-Type": "application/json",
+            };
+            
+            if (session?.access_token) {
+              headers["Authorization"] = `Bearer ${session.access_token}`;
+            }
+            
+            // Use the new session verification endpoint if we have a session ID
+            if (verifySessionId) {
+              console.log(`Verifying checkout session: ${verifySessionId}`);
+              const sessionResponse = await fetch(`${backendUrl}/api/verify-checkout/${verifySessionId}`, {
+                method: "GET",
+                headers
+              });
+              
+              if (sessionResponse.ok) {
+                const sessionData = await sessionResponse.json();
+                console.log("Session verification data:", sessionData);
+                
+                if (sessionData.payment_status === "paid" && sessionData.status === "complete") {
+                  const planId = sessionData.plan_id;
+                  
+                  if (planId === "enterprise") {
+                    toast.success("Successfully upgraded to Enterprise plan!");
+                  } else if (planId === "pro") {
+                    toast.success("Successfully upgraded to Pro plan!");
+                  } else {
+                    toast.success("Your subscription was updated successfully!");
+                  }
+                  
+                  // Check if a force upgrade was applied
+                  if (sessionData.upgrade_action === "forced_upgrade_to_enterprise") {
+                    console.log("Force upgrade was applied:", sessionData.upgrade_result);
+                  }
+                  
+                  // Refresh the user's plan data after confirmation
+                  fetchUserPlan();
+                  return;
+                } else {
+                  console.warn("Session verification shows incomplete payment:", sessionData);
+                  toast.error("Your payment is being processed. It may take a moment to reflect in your account.");
+                }
+              } else {
+                console.error("Error verifying session:", await sessionResponse.text());
+              }
+            }
+            
+            // Fallback to standard subscription check
+            console.log("Using fallback subscription check");
+            const response = await fetch(`${backendUrl}/api/subscription/check`, {
+              method: "GET",
+              headers,
+            });
+            
+            if (response.ok) {
+              const data = await response.json();
+              
+              // Check if the user has an Enterprise subscription
+              if (data.is_enterprise) {
+                toast.success("Successfully upgraded to Enterprise plan!");
+              } else if (data.is_pro) {
+                toast.success("Successfully upgraded to Pro plan!");
+              } else {
+                toast.success("Your subscription was updated!");
+              }
+              
+              // Refresh the user's plan data
+              fetchUserPlan();
+            } else {
+              // If verification fails, still try to refresh user data
+              console.error("Error checking subscription status:", await response.text());
+              fetchUserPlan();
+            }
+          } catch (error) {
+            console.error("Error verifying subscription:", error);
+            // If verification fails, still try to refresh user data
+            fetchUserPlan();
+          }
+        };
+        
+        // Wait a short time for database updates to propagate
+        setTimeout(verifyUpgrade, 2000); // Wait 2 seconds before checking
+      }
+      
+      // Clear the URL parameters regardless
+      router.replace('/pricing');
     }
-  }, [searchParams, router, fetchUserPlan]);
+  }, [searchParams, router, fetchUserPlan, user, session]);
 
   const handleBillingToggle = (cycle: 'monthly' | 'annual') => {
     setBillingCycle(cycle);
   };
 
   const handlePlanSelect = async (plan: PricingPlan) => {
-    // If user is not logged in and unauthenticated checkout is not allowed, redirect to sign up
+    // If user is not logged in and we don't allow unauthenticated checkout, show login prompt
     if (!user && !allowUnauthCheckout) {
-      router.push('/auth/signin');
+      setShowLoginPrompt(true);
       return;
     }
 
-    // Special handling for switching current plan to annual billing
-    if (user && plan.id === userPlan && billingCycle === 'annual' && getButtonText(plan) === "Switch to annual billing") {
-      try {
-        setLoadingPlan(plan.id);
-        
-        // Use the annual price ID
-        const priceId = plan.annualPriceId;
-        
-        // Prepare headers with Authorization token
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-        };
-        
-        if (user && session?.access_token) {
-          headers["Authorization"] = `Bearer ${session.access_token}`;
+    // Special handling for Enterprise plan upgrades
+    if (plan.id === "enterprise") {
+      // Log extra details for enterprise upgrade tracking
+      console.log("🔒 ENTERPRISE UPGRADE REQUEST:");
+      console.log(`User ID: ${user?.id || 'anonymous'}`);
+      console.log(`Current Plan: ${userPlan || 'none'}`);
+      console.log(`Requested Plan: ${plan.id}`);
+      console.log(`Billing Cycle: ${billingCycle}`);
+      
+      // If upgrading from Free or Pro, handle differently based on current plan
+      if (userPlan === "free" || userPlan === "pro") {
+        try {
+          setLoadingPlan(plan.id);
+          
+          // Determine billing cycle and price ID based on period
+          const cycleType = billingCycle === 'annual' ? 'yearly' : 'monthly';
+          // Use the appropriate property based on billing cycle
+          const priceId = cycleType === 'yearly' ? plan.annualPriceId : plan.monthlyPriceId;
+          
+          // Log the enterprise upgrade details
+          console.log("🔒 ENTERPRISE UPGRADE DETAILS (Direct):");
+          console.log(`Plan ID: ${plan.id}`);
+          console.log(`Price ID: ${priceId}`);
+          console.log(`Billing Cycle: ${cycleType}`);
+          
+          // For Enterprise upgrades, prefer using Stripe checkout directly
+          // Skip the direct API update attempt which is causing issues
+          console.log("Using Stripe checkout flow for Enterprise plan upgrade");
+          await proceedWithCheckoutSession(plan, cycleType, priceId);
+          return;
+        } catch (error) {
+          console.error("Error upgrading to Enterprise:", error);
+          toast.error("Failed to upgrade to Enterprise plan. Please try again.");
+          setLoadingPlan("");
         }
-        
-        // Call the backend to update the subscription to annual billing
-        const backendUrl = "https://upscaloro.onrender.com";
-        let response = await fetch(`${backendUrl}/billing/change-billing-cycle`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            price_id: priceId,
-            billing_cycle: 'yearly',
-            success_url: `${window.location.origin}/dashboard/billing?checkout_success=true&billing_changed=true`,
-            cancel_url: `${window.location.origin}/pricing?checkout_canceled=true`
-          })
-        });
-
-        if (!response.ok) {
-          const data = await response.json();
-          throw new Error(data.error || "Failed to change billing cycle");
-        }
-
-        const { url } = await response.json();
-        
-        // Redirect to Stripe Checkout or billing portal
-        if (url) {
-          window.location.href = url;
-        } else {
-          throw new Error("No URL returned for billing change");
-        }
-        return;
-      } catch (error) {
-        console.error("Error switching to annual billing:", error);
-        toast.error(`Error: ${error instanceof Error ? error.message : "Failed to process your request"}`);
-        setLoadingPlan(null);
         return;
       }
     }
 
-    // If the user already has this plan, show a message
-    if (user && plan.id === userPlan) {
-      toast.success("You're already on this plan!");
-      return;
-    }
-
-    // Handle downgrade scenarios
-    if (user && (
-      (userPlan === "enterprise" && (plan.id === "pro" || plan.id === "free")) ||
-      (userPlan === "pro" && plan.id === "free")
-    )) {
-      toast.success("Please contact our support team to downgrade your plan");
-      return;
-    }
-
-    // Handle cancellation (current plan is not free, and selected plan is free)
-    if (user && plan.id === "free" && userPlan !== "free") {
-      toast.success("Please contact our support team to cancel your subscription");
-      return;
-    }
-
+    // For non-Enterprise upgrades or when other conditions aren't met
     // Regular checkout process for new or upgraded plans
     try {
       setLoadingPlan(plan.id);
@@ -321,63 +389,82 @@ export default function PricingSection() {
       // Use the appropriate property based on billing cycle
       const priceId = cycleType === 'yearly' ? plan.annualPriceId : plan.monthlyPriceId;
       
-      // Prepare headers with Authorization token if user is logged in
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      
-      // Add Authorization header with Bearer token if user is logged in
-      if (user && session?.access_token) {
-        headers["Authorization"] = `Bearer ${session.access_token}`;
-        console.log("Adding auth token to checkout request");
-      } else {
-        console.log("No auth token available for checkout request");
+      // Log the upgrade details for debugging
+      if (plan.id === "enterprise") {
+        console.log("🔒 ENTERPRISE UPGRADE DETAILS:");
+        console.log(`Plan ID: ${plan.id}`);
+        console.log(`Price ID: ${priceId}`);
+        console.log(`Billing Cycle: ${cycleType}`);
       }
       
-      // Fix the URL construction
-      const backendUrl = "https://upscaloro.onrender.com";
-      let response = await fetch(`${backendUrl}/billing/create-checkout-session`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          plan_id: plan.id,
-          price_id: priceId,
-          billing_cycle: cycleType,
-          success_url: `${window.location.origin}/dashboard/billing?checkout_success=true`,
-          cancel_url: `${window.location.origin}/pricing?checkout_canceled=true`,
-          skip_auth: !user && allowUnauthCheckout
-        })
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        console.error("Checkout error:", data);
-        
-        // If not authorized, prompt user to log in again
-        if (response.status === 401) {
-          toast.error(data.error || "Authentication failed. Please log in again.");
-          setTimeout(() => {
-            refreshUser();
-          }, 2000);
-          return;
-        }
-        
-        throw new Error(data.error || "Failed to create checkout session");
-      }
-
-      const { url } = await response.json();
-      
-      // Redirect to Stripe Checkout
-      if (url) {
-        window.location.href = url;
-      } else {
-        throw new Error("No checkout URL returned");
-      }
+      await proceedWithCheckoutSession(plan, cycleType, priceId);
     } catch (error) {
-      console.error("Error handling plan selection:", error);
-      toast.error(`Error: ${error instanceof Error ? error.message : "Failed to process your request"}`);
-    } finally {
-      setLoadingPlan(null);
+      console.error("Error processing plan selection:", error);
+      toast.error("Failed to process plan selection. Please try again.");
+      setLoadingPlan("");
+    }
+  };
+
+  // Helper function to proceed with checkout session
+  const proceedWithCheckoutSession = async (plan: PricingPlan, cycleType: string, priceId: string | undefined) => {
+    if (!priceId) {
+      console.error("No valid price ID found");
+      toast.error("Error: Could not find a valid price for this plan.");
+      setLoadingPlan("");
+      return;
+    }
+    
+    // Prepare headers with Authorization token if user is logged in
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    
+    // Add Authorization header with Bearer token if user is logged in
+    if (user && session?.access_token) {
+      headers["Authorization"] = `Bearer ${session.access_token}`;
+      console.log("Adding auth token to checkout request");
+    } else {
+      console.log("No auth token available for checkout request");
+    }
+    
+    // Fix the URL construction
+    const backendUrl = "https://upscaloro.onrender.com";
+    let response = await fetch(`${backendUrl}/billing/create-checkout-session`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        plan_id: plan.id,
+        price_id: priceId,
+        billing_cycle: cycleType,
+        success_url: `${window.location.origin}/dashboard/billing?checkout_success=true`,
+        cancel_url: `${window.location.origin}/pricing?checkout_canceled=true`,
+        skip_auth: !user && allowUnauthCheckout
+      })
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      console.error("Checkout error:", data);
+      
+      // If not authorized, prompt user to log in again
+      if (response.status === 401) {
+        toast.error(data.error || "Authentication failed. Please log in again.");
+        setTimeout(() => {
+          refreshUser();
+        }, 2000);
+        return;
+      }
+      
+      throw new Error(data.error || "Failed to create checkout session");
+    }
+
+    const { url } = await response.json();
+    
+    // Redirect to Stripe Checkout
+    if (url) {
+      window.location.href = url;
+    } else {
+      throw new Error("No checkout URL returned");
     }
   };
 
