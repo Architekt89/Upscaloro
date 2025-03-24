@@ -46,36 +46,31 @@ if not SUBSCRIPTION_PLANS.get("pro"):
 if not SUBSCRIPTION_PLANS.get("enterprise"):
     SUBSCRIPTION_PLANS["enterprise"] = "price_1R1UWzBQ1z6vW0DwRDLKndlG"  # Monthly Enterprise plan price ID
 
-# Add annual price IDs too
-ANNUAL_PRICE_IDS = {
-    "pro_annual": "price_1R1UW3BQ1z6vW0DwI11S9tAu",      # Annual Pro plan price ID
-    "enterprise_annual": "price_1R1UXlBQ1z6vW0DwMaBDmKaZ"  # Annual Enterprise plan price ID
-}
-
 # Add reversed mapping from price ID to plan for lookup
 PRICE_TO_PLAN_MAPPING = {}
 for plan, price_id in SUBSCRIPTION_PLANS.items():
     PRICE_TO_PLAN_MAPPING[price_id] = plan
 
-# Add annual price IDs to the mapping as well
-for plan_key, price_id in ANNUAL_PRICE_IDS.items():
-    base_plan = plan_key.split('_')[0]  # Extract 'pro' or 'enterprise' from 'pro_annual'
-    PRICE_TO_PLAN_MAPPING[price_id] = base_plan
-
-# Log the price to plan mapping for debugging
-logger.info(f"Price to plan mapping: {PRICE_TO_PLAN_MAPPING}")
-
-# List of known enterprise users who should always be upgraded to enterprise
-ENTERPRISE_USERS = [
-    "anna.biel89@outlook.com",
-    "simballo@outlook.com",
-]
+# Also add the annual price IDs
+PRICE_TO_PLAN_MAPPING["price_1R1UWMBQ1z6vW0DwRkcoXWT7"] = "pro"  # Annual Pro plan
+PRICE_TO_PLAN_MAPPING["price_1R1UXlBQ1z6vW0DwMaBDmKaZ"] = "enterprise"  # Annual Enterprise plan
 
 # Known Enterprise price IDs (hardcoded for reliability)
 ENTERPRISE_PRICE_IDS = [
     "price_1R1UWzBQ1z6vW0DwRDLKndlG",  # Monthly Enterprise
     "price_1R1UXlBQ1z6vW0DwMaBDmKaZ",  # Annual Enterprise
 ]
+
+# Emergency whitelist for users who should be on Enterprise plan
+ENTERPRISE_USERS = [
+    "anna.biel89@outlook.com",
+    "beauve-ra@outlook.com",
+    "simballo@outlook.com",
+]
+
+# Log available plans
+logger.info(f"Available Stripe subscription plans: {SUBSCRIPTION_PLANS}")
+logger.info(f"Price ID to Plan mapping: {PRICE_TO_PLAN_MAPPING}")
 
 # API usage pricing
 API_USAGE_PRICE_ID = os.getenv("STRIPE_API_USAGE_PRICE_ID", "price_0987654321")
@@ -86,10 +81,6 @@ class PaymentHandler:
     Handles Stripe payments and subscriptions.
     """
     
-    def __init__(self):
-        # Initialize Stripe API key
-        stripe.api_key = stripe_api_key
-        
     @staticmethod
     async def create_checkout_session(
         user_id: str,
@@ -284,33 +275,16 @@ class PaymentHandler:
                             logger.info(f"✅ Enterprise plan confirmed from price amount: {price_amount}")
                         
                         # Method 4: Check the product name
-                        product_name = subscription.items.data[0].price.product
+                        product_id = subscription.items.data[0].price.product
                         try:
-                            product = stripe.Product.retrieve(product_name)
-                            product_description = product.name
-                            logger.info(f"Product name for plan detection: {product_description}")
+                            product = stripe.Product.retrieve(product_id)
+                            logger.info(f"Product name: {product.name}, ID: {product_id}")
                             
-                            # Logic to determine the plan based on product name/description
-                            if "enterprise" in product_description.lower():
-                                logger.info("✅ Product name contains 'enterprise', setting plan to enterprise")
-                                plan_id = "enterprise"
-                                # Force upgrade to enterprise for any user paying for an enterprise plan
-                                PaymentHandler.force_upgrade_to_enterprise(user_id, customer_email)
-                            elif "pro" in product_description.lower():
-                                logger.info("✅ Product name contains 'pro', setting plan to pro")
-                                plan_id = "pro"
-                                
-                                # If it's an annual plan with higher price, check if it might be enterprise
-                                if price_amount >= 2000:  # $20+ is likely an annual payment
-                                    logger.info(f"Annual plan detected with price {price_amount}")
-                                    if price_amount >= 3000:  # $30+ is likely an enterprise plan
-                                        logger.info("💰 High value plan detected, forcing upgrade to enterprise")
-                                        plan_id = "enterprise"
-                                        PaymentHandler.force_upgrade_to_enterprise(user_id, customer_email)
-                            else:
-                                logger.warning(f"Could not determine plan from product name: {product_description}")
+                            if product.name and "enterprise" in product.name.lower():
+                                is_enterprise_plan = True
+                                logger.info(f"✅ Enterprise plan confirmed from product name: {product.name}")
                         except Exception as e:
-                            logger.error(f"Error retrieving product: {str(e)}")
+                            logger.warning(f"Could not retrieve product info: {str(e)}")
                     else:
                         logger.error(f"No price found in subscription: {subscription_id}")
                         price_id = None
@@ -418,33 +392,18 @@ class PaymentHandler:
                         logger.info(f"Examining price amount for plan detection: {plan_amount}")
                         
                         # Check product name/description for additional clues
-                        product_name = subscription.items.data[0].price.product
+                        product_id = subscription.items.data[0].price.product
                         try:
-                            product = stripe.Product.retrieve(product_name)
-                            product_description = product.name
-                            logger.info(f"Product name for plan detection: {product_description}")
+                            product = stripe.Product.retrieve(product_id)
+                            logger.info(f"Product name: {product.name}, Product ID: {product_id}")
                             
-                            # Logic to determine the plan based on product name/description
-                            if "enterprise" in product_description.lower():
-                                logger.info("✅ Product name contains 'enterprise', setting plan to enterprise")
+                            # If product name contains enterprise, use enterprise plan
+                            if product.name and "enterprise" in product.name.lower():
+                                logger.info(f"Product name indicates Enterprise plan: {product.name}")
                                 plan_id = "enterprise"
-                                # Force upgrade to enterprise for any user paying for an enterprise plan
-                                PaymentHandler.force_upgrade_to_enterprise(user_id, customer_email)
-                            elif "pro" in product_description.lower():
-                                logger.info("✅ Product name contains 'pro', setting plan to pro")
-                                plan_id = "pro"
-                                
-                                # If it's an annual plan with higher price, check if it might be enterprise
-                                if plan_amount >= 2000:  # $20+ is likely an annual payment
-                                    logger.info(f"Annual plan detected with price {plan_amount}")
-                                    if plan_amount >= 3000:  # $30+ is likely an enterprise plan
-                                        logger.info("💰 High value plan detected, forcing upgrade to enterprise")
-                                        plan_id = "enterprise"
-                                        PaymentHandler.force_upgrade_to_enterprise(user_id, customer_email)
-                            else:
-                                logger.warning(f"Could not determine plan from product name: {product_description}")
+                                logger.info(f"✅ Setting plan to ENTERPRISE based on product name")
                         except Exception as e:
-                            logger.error(f"Error retrieving product: {str(e)}")
+                            logger.warning(f"Could not retrieve product info: {str(e)}")
                         
                         if plan_amount and plan_amount >= 3000:  # $30.00 or more
                             logger.info(f"Price amount {plan_amount} indicates Enterprise plan")
@@ -453,10 +412,6 @@ class PaymentHandler:
                         else:
                             logger.info(f"Price amount {plan_amount} defaulting to Pro plan")
                             plan_id = "pro"  # Default to pro only for lower priced plans
-                    else:
-                        logger.error(f"No price found in subscription: {subscription_id}")
-                        price_id = None
-                        plan_id = "pro"  # Default to pro if no price found
                 else:
                     logger.error(f"No price found in subscription: {subscription_id}")
                     price_id = None
@@ -573,33 +528,17 @@ class PaymentHandler:
                         logger.info(f"Examining price amount for plan detection: {plan_amount}")
                         
                         # Check product name/description for additional clues
-                        product_name = subscription.items.data[0].price.product
+                        product_id = subscription.items.data[0].price.product
                         try:
-                            product = stripe.Product.retrieve(product_name)
-                            product_description = product.name
-                            logger.info(f"Product name for plan detection: {product_description}")
+                            product = stripe.Product.retrieve(product_id)
+                            logger.info(f"Product name: {product.name}, Product ID: {product_id}")
                             
-                            # Logic to determine the plan based on product name/description
-                            if "enterprise" in product_description.lower():
-                                logger.info("✅ Product name contains 'enterprise', setting plan to enterprise")
+                            # If product name contains enterprise, use enterprise plan
+                            if product.name and "enterprise" in product.name.lower():
+                                logger.info(f"Product name indicates Enterprise plan: {product.name}")
                                 plan_id = "enterprise"
-                                # Force upgrade to enterprise for any user paying for an enterprise plan
-                                PaymentHandler.force_upgrade_to_enterprise(user_id, customer_email)
-                            elif "pro" in product_description.lower():
-                                logger.info("✅ Product name contains 'pro', setting plan to pro")
-                                plan_id = "pro"
-                                
-                                # If it's an annual plan with higher price, check if it might be enterprise
-                                if plan_amount >= 2000:  # $20+ is likely an annual payment
-                                    logger.info(f"Annual plan detected with price {plan_amount}")
-                                    if plan_amount >= 3000:  # $30+ is likely an enterprise plan
-                                        logger.info("💰 High value plan detected, forcing upgrade to enterprise")
-                                        plan_id = "enterprise"
-                                        PaymentHandler.force_upgrade_to_enterprise(user_id, customer_email)
-                            else:
-                                logger.warning(f"Could not determine plan from product name: {product_description}")
                         except Exception as e:
-                            logger.error(f"Error retrieving product: {str(e)}")
+                            logger.warning(f"Could not retrieve product info: {str(e)}")
                         
                         if plan_amount and plan_amount >= 3000:  # $30.00 or more
                             logger.info(f"Price amount {plan_amount} indicates Enterprise plan")
@@ -607,10 +546,6 @@ class PaymentHandler:
                         else:
                             logger.info(f"Price amount {plan_amount} defaulting to Pro plan")
                             plan_id = "pro"  # Default to pro only for lower priced plans
-                    else:
-                        logger.error(f"No price found in subscription: {subscription_id}")
-                        price_id = None
-                        plan_id = "pro"  # Default to pro if no price found
                 else:
                     logger.error(f"No price found in subscription: {subscription_id}")
                     price_id = None
@@ -813,33 +748,17 @@ class PaymentHandler:
                             logger.info(f"Examining price amount for plan detection: {plan_amount}")
                             
                             # Check product name/description for additional clues
-                            product_name = subscription.items.data[0].price.product
+                            product_id = subscription.items.data[0].price.product
                             try:
-                                product = stripe.Product.retrieve(product_name)
-                                product_description = product.name
-                                logger.info(f"Product name for plan detection: {product_description}")
+                                product = stripe.Product.retrieve(product_id)
+                                logger.info(f"Product name: {product.name}, Product ID: {product_id}")
                                 
-                                # Logic to determine the plan based on product name/description
-                                if "enterprise" in product_description.lower():
-                                    logger.info("✅ Product name contains 'enterprise', setting plan to enterprise")
+                                # If product name contains enterprise, use enterprise plan
+                                if product.name and "enterprise" in product.name.lower():
+                                    logger.info(f"Product name indicates Enterprise plan: {product.name}")
                                     plan_id = "enterprise"
-                                    # Force upgrade to enterprise for any user paying for an enterprise plan
-                                    PaymentHandler.force_upgrade_to_enterprise(user_id, customer_email)
-                                elif "pro" in product_description.lower():
-                                    logger.info("✅ Product name contains 'pro', setting plan to pro")
-                                    plan_id = "pro"
-                                    
-                                    # If it's an annual plan with higher price, check if it might be enterprise
-                                    if plan_amount >= 2000:  # $20+ is likely an annual payment
-                                        logger.info(f"Annual plan detected with price {plan_amount}")
-                                        if plan_amount >= 3000:  # $30+ is likely an enterprise plan
-                                            logger.info("💰 High value plan detected, forcing upgrade to enterprise")
-                                            plan_id = "enterprise"
-                                            PaymentHandler.force_upgrade_to_enterprise(user_id, customer_email)
-                                else:
-                                    logger.warning(f"Could not determine plan from product name: {product_description}")
                             except Exception as e:
-                                logger.error(f"Error retrieving product: {str(e)}")
+                                logger.warning(f"Could not retrieve product info: {str(e)}")
                             
                             if plan_amount and plan_amount >= 3000:  # $30.00 or more
                                 logger.info(f"Price amount {plan_amount} indicates Enterprise plan")
@@ -847,84 +766,77 @@ class PaymentHandler:
                             else:
                                 logger.info(f"Price amount {plan_amount} defaulting to Pro plan")
                                 plan_id = "pro"  # Default to pro only for lower priced plans
-                        else:
-                            logger.error(f"No price found in subscription: {subscription_id}")
-                            price_id = None
-                            plan_id = "pro"  # Default to pro if no price found
+                    else:
+                        logger.error(f"No price found in subscription: {subscription_id}")
+                        price_id = None
+                        plan_id = "pro"  # Default to pro if no price found
+                    
+                    # Get the user ID from the subscription metadata
+                    user_id = subscription.metadata.get("user_id")
+                    
+                    # If no user_id in metadata, try to find the user by customer ID
+                    if not user_id:
+                        logger.warning(f"No user ID found in subscription metadata, using customer ID: {customer_id}")
+                        user_id = customer_id
+                    
+                    # Get the customer email
+                    customer_email = None
+                    try:
+                        customer = stripe.Customer.retrieve(customer_id)
+                        customer_email = customer.email
+                        logger.info(f"Retrieved customer email for invoice.paid: {customer_email}")
                         
-                        # Get the user ID from the subscription metadata
-                        user_id = subscription.metadata.get("user_id")
-                        
-                        # If no user_id in metadata, try to find the user by customer ID
-                        if not user_id:
-                            logger.warning(f"No user ID found in subscription metadata, using customer ID: {customer_id}")
-                            user_id = customer_id
-                        
-                        # Get the customer email
-                        customer_email = None
-                        try:
-                            customer = stripe.Customer.retrieve(customer_id)
-                            customer_email = customer.email
-                            logger.info(f"Retrieved customer email for invoice.paid: {customer_email}")
-                            
-                            # Check if this is a whitelisted Enterprise user
-                            if customer_email in ENTERPRISE_USERS:
-                                logger.info(f"⚠️ Whitelisted Enterprise user detected: {customer_email}")
-                                plan_id = "enterprise"  # Override to enterprise for whitelisted users
-                                logger.info(f"Overriding plan_id to 'enterprise' for whitelisted user")
-                        except Exception as e:
-                            logger.warning(f"Could not retrieve customer email: {str(e)}")
-                        
-                        # Check if this should be an Enterprise plan based on the invoice amount
-                        invoice_amount = invoice.amount_paid
-                        if invoice_amount >= 3000:  # $30.00 or more in cents
-                            logger.info(f"Invoice amount {invoice_amount} indicates Enterprise plan")
-                            # Ensure this gets set to enterprise regardless of other checks
-                            plan_id = "enterprise"
-                            
-                            # As a safeguard, force upgrade to enterprise if the amount matches
-                            logger.info(f"🔍 Triggering force upgrade to Enterprise for user {user_id} based on invoice amount")
-                            force_result = await PaymentHandler.force_upgrade_to_enterprise(
-                                user_id=user_id, 
-                                customer_id=customer_id,
-                                subscription_id=subscription_id,
-                                customer_email=customer_email
-                            )
-                            logger.info(f"Force upgrade result: {force_result}")
-                        
-                        # Update the subscription in the database
-                        from backend.database import DatabaseHandler
-                        
-                        # Upsert the subscription record
-                        subscription_result = await DatabaseHandler.upsert_subscription(
-                            user_id=user_id,
-                            stripe_customer_id=customer_id,
-                            stripe_subscription_id=subscription_id,
-                            plan=plan_id,
-                            status=status,
-                            current_period_end=datetime.fromtimestamp(current_period_end),
-                            email=customer_email
-                        )
-                        
-                        if subscription_result:
-                            logger.info(f"Successfully updated subscription for invoice: {invoice.id}")
-                            return {
-                                "status": "success",
-                                "message": f"Subscription updated for invoice: {invoice.id}"
-                            }
-                        else:
-                            logger.error(f"Failed to update subscription for invoice: {invoice.id}")
-                            return {
-                                "status": "error",
-                                "message": f"Failed to update subscription for invoice: {invoice.id}"
-                            }
+                        # Check if this is a whitelisted Enterprise user
+                        if customer_email in ENTERPRISE_USERS:
+                            logger.info(f"⚠️ Whitelisted Enterprise user detected: {customer_email}")
+                            plan_id = "enterprise"  # Override to enterprise for whitelisted users
+                            logger.info(f"Overriding plan_id to 'enterprise' for whitelisted user")
                     except Exception as e:
-                        logger.error(f"Error processing invoice.paid: {str(e)}")
+                        logger.warning(f"Could not retrieve customer email: {str(e)}")
+                    
+                    # Check if this should be an Enterprise plan based on the invoice amount
+                    invoice_amount = invoice.amount_paid
+                    if invoice_amount >= 3000:  # $30.00 or more in cents
+                        logger.info(f"Invoice amount {invoice_amount} indicates Enterprise plan")
+                        # Ensure this gets set to enterprise regardless of other checks
+                        plan_id = "enterprise"
+                        
+                        # As a safeguard, force upgrade to enterprise if the amount matches
+                        logger.info(f"🔍 Triggering force upgrade to Enterprise for user {user_id} based on invoice amount")
+                        force_result = await PaymentHandler.force_upgrade_to_enterprise(
+                            user_id=user_id, 
+                            customer_id=customer_id,
+                            subscription_id=subscription_id,
+                            customer_email=customer_email
+                        )
+                        logger.info(f"Force upgrade result: {force_result}")
+                    
+                    # Update the subscription in the database
+                    from backend.database import DatabaseHandler
+                    
+                    # Upsert the subscription record
+                    subscription_result = await DatabaseHandler.upsert_subscription(
+                        user_id=user_id,
+                        stripe_customer_id=customer_id,
+                        stripe_subscription_id=subscription_id,
+                        plan=plan_id,
+                        status=status,
+                        current_period_end=datetime.fromtimestamp(current_period_end),
+                        email=customer_email
+                    )
+                    
+                    if subscription_result:
+                        logger.info(f"Successfully updated subscription for invoice: {invoice.id}")
+                        return {
+                            "status": "success",
+                            "message": f"Subscription updated for invoice: {invoice.id}"
+                        }
+                    else:
+                        logger.error(f"Failed to update subscription for invoice: {invoice.id}")
                         return {
                             "status": "error",
-                            "message": f"Error processing invoice: {str(e)}"
+                            "message": f"Failed to update subscription for invoice: {invoice.id}"
                         }
-                
                 except Exception as e:
                     logger.error(f"Error processing invoice.paid: {str(e)}")
                     return {
@@ -998,33 +910,17 @@ class PaymentHandler:
                             logger.info(f"Examining price amount for plan detection: {plan_amount}")
                             
                             # Check product name/description for additional clues
-                            product_name = subscription.items.data[0].price.product
+                            product_id = subscription.items.data[0].price.product
                             try:
-                                product = stripe.Product.retrieve(product_name)
-                                product_description = product.name
-                                logger.info(f"Product name for plan detection: {product_description}")
+                                product = stripe.Product.retrieve(product_id)
+                                logger.info(f"Product name: {product.name}, Product ID: {product_id}")
                                 
-                                # Logic to determine the plan based on product name/description
-                                if "enterprise" in product_description.lower():
-                                    logger.info("✅ Product name contains 'enterprise', setting plan to enterprise")
+                                # If product name contains enterprise, use enterprise plan
+                                if product.name and "enterprise" in product.name.lower():
+                                    logger.info(f"Product name indicates Enterprise plan: {product.name}")
                                     plan_id = "enterprise"
-                                    # Force upgrade to enterprise for any user paying for an enterprise plan
-                                    PaymentHandler.force_upgrade_to_enterprise(user_id, customer_email)
-                                elif "pro" in product_description.lower():
-                                    logger.info("✅ Product name contains 'pro', setting plan to pro")
-                                    plan_id = "pro"
-                                    
-                                    # If it's an annual plan with higher price, check if it might be enterprise
-                                    if plan_amount >= 2000:  # $20+ is likely an annual payment
-                                        logger.info(f"Annual plan detected with price {plan_amount}")
-                                        if plan_amount >= 3000:  # $30+ is likely an enterprise plan
-                                            logger.info("💰 High value plan detected, forcing upgrade to enterprise")
-                                            plan_id = "enterprise"
-                                            PaymentHandler.force_upgrade_to_enterprise(user_id, customer_email)
-                                else:
-                                    logger.warning(f"Could not determine plan from product name: {product_description}")
                             except Exception as e:
-                                logger.error(f"Error retrieving product: {str(e)}")
+                                logger.warning(f"Could not retrieve product info: {str(e)}")
                             
                             if plan_amount and plan_amount >= 3000:  # $30.00 or more
                                 logger.info(f"Price amount {plan_amount} indicates Enterprise plan")
@@ -1032,82 +928,76 @@ class PaymentHandler:
                             else:
                                 logger.info(f"Price amount {plan_amount} defaulting to Pro plan")
                                 plan_id = "pro"  # Default to pro only for lower priced plans
-                        else:
-                            logger.error(f"No price found in subscription: {subscription_id}")
-                            price_id = None
-                            plan_id = "pro"  # Default to pro if no price found
+                    else:
+                        logger.error(f"No price found in subscription: {subscription_id}")
+                        price_id = None
+                        plan_id = "pro"  # Default to pro if no price found
+                    
+                    # Get the user ID from the subscription metadata
+                    user_id = subscription.metadata.get("user_id")
+                    
+                    # If no user_id in metadata, try to find the user by customer ID
+                    if not user_id:
+                        logger.warning(f"No user ID found in subscription metadata, using customer ID: {customer_id}")
+                        user_id = customer_id
+                    
+                    # Get the customer email
+                    customer_email = None
+                    try:
+                        customer = stripe.Customer.retrieve(customer_id)
+                        customer_email = customer.email
+                        logger.info(f"Retrieved customer email for invoice.paid: {customer_email}")
                         
-                        # Get the user ID from the subscription metadata
-                        user_id = subscription.metadata.get("user_id")
-                        
-                        # If no user_id in metadata, try to find the user by customer ID
-                        if not user_id:
-                            logger.warning(f"No user ID found in subscription metadata, using customer ID: {customer_id}")
-                            user_id = customer_id
-                        
-                        # Get the customer email
-                        customer_email = None
-                        try:
-                            customer = stripe.Customer.retrieve(customer_id)
-                            customer_email = customer.email
-                            logger.info(f"Retrieved customer email for invoice.paid: {customer_email}")
-                            
-                            # Check if this is a whitelisted Enterprise user
-                            if customer_email in ENTERPRISE_USERS:
-                                logger.info(f"⚠️ Whitelisted Enterprise user detected: {customer_email}")
-                                plan_id = "enterprise"  # Override to enterprise for whitelisted users
-                                logger.info(f"Overriding plan_id to 'enterprise' for whitelisted user")
-                        except Exception as e:
-                            logger.warning(f"Could not retrieve customer email: {str(e)}")
-                        
-                        # Check if this is a high-value payment that should trigger Enterprise tier
-                        invoice_amount = invoice.amount_paid
-                        if invoice_amount >= 3000:  # $30.00 or more in cents
-                            logger.info(f"💵 Payment amount {invoice_amount} confirms Enterprise plan")
-                            # Force the plan to enterprise regardless of other checks
-                            plan_id = "enterprise"
-                            
-                            # Double-check with a forced upgrade to ensure the user gets Enterprise tier
-                            logger.info(f"🔍 Triggering force upgrade to Enterprise for user {user_id} based on payment amount")
-                            force_result = await PaymentHandler.force_upgrade_to_enterprise(
-                                user_id=user_id,
-                                customer_id=customer_id,
-                                subscription_id=subscription_id,
-                                customer_email=customer_email
-                            )
-                            logger.info(f"Force upgrade result: {force_result}")
-                        
-                        # Update the subscription in the database
-                        from backend.database import DatabaseHandler
-                        
-                        # Upsert the subscription record
-                        subscription_result = await DatabaseHandler.upsert_subscription(
-                            user_id=user_id,
-                            stripe_customer_id=customer_id,
-                            stripe_subscription_id=subscription_id,
-                            plan=plan_id,
-                            status=status,
-                            current_period_end=datetime.fromtimestamp(current_period_end),
-                            email=customer_email
-                        )
-                        
-                        if subscription_result:
-                            logger.info(f"Successfully updated subscription for invoice payment: {invoice.id}")
-                            return {
-                                "status": "success",
-                                "message": f"Subscription updated for invoice payment: {invoice.id}"
-                            }
-                        else:
-                            logger.error(f"Failed to update subscription for invoice payment: {invoice.id}")
-                            return {
-                                "status": "error",
-                                "message": f"Failed to update subscription for invoice payment: {invoice.id}"
-                            }
+                        # Check if this is a whitelisted Enterprise user
+                        if customer_email in ENTERPRISE_USERS:
+                            logger.info(f"⚠️ Whitelisted Enterprise user detected: {customer_email}")
+                            plan_id = "enterprise"  # Override to enterprise for whitelisted users
+                            logger.info(f"Overriding plan_id to 'enterprise' for whitelisted user")
                     except Exception as e:
-                        logger.error(f"Error processing invoice.payment_succeeded: {str(e)}")
+                        logger.warning(f"Could not retrieve customer email: {str(e)}")
+                    
+                    # Check if this is a high-value payment that should trigger Enterprise tier
+                    invoice_amount = invoice.amount_paid
+                    if invoice_amount >= 3000:  # $30.00 or more in cents
+                        logger.info(f"💵 Payment amount {invoice_amount} confirms Enterprise plan")
+                        # Force the plan to enterprise regardless of other checks
+                        plan_id = "enterprise"
+                        
+                        # Double-check with a forced upgrade to ensure the user gets Enterprise tier
+                        logger.info(f"🔍 Triggering force upgrade to Enterprise for user {user_id} based on payment amount")
+                        force_result = await PaymentHandler.force_upgrade_to_enterprise(
+                            user_id=user_id,
+                            customer_id=customer_id,
+                            subscription_id=subscription_id,
+                            customer_email=customer_email
+                        )
+                        logger.info(f"Force upgrade result: {force_result}")
+                    
+                    # Update the subscription in the database
+                    from backend.database import DatabaseHandler
+                    
+                    # Upsert the subscription record
+                    subscription_result = await DatabaseHandler.upsert_subscription(
+                        user_id=user_id,
+                        stripe_customer_id=customer_id,
+                        stripe_subscription_id=subscription_id,
+                        plan=plan_id,
+                        status=status,
+                        current_period_end=datetime.fromtimestamp(current_period_end),
+                        email=customer_email
+                    )
+                    
+                    if subscription_result:
+                        logger.info(f"Successfully updated subscription for invoice payment: {invoice.id}")
+                        return {
+                            "status": "success",
+                            "message": f"Subscription updated for invoice payment: {invoice.id}"
+                        }
+                    else:
+                        logger.error(f"Failed to update subscription for invoice payment: {invoice.id}")
                         return {
                             "status": "error",
-                            "message": f"Error processing invoice payment: {str(e)}"
+                            "message": f"Failed to update subscription for invoice payment: {invoice.id}"
                         }
                 except Exception as e:
                     logger.error(f"Error processing invoice.payment_succeeded: {str(e)}")
@@ -1180,89 +1070,86 @@ class PaymentHandler:
             raise
     
     @staticmethod
-    async def check_and_apply_enterprise_upgrade(event=None, customer_id=None):
+    async def force_upgrade_to_enterprise(
+        user_id: str,
+        customer_id: str = None,
+        subscription_id: str = None,
+        customer_email: str = None
+    ) -> Dict[str, Any]:
         """
-        Check if a user should be on the Enterprise plan and apply the upgrade if needed.
-        Called for all webhook events to ensure Enterprise users are correctly identified.
+        Force upgrade a user to Enterprise tier if their payment indicates they should be
+        on Enterprise but the automatic processes failed.
+        
+        Args:
+            user_id: The user's ID
+            customer_id: The Stripe customer ID (optional)
+            subscription_id: The Stripe subscription ID (optional)
+            customer_email: The customer's email (optional)
+            
+        Returns:
+            Dict[str, Any]: Result of the operation
         """
         try:
-            if not customer_id and event and hasattr(event.data.object, 'customer'):
-                customer_id = event.data.object.customer
-                
-            if not customer_id:
-                logger.warning("Cannot check for enterprise upgrade: No customer ID available")
-                return
-                
-            # Try to get user email from customer ID
-            customer_email = None
-            user_id = None
-            
-            try:
-                # Get customer information from Stripe
-                customer = stripe.Customer.retrieve(customer_id)
-                customer_email = customer.email
-                logger.info(f"Retrieved customer email for enterprise check: {customer_email}")
-                
-                # Get user ID from our database
-                from backend.database import DatabaseHandler
-                user = await DatabaseHandler.get_user_by_email(customer_email)
-                if user:
-                    user_id = user.get("id")
-                    logger.info(f"Found user ID for enterprise check: {user_id}")
-                else:
-                    logger.warning(f"No user found for email {customer_email}")
-            except Exception as e:
-                logger.error(f"Error retrieving customer data: {str(e)}")
-                
-            # Force upgrade if user is in the enterprise whitelist
-            if customer_email and customer_email in ENTERPRISE_USERS:
-                logger.info(f"Customer {customer_email} is in ENTERPRISE_USERS whitelist")
-                await PaymentHandler.force_upgrade_to_enterprise(user_id, customer_email)
-                
-            return True
-        except Exception as e:
-            logger.error(f"Error in check_and_apply_enterprise_upgrade: {str(e)}")
-            return False
-            
-    @staticmethod
-    async def force_upgrade_to_enterprise(user_id, customer_email=None):
-        """
-        Force upgrade a user to the Enterprise tier.
-        """
-        if not user_id:
-            logger.error("Cannot force upgrade: No user ID provided")
-            return False
-            
-        try:
-            logger.info(f"⚡ Forcing upgrade to Enterprise tier for user {user_id}")
-            
-            # Import here to avoid circular imports
             from backend.database import DatabaseHandler
             
-            # Update user subscription tier
+            # Get the user's current subscription tier
+            user = await DatabaseHandler.get_user(user_id)
+            if not user:
+                logger.error(f"Force upgrade failed: User {user_id} not found")
+                return {
+                    "status": "error",
+                    "message": f"User {user_id} not found"
+                }
+                
+            current_tier = user.get("subscription_tier", "free")
+            user_email = user.get("email")
+            
+            # Check if user is in whitelist
+            if user_email and user_email in ENTERPRISE_USERS:
+                logger.info(f"🔍 User {user_email} is in Enterprise whitelist - forcing upgrade")
+            # If already on enterprise tier, nothing to do
+            elif current_tier == "enterprise":
+                logger.info(f"User {user_id} is already on Enterprise tier")
+                return {
+                    "status": "success",
+                    "message": "User already on Enterprise tier"
+                }
+                
+            # Update the user's subscription tier to enterprise
             subscription_data = {
                 "subscription_tier": "enterprise",
-                "subscription_status": "active",
                 "updated_at": datetime.now().isoformat()
             }
             
-            # Update the user record
+            # Add optional fields if provided
+            if customer_id:
+                subscription_data["stripe_customer_id"] = customer_id
+            if subscription_id:
+                subscription_data["stripe_subscription_id"] = subscription_id
+                
+            # Update user record
+            logger.info(f"🔄 Force upgrading user {user_id} from {current_tier} to Enterprise tier")
             updated_user = await DatabaseHandler.update_user(user_id, subscription_data)
             
             if updated_user:
-                logger.info(f"✅ Successfully forced upgrade to Enterprise for user {user_id}")
-                
-                # Also log the customer email for tracking
-                if customer_email:
-                    logger.info(f"Customer email for forced upgrade: {customer_email}")
-                
-                return True
+                logger.info(f"✅ Successfully force upgraded user {user_id} to Enterprise tier")
+                return {
+                    "status": "success",
+                    "message": f"Successfully upgraded {user_id} to Enterprise tier"
+                }
             else:
                 logger.error(f"❌ Failed to force upgrade user {user_id} to Enterprise tier")
-                return False
+                return {
+                    "status": "error",
+                    "message": f"Failed to upgrade user {user_id} to Enterprise tier"
+                }
+                
         except Exception as e:
             logger.error(f"Error in force_upgrade_to_enterprise: {str(e)}")
-            return False
+            return {
+                "status": "error",
+                "message": f"Error upgrading user: {str(e)}"
+            }
     
     @staticmethod
     async def manual_fix_subscription_by_email(
@@ -1335,4 +1222,101 @@ class PaymentHandler:
             return {
                 "status": "error",
                 "message": f"Error updating user: {str(e)}"
-            } 
+            }
+    
+    @staticmethod
+    async def check_and_apply_enterprise_upgrade(event, customer_id=None, subscription_id=None, user_id=None, email=None):
+        """
+        Check if a user should be on Enterprise plan and apply upgrade if needed.
+        This is a special handler that runs for all webhook events to ensure Enterprise tier is correctly applied.
+        
+        Args:
+            event: The Stripe webhook event
+            customer_id: The Stripe customer ID (optional)
+            subscription_id: The Stripe subscription ID (optional)
+            user_id: The user ID (optional)
+            email: The user's email (optional)
+            
+        Returns:
+            bool: True if upgrade was applied, False otherwise
+        """
+        try:
+            logger.info(f"Running enterprise upgrade check for webhook {event.type}")
+            
+            # Skip if no subscription ID
+            if not subscription_id and hasattr(event.data.object, 'subscription'):
+                subscription_id = event.data.object.subscription
+                logger.info(f"Found subscription ID in event: {subscription_id}")
+            
+            if not subscription_id:
+                logger.warning("No subscription ID available for enterprise check")
+                return False
+                
+            # Skip if no customer ID
+            if not customer_id and hasattr(event.data.object, 'customer'):
+                customer_id = event.data.object.customer
+                logger.info(f"Found customer ID in event: {customer_id}")
+                
+            if not customer_id:
+                logger.warning("No customer ID available for enterprise check")
+                return False
+                
+            # Get user email if not provided
+            if not email and customer_id:
+                try:
+                    customer = stripe.Customer.retrieve(customer_id)
+                    email = customer.email
+                    logger.info(f"Retrieved email from customer: {email}")
+                except Exception as e:
+                    logger.warning(f"Could not retrieve customer email: {str(e)}")
+            
+            # Check if user is in whitelist
+            if email and email in ENTERPRISE_USERS:
+                logger.info(f"🚨 Webhook detected whitelisted user: {email}")
+                
+                # Get user ID if not provided
+                if not user_id and subscription_id:
+                    try:
+                        subscription = stripe.Subscription.retrieve(subscription_id)
+                        user_id = subscription.metadata.get("user_id")
+                        logger.info(f"Retrieved user ID from subscription metadata: {user_id}")
+                    except Exception as e:
+                        logger.warning(f"Could not retrieve user ID from subscription: {str(e)}")
+                        
+                # Fall back to customer ID for user ID if still not found
+                if not user_id:
+                    logger.warning(f"No user ID found, using customer ID as fallback: {customer_id}")
+                    user_id = customer_id
+                
+                # Check if this is actually an Enterprise plan payment by price
+                is_enterprise_by_price = False
+                try:
+                    subscription = stripe.Subscription.retrieve(subscription_id)
+                    if subscription.items and subscription.items.data:
+                        price_id = subscription.items.data[0].price.id
+                        if price_id in ENTERPRISE_PRICE_IDS:
+                            logger.info(f"💎 Found Enterprise price ID: {price_id}")
+                            is_enterprise_by_price = True
+                except Exception as e:
+                    logger.warning(f"Could not check price ID: {str(e)}")
+                
+                # Force upgrade the user to Enterprise tier
+                logger.info(f"🔥 Forcing Enterprise upgrade for whitelisted user {email}")
+                from backend.database import DatabaseHandler
+                
+                # Use force upgrade function
+                result = await PaymentHandler.force_upgrade_to_enterprise(
+                    user_id=user_id,
+                    customer_id=customer_id,
+                    subscription_id=subscription_id,
+                    customer_email=email
+                )
+                
+                logger.info(f"Enterprise upgrade result: {result}")
+                return True
+                
+            return False
+                
+        except Exception as e:
+            logger.error(f"Error in enterprise upgrade check: {str(e)}")
+            return False 

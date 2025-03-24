@@ -2,10 +2,35 @@
 
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Menu, X, User, CreditCard, LogOut, Terminal, ChevronDown } from 'lucide-react';
 import Logo from './Logo';
 import Image from 'next/image';
+
+const MenuLink = ({ href, icon, onClick, children }: { 
+  href: string; 
+  icon: React.ReactNode; 
+  onClick: () => void; 
+  children: React.ReactNode 
+}) => {
+  return (
+    <Link
+      href={href}
+      className="flex items-center px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+      onClick={(e) => {
+        // Ensure the click event is captured
+        e.preventDefault();
+        e.stopPropagation();
+        onClick();
+        // Navigate programmatically
+        window.location.href = href;
+      }}
+    >
+      {icon}
+      <span>{children}</span>
+    </Link>
+  );
+};
 
 export default function Header() {
   const { user, signOut, loading: authLoading } = useAuth();
@@ -13,26 +38,27 @@ export default function Header() {
   const [scrolled, setScrolled] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
-  const profileRef = useRef<HTMLDivElement>(null);
 
   // Set auth loading state - use the auth context's loading state
   useEffect(() => {
     setIsAuthLoading(authLoading);
   }, [authLoading]);
 
-  // Close dropdown when clicking outside
+  // Handle click anywhere on the page to close dropdown
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+    const handleGlobalClick = () => {
+      if (profileOpen) {
         setProfileOpen(false);
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
+    // Add listener to the document
+    document.addEventListener('click', handleGlobalClick);
+    
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('click', handleGlobalClick);
     };
-  }, []);
+  }, [profileOpen]);
 
   // Handle scroll effect
   useEffect(() => {
@@ -64,6 +90,12 @@ export default function Header() {
 
   const toggleProfileMenu = () => {
     setProfileOpen(!profileOpen);
+  };
+
+  // Add this function to handle link clicks
+  const handleMenuItemClick = (callback?: () => void) => {
+    setProfileOpen(false);
+    if (callback) callback();
   };
 
   return (
@@ -127,10 +159,15 @@ export default function Header() {
                 <div className="w-4 h-4 bg-gray-700 animate-pulse rounded"></div>
               </div>
             ) : user ? (
-              <div className="relative" ref={profileRef}>
+              <div className="relative">
                 <button 
-                  onClick={toggleProfileMenu}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleProfileMenu();
+                  }}
                   className="flex items-center space-x-2 rounded-full transition-all hover:bg-gray-800 p-1.5"
+                  aria-haspopup="true"
+                  aria-expanded={profileOpen}
                 >
                   <div className="flex items-center space-x-2">
                     {user.user_metadata?.avatar_url ? (
@@ -157,7 +194,10 @@ export default function Header() {
                 
                 {/* Profile Dropdown Menu */}
                 {profileOpen && (
-                  <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden transform origin-top-right transition-all z-50 border border-gray-200 dark:border-gray-700">
+                  <div 
+                    className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden transform origin-top-right transition-all z-50 border border-gray-200 dark:border-gray-700 pointer-events-auto"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <div className="p-4 border-b border-gray-200 dark:border-gray-700">
                       <p className="font-medium text-gray-900 dark:text-white">
                         {user.user_metadata?.full_name || user.email?.split('@')[0] || "User"}
@@ -168,41 +208,38 @@ export default function Header() {
                     </div>
                     
                     <div className="py-2">
-                      <Link
-                        href="/dashboard"
-                        className="flex items-center px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                        onClick={() => setProfileOpen(false)}
+                      <MenuLink 
+                        href="/dashboard" 
+                        icon={<User size={18} className="mr-3 text-gray-500 dark:text-gray-400" />}
+                        onClick={() => handleMenuItemClick()}
                       >
-                        <User size={18} className="mr-3 text-gray-500 dark:text-gray-400" />
-                        <span>Dashboard</span>
-                      </Link>
+                        Dashboard
+                      </MenuLink>
                       
-                      <Link
-                        href="/dashboard/billing"
-                        className="flex items-center px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                        onClick={() => setProfileOpen(false)}
+                      <MenuLink 
+                        href="/dashboard/billing" 
+                        icon={<CreditCard size={18} className="mr-3 text-gray-500 dark:text-gray-400" />}
+                        onClick={() => handleMenuItemClick()}
                       >
-                        <CreditCard size={18} className="mr-3 text-gray-500 dark:text-gray-400" />
-                        <span>Billing</span>
-                      </Link>
+                        Billing
+                      </MenuLink>
                       
-                      <Link
-                        href="/dashboard/api"
-                        className="flex items-center px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                        onClick={() => setProfileOpen(false)}
+                      <MenuLink 
+                        href="/dashboard/api" 
+                        icon={<Terminal size={18} className="mr-3 text-gray-500 dark:text-gray-400" />}
+                        onClick={() => handleMenuItemClick()}
                       >
-                        <Terminal size={18} className="mr-3 text-gray-500 dark:text-gray-400" />
-                        <span>API</span>
-                      </Link>
+                        API
+                      </MenuLink>
                       
                       <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
                       
                       <button
-                        onClick={() => {
-                          signOut();
-                          setProfileOpen(false);
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMenuItemClick(signOut);
                         }}
-                        className="flex w-full items-center px-4 py-3 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        className="flex w-full items-center px-4 py-3 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
                       >
                         <LogOut size={18} className="mr-3" />
                         <span>Sign out</span>
@@ -236,10 +273,15 @@ export default function Header() {
                 <div className="w-6 h-6 bg-gray-700 animate-pulse rounded ml-2"></div>
               </div>
             ) : user ? (
-              <div className="relative mr-2" ref={profileRef}>
+              <div className="relative mr-2">
                 <button 
-                  onClick={toggleProfileMenu}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleProfileMenu();
+                  }}
                   className="flex items-center p-1 rounded-full"
+                  aria-haspopup="true"
+                  aria-expanded={profileOpen}
                 >
                   {user.user_metadata?.avatar_url ? (
                     <Image 
@@ -260,7 +302,10 @@ export default function Header() {
                 
                 {/* Mobile Profile Dropdown */}
                 {profileOpen && (
-                  <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden transform origin-top-right transition-all z-50 border border-gray-200 dark:border-gray-700">
+                  <div 
+                    className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden transform origin-top-right transition-all z-50 border border-gray-200 dark:border-gray-700 pointer-events-auto"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <div className="p-4 border-b border-gray-200 dark:border-gray-700">
                       <p className="font-medium text-gray-900 dark:text-white">
                         {user.user_metadata?.full_name || user.email?.split('@')[0] || "User"}
@@ -271,41 +316,38 @@ export default function Header() {
                     </div>
                     
                     <div className="py-2">
-                      <Link
-                        href="/dashboard"
-                        className="flex items-center px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                        onClick={() => setProfileOpen(false)}
+                      <MenuLink 
+                        href="/dashboard" 
+                        icon={<User size={18} className="mr-3 text-gray-500 dark:text-gray-400" />}
+                        onClick={() => handleMenuItemClick()}
                       >
-                        <User size={18} className="mr-3 text-gray-500 dark:text-gray-400" />
-                        <span>Dashboard</span>
-                      </Link>
+                        Dashboard
+                      </MenuLink>
                       
-                      <Link
-                        href="/dashboard/billing"
-                        className="flex items-center px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                        onClick={() => setProfileOpen(false)}
+                      <MenuLink 
+                        href="/dashboard/billing" 
+                        icon={<CreditCard size={18} className="mr-3 text-gray-500 dark:text-gray-400" />}
+                        onClick={() => handleMenuItemClick()}
                       >
-                        <CreditCard size={18} className="mr-3 text-gray-500 dark:text-gray-400" />
-                        <span>Billing</span>
-                      </Link>
+                        Billing
+                      </MenuLink>
                       
-                      <Link
-                        href="/dashboard/api"
-                        className="flex items-center px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                        onClick={() => setProfileOpen(false)}
+                      <MenuLink 
+                        href="/dashboard/api" 
+                        icon={<Terminal size={18} className="mr-3 text-gray-500 dark:text-gray-400" />}
+                        onClick={() => handleMenuItemClick()}
                       >
-                        <Terminal size={18} className="mr-3 text-gray-500 dark:text-gray-400" />
-                        <span>API</span>
-                      </Link>
+                        API
+                      </MenuLink>
                       
                       <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
                       
                       <button
-                        onClick={() => {
-                          signOut();
-                          setProfileOpen(false);
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMenuItemClick(signOut);
                         }}
-                        className="flex w-full items-center px-4 py-3 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        className="flex w-full items-center px-4 py-3 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
                       >
                         <LogOut size={18} className="mr-3" />
                         <span>Sign out</span>

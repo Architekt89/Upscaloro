@@ -1,7 +1,7 @@
 {
-  "/backend-check/page": "app/backend-check/page.js",
-  "/pricing/page": "app/pricing/page.js",
-  "/auth/login/page": "app/auth/login/page.js",
+  "/page": "app/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
   "/dashboard/page": "app/dashboard/page.js",
+  "/auth/login/page": "app/auth/login/page.js",
   "/dashboard/billing/page": "app/dashboard/billing/page.js"
 }
