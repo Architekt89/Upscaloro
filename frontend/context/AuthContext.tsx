@@ -13,6 +13,8 @@ interface AuthContextType {
   forceSignOut: () => Promise<{ success: boolean; error?: unknown }>;
   recoverSession: () => Promise<boolean>;
   session: any | null;
+  redirectToLogin: () => void;
+  redirectIfAuthenticated: (targetPath: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -22,7 +24,9 @@ const AuthContext = createContext<AuthContextType>({
   refreshUser: async () => null,
   forceSignOut: async () => ({ success: false }),
   recoverSession: async () => false,
-  session: null
+  session: null,
+  redirectToLogin: () => {},
+  redirectIfAuthenticated: async () => false
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -89,6 +93,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // Only update state if component is still mounted (checked via ref)
       setUser(currentUser);
       setSession(refreshedSession || session);
+      
+      // Update session storage
+      if (typeof window !== 'undefined' && currentUser) {
+        try {
+          sessionStorage.setItem('upscaloro_user', JSON.stringify(currentUser));
+          if (refreshedSession) {
+            sessionStorage.setItem('upscaloro_session', JSON.stringify(refreshedSession));
+          }
+        } catch (storageError) {
+          console.error('Error saving to session storage during refresh:', storageError);
+        }
+      } else if (typeof window !== 'undefined' && !currentUser) {
+        try {
+          sessionStorage.removeItem('upscaloro_user');
+          sessionStorage.removeItem('upscaloro_session');
+        } catch (storageError) {
+          console.error('Error clearing session storage during refresh:', storageError);
+        }
+      }
       
       return currentUser;
     } catch (error) {
@@ -196,6 +219,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(null);
       setSession(null);
       
+      // Clear session storage
+      if (typeof window !== 'undefined') {
+        try {
+          sessionStorage.removeItem('upscaloro_user');
+          sessionStorage.removeItem('upscaloro_session');
+        } catch (storageError) {
+          console.error('Error clearing session storage during sign out:', storageError);
+        }
+      }
+      
       if (process.env.NODE_ENV === 'development') {
         console.log('Sign out successful');
       }
@@ -203,6 +236,48 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       console.error('Error signing out:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Function to redirect to login page
+  const redirectToLogin = () => {
+    if (typeof window !== 'undefined') {
+      // Get the current URL to redirect back after login
+      const currentPath = window.location.pathname;
+      const redirectPath = currentPath !== '/auth/login' && currentPath !== '/auth/signup' 
+        ? `?redirect=${encodeURIComponent(currentPath)}`
+        : '';
+      
+      // Use hard navigation for more reliable redirection
+      window.location.href = `/auth/login${redirectPath}`;
+    }
+  };
+  
+  // Function to redirect if user is authenticated
+  const redirectIfAuthenticated = async (targetPath: string): Promise<boolean> => {
+    if (loading) {
+      // Still loading, don't redirect yet
+      return false;
+    }
+    
+    try {
+      // Check if we have a user
+      if (user) {
+        if (typeof window !== 'undefined') {
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`User is authenticated, redirecting to ${targetPath}`);
+          }
+          
+          // Use hard navigation for more reliable redirection
+          window.location.href = targetPath;
+          return true;
+        }
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Error during redirect check:', error);
+      return false;
     }
   };
 
@@ -219,16 +294,52 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (process.env.NODE_ENV === 'development') {
           console.log('Initializing auth state...');
         }
+
+        // Try to get user from sessionStorage first as a quick initial state
+        if (typeof window !== 'undefined') {
+          try {
+            const storedUser = sessionStorage.getItem('upscaloro_user');
+            const storedSession = sessionStorage.getItem('upscaloro_session');
+            
+            if (storedUser && storedSession) {
+              const parsedUser = JSON.parse(storedUser);
+              const parsedSession = JSON.parse(storedSession);
+              
+              // Quick set to avoid UI flicker
+              setUser(parsedUser);
+              setSession(parsedSession);
+              
+              if (process.env.NODE_ENV === 'development') {
+                console.log('Initialized from session storage');
+              }
+            }
+          } catch (storageError) {
+            console.error('Error accessing session storage:', storageError);
+          }
+        }
         
         // Get current user
         const currentUser = await getCurrentUser();
-        setUser(currentUser);
         
         // Get current session
         const currentSession = await getSession();
-        setSession(currentSession);
         
         if (currentUser) {
+          setUser(currentUser);
+          setSession(currentSession);
+          
+          // Store in sessionStorage for faster loading on navigation
+          if (typeof window !== 'undefined') {
+            try {
+              sessionStorage.setItem('upscaloro_user', JSON.stringify(currentUser));
+              if (currentSession) {
+                sessionStorage.setItem('upscaloro_session', JSON.stringify(currentSession));
+              }
+            } catch (storageError) {
+              console.error('Error saving to session storage:', storageError);
+            }
+          }
+          
           if (process.env.NODE_ENV === 'development') {
             console.log('User authenticated:', currentUser.email);
             console.log('Session info:', {
@@ -244,6 +355,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           // If session expires soon (< 5 minutes), refresh it
           await checkAndRefreshSession();
         } else {
+          setUser(null);
+          setSession(null);
+          
+          // Clear session storage
+          if (typeof window !== 'undefined') {
+            try {
+              sessionStorage.removeItem('upscaloro_user');
+              sessionStorage.removeItem('upscaloro_session');
+            } catch (storageError) {
+              console.error('Error clearing session storage:', storageError);
+            }
+          }
+          
           if (process.env.NODE_ENV === 'development') {
             console.log('No authenticated user found');
           }
@@ -315,7 +439,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         refreshUser,
         forceSignOut,
         recoverSession,
-        session
+        session,
+        redirectToLogin,
+        redirectIfAuthenticated
       }}
     >
       {children}

@@ -50,6 +50,27 @@ class DatabaseHandler:
             return None
     
     @staticmethod
+    async def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieves a user by their email address.
+        
+        Args:
+            email: The email address of the user to retrieve
+            
+        Returns:
+            Optional[Dict[str, Any]]: The user data or None if not found
+        """
+        try:
+            response = supabase.table("users").select("*").eq("email", email).execute()
+            
+            if response.data and len(response.data) > 0:
+                return response.data[0]
+            return None
+        except Exception as e:
+            logger.error(f"Error getting user by email: {str(e)}")
+            return None
+    
+    @staticmethod
     async def create_user(user_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         Creates a new user in the database.
@@ -227,7 +248,7 @@ class DatabaseHandler:
             return False
     
     @classmethod
-    async def upsert_subscription(cls, user_id, stripe_customer_id, stripe_subscription_id, plan, status, current_period_end, email=None):
+    async def upsert_subscription(cls, user_id, stripe_customer_id, stripe_subscription_id, plan, status, current_period_end, email=None, billing_cycle="monthly"):
         """
         Upsert a subscription record in the database
         
@@ -239,12 +260,13 @@ class DatabaseHandler:
             status (str): The subscription status
             current_period_end (datetime): The end date of the current subscription period
             email (str, optional): The user's email
+            billing_cycle (str, optional): The billing cycle (monthly or yearly)
             
         Returns:
             dict: The upserted subscription data or None if the operation failed
         """
         try:
-            logger.info(f"Upserting subscription for user: {user_id}")
+            logger.info(f"Upserting subscription for user: {user_id} with plan: {plan}, billing_cycle: {billing_cycle}")
             
             subscription_data = {
                 "user_id": user_id,  # Using user_id as a column
@@ -253,7 +275,8 @@ class DatabaseHandler:
                 "plan": plan,
                 "status": status,
                 "current_period_end": current_period_end.isoformat(),
-                "email": email
+                "email": email,
+                "billing_cycle": billing_cycle
             }
             
             # First check if a subscription already exists for this user

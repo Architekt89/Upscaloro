@@ -1073,6 +1073,300 @@ async def get_user_usage(current_user: User = Depends(get_current_active_user)):
             detail=f"Error getting user usage data: {str(e)}"
         )
 
+@app.post("/admin/fix-subscription")
+async def fix_subscription(
+    email: str = Body(..., description="User email to update"),
+    new_tier: str = Body(..., description="New subscription tier (free, pro, enterprise)"),
+    admin_key: str = Body(..., description="Admin API key for authentication")
+):
+    """
+    Admin endpoint to manually fix a user's subscription tier.
+    
+    Args:
+        email: The user's email address
+        new_tier: The new subscription tier (free, pro, enterprise)
+        admin_key: Admin API key for authentication
+    
+    Returns:
+        Dict with status and message
+    """
+    # Validate admin key
+    expected_admin_key = os.getenv("ADMIN_API_KEY")
+    if not expected_admin_key or admin_key != expected_admin_key:
+        logger.warning(f"Unauthorized admin API key attempt from IP: {request.client.host}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid admin API key"
+        )
+    
+    # Validate the new tier
+    valid_tiers = ["free", "pro", "enterprise"]
+    if new_tier.lower() not in valid_tiers:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid tier. Must be one of: {', '.join(valid_tiers)}"
+        )
+    
+    try:
+        # Find the user by email
+        user = await DatabaseHandler.get_user_by_email(email)
+        
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with email {email} not found"
+            )
+        
+        # Update the user's subscription tier
+        user_id = user["id"]
+        current_tier = user.get("subscription_tier", "free")
+        
+        logger.info(f"Admin manually updating user {user_id} subscription from {current_tier} to {new_tier}")
+        
+        # Update user subscription tier
+        subscription_data = {
+            "subscription_tier": new_tier.lower(),
+            "updated_at": datetime.now().isoformat()
+        }
+        
+        updated = await DatabaseHandler.update_user(user_id, subscription_data)
+        
+        if not updated:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update subscription tier"
+            )
+        
+        return {
+            "status": "success",
+            "message": f"Successfully updated {email}'s subscription from {current_tier} to {new_tier}",
+            "user_id": user_id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in fix_subscription: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update subscription: {str(e)}"
+        )
+
+@app.post("/api/manual-upgrade")
+async def manual_upgrade_user(request: Request):
+    """
+    Manually upgrade a user's subscription plan.
+    This endpoint is for support purposes only.
+    """
+    try:
+        data = await request.json()
+        email = data.get("email")
+        target_plan = data.get("plan", "enterprise")
+        admin_key = data.get("admin_key")
+        
+        # Verify admin key
+        if not admin_key or admin_key != os.getenv("ADMIN_API_KEY"):
+            logger.warning(f"Invalid admin key used for manual upgrade attempt for {email}")
+            return JSONResponse(
+                status_code=403,
+                content={"error": "Invalid admin key"}
+            )
+        
+        if not email:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Email is required"}
+            )
+            
+        # Validate the plan
+        if target_plan not in ["free", "pro", "enterprise"]:
+            return JSONResponse(
+                status_code=400,
+                content={"error": f"Invalid plan: {target_plan}. Must be one of: free, pro, enterprise"}
+            )
+            
+        logger.info(f"Manual upgrade request for {email} to {target_plan} plan")
+        
+        # Call the payment handler to fix the subscription
+        from backend.payment import PaymentHandler
+        result = await PaymentHandler.manual_fix_subscription_by_email(
+            email=email,
+            target_plan=target_plan
+        )
+        
+        if result.get("status") == "success":
+            return JSONResponse(
+                status_code=200,
+                content={"message": result.get("message")}
+            )
+        else:
+            return JSONResponse(
+                status_code=400,
+                content={"error": result.get("message")}
+            )
+            
+    except Exception as e:
+        logger.error(f"Error in manual upgrade endpoint: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Server error: {str(e)}"}
+        )
+
+@app.get("/api/fix-simballo")
+async def fix_simballo():
+    """
+    Emergency endpoint to fix the subscription for simballo@outlook.com
+    """
+    try:
+        from backend.payment import PaymentHandler
+        
+        result = await PaymentHandler.manual_fix_subscription_by_email(
+            email="simballo@outlook.com",
+            target_plan="enterprise"
+        )
+        
+        if result.get("status") == "success":
+            return JSONResponse(
+                status_code=200,
+                content={"message": "Successfully fixed simballo@outlook.com subscription to Enterprise tier"}
+            )
+        else:
+            return JSONResponse(
+                status_code=400,
+                content={"error": result.get("message")}
+            )
+    except Exception as e:
+        logger.error(f"Error fixing simballo subscription: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Server error: {str(e)}"}
+        )
+
+@app.post("/billing/change-billing-cycle")
+async def change_billing_cycle(
+    price_id: str = Body(..., description="The price ID for the annual plan"),
+    billing_cycle: str = Body(..., description="The billing cycle to change to (yearly)"),
+    success_url: str = Body(..., description="URL to redirect on success"),
+    cancel_url: str = Body(..., description="URL to redirect on cancel"),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Change a user's billing cycle from monthly to yearly.
+    This creates a checkout session for the customer to confirm the change.
+    """
+    try:
+        logger.info(f"Changing billing cycle for user {current_user.email} to {billing_cycle} with price ID {price_id}")
+        
+        # Validate billing cycle
+        if billing_cycle != "yearly":
+            raise HTTPException(status_code=400, detail="Only switching to yearly billing is supported")
+        
+        if not price_id:
+            raise HTTPException(status_code=400, detail="Price ID is required")
+        
+        # Determine the plan from the price ID
+        from backend.payment import PaymentHandler, PRICE_TO_PLAN_MAPPING
+        
+        plan_id = PRICE_TO_PLAN_MAPPING.get(price_id, "pro")  # Default to pro if price ID is not found
+        logger.info(f"Determined plan '{plan_id}' from price ID {price_id}")
+        
+        # Create checkout session for billing cycle change
+        payment_handler = PaymentHandler()
+        
+        checkout_session = await payment_handler.create_checkout_session(
+            user_id=current_user.id,
+            plan_id=plan_id,
+            success_url=success_url,
+            cancel_url=cancel_url,
+            billing_cycle=billing_cycle
+        )
+        
+        if not checkout_session or checkout_session.get("status") != "success":
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Failed to create checkout session for billing cycle change: {checkout_session.get('message', 'Unknown error')}"
+            )
+        
+        return {"url": checkout_session["url"]}
+        
+    except Exception as e:
+        logger.error(f"Error changing billing cycle: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to change billing cycle: {str(e)}")
+
+@app.get("/fix-subscription/{email}")
+async def fix_subscription_by_email(email: str):
+    """
+    Emergency endpoint to fix a user's subscription tier by email.
+    """
+    # Import the fix_subscription function
+    from backend.fix_subscription import fix_billing_cycle
+    
+    # Fix the subscription to Enterprise tier
+    result = await fix_billing_cycle(email, "yearly")
+    
+    if result:
+        return {"status": "success", "message": f"Successfully updated {email} to yearly billing cycle"}
+    else:
+        raise HTTPException(status_code=500, detail=f"Failed to update {email} to yearly billing cycle")
+
+@app.get("/fix-billing-cycle/{email}/{cycle}")
+async def fix_billing_cycle_endpoint(email: str, cycle: str):
+    """
+    Emergency endpoint to fix a user's billing cycle by email.
+    
+    Args:
+        email: The user's email address
+        cycle: The billing cycle (yearly or monthly)
+    """
+    if cycle not in ["yearly", "monthly"]:
+        raise HTTPException(status_code=400, detail="Billing cycle must be 'yearly' or 'monthly'")
+    
+    # Import the fix_subscription function
+    from backend.fix_subscription import fix_billing_cycle
+    
+    # Fix the subscription billing cycle
+    result = await fix_billing_cycle(email, cycle)
+    
+    if result:
+        return {"status": "success", "message": f"Successfully updated {email} to {cycle} billing cycle"}
+    else:
+        raise HTTPException(status_code=500, detail=f"Failed to update {email} to {cycle} billing cycle")
+
+@app.get("/api/debug/subscription/{email}")
+async def debug_subscription(email: str):
+    """
+    Debug endpoint to check a user's subscription details.
+    This is only for debugging purposes and should be removed in production.
+    """
+    try:
+        logger.info(f"Retrieving subscription details for debugging: {email}")
+        
+        # Get the user
+        user = await DatabaseHandler.get_user_by_email(email)
+        if not user:
+            raise HTTPException(status_code=404, detail=f"User with email {email} not found")
+        
+        user_id = user.get("id")
+        
+        # Get their subscription details
+        subscription = await DatabaseHandler.get_subscription(user_id)
+        
+        # Return the data
+        return {
+            "user": {
+                "id": user.get("id"),
+                "email": user.get("email"),
+                "subscription_tier": user.get("subscription_tier"),
+                "subscription_status": user.get("subscription_status"),
+                "subscription_current_period_end": user.get("subscription_current_period_end")
+            },
+            "subscription": subscription
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting subscription details: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True) 

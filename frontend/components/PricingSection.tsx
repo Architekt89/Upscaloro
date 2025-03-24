@@ -149,10 +149,10 @@ export default function PricingSection() {
       
       if (userError) {
         console.error('Error fetching user data from Supabase:', userError);
-        throw new Error('Failed to fetch user subscription data');
-      }
-      
-      if (userData && userData.subscription_tier) {
+        // Don't throw an error, just log it and continue to the next method
+        // For new users, they might not exist in the database yet
+        console.log('User might be new or database record not yet created, continuing to next method');
+      } else if (userData && userData.subscription_tier) {
         console.log('Found subscription data in users table:', userData);
         setUserPlan(userData.subscription_tier.toLowerCase());
         return;
@@ -168,17 +168,24 @@ export default function PricingSection() {
         headers["Authorization"] = `Bearer ${session.access_token}`;
       }
       
-      const response = await fetch(`${backendUrl}/subscription/${user.id}`, {
-        method: "GET",
-        headers
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.status === 'success' && data.data && data.data.subscription_tier) {
-          setUserPlan(data.data.subscription_tier.toLowerCase());
-          return;
+      try {
+        const response = await fetch(`${backendUrl}/subscription/${user.id}`, {
+          method: "GET",
+          headers
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.status === 'success' && data.data && data.data.subscription_tier) {
+            setUserPlan(data.data.subscription_tier.toLowerCase());
+            return;
+          }
+        } else {
+          console.log(`Backend API returned status ${response.status}, defaulting to free plan`);
         }
+      } catch (apiError) {
+        console.error("Error calling backend API:", apiError);
+        // Don't throw, just log and continue to default free plan
       }
       
       // Default to free if all methods fail
@@ -188,7 +195,18 @@ export default function PricingSection() {
       console.error("Error fetching user plan:", error);
       // Default to free if there's an error
       setUserPlan("free");
-      toast.error("Failed to load your current plan");
+      
+      // Only show error toast for serious errors, not just when we can't find the user
+      if (error instanceof TypeError && error.message.includes('fetch failed')) {
+        // Network error - more serious
+        toast.error("Network error: Failed to connect to the server");
+      } else if (!(error instanceof Error) || !error.message.includes('fetch user subscription data')) {
+        // Other serious errors, but not the expected "failed to fetch user subscription data" error
+        toast.error("An unexpected error occurred. Please try again later.");
+      } else {
+        // Expected errors for new users, don't show toast
+        console.log("Expected error for new user, not showing error toast");
+      }
     } finally {
       setLoadingPlan(null);
     }
@@ -524,94 +542,108 @@ export default function PricingSection() {
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {pricingPlans.map((plan, index) => (
-              <div 
-                key={index}
-                className={`
-                  relative rounded-2xl p-6 md:p-8 bg-gray-900/60 backdrop-blur-sm border border-gray-800 
-                  shadow-xl transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl
-                  ${plan.highlighted ? 'md:scale-105 md:-translate-y-2 z-10' : 'z-0'}
-                  ${user && plan.id === userPlan ? 'ring-2 ring-orange-500' : ''}
-                `}
-              >
-                {/* Current plan badge */}
-                {user && plan.id === userPlan && (
-                  <div className="absolute top-0 right-0 -mt-2 -mr-2 bg-orange-500 text-white text-xs px-2 py-1 rounded-full">
-                    Current Plan
-                  </div>
-                )}
-                
-                {/* Highlight border for Professional plan */}
-                {plan.highlighted && (
-                  <div className="absolute inset-0 rounded-2xl border-2 border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.5)] -z-10"></div>
-                )}
-                
-                <div className="text-center mb-8">
-                  <h3 className="text-xl md:text-2xl font-bold text-white mb-2">{plan.name}</h3>
-                  <div className="text-3xl md:text-4xl font-extrabold text-orange-500 mb-2">
-                    {billingCycle === 'monthly' ? plan.monthlyPrice : plan.annualPrice}
-                    <span className="text-lg font-normal text-gray-400">
-                      {billingCycle === 'monthly' ? '/month' : '/year'}
-                    </span>
-                  </div>
-                  {billingCycle === 'annual' && plan.monthlyPrice !== "$0" && (
-                    <div className="text-sm text-gray-400 mb-2">
-                      ${Math.round(parseInt(plan.annualPrice!.replace('$', '')) / 12)} per month, billed annually
+            {pricingPlans.map((plan, index) => {
+              // Determine if this plan should be highlighted
+              const isHighlighted = user 
+                ? plan.id === userPlan  // If user is logged in, highlight their current plan
+                : plan.id === "pro";    // If not logged in, highlight the Pro plan
+              
+              return (
+                <div 
+                  key={index}
+                  className={`
+                    relative rounded-2xl p-6 md:p-8 bg-gray-900/60 backdrop-blur-sm border border-gray-800 
+                    shadow-xl transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl
+                    ${isHighlighted ? 'md:scale-105 md:-translate-y-2 z-10' : 'z-0'}
+                    ${user && plan.id === userPlan ? 'ring-2 ring-orange-500' : ''}
+                  `}
+                >
+                  {/* Current plan badge */}
+                  {user && plan.id === userPlan && (
+                    <div className="absolute top-0 right-0 -mt-2 -mr-2 bg-orange-500 text-white text-xs px-2 py-1 rounded-full">
+                      Current Plan
                     </div>
                   )}
-                  <p className="text-gray-400">{plan.description}</p>
-                </div>
-                
-                <ul className="space-y-4 mb-8">
-                  {plan.features.map((feature, featureIndex) => (
-                    <li key={featureIndex} className="flex items-start">
-                      <span className={`flex-shrink-0 h-6 w-6 rounded-full flex items-center justify-center ${feature.included ? 'text-orange-500' : 'text-gray-600'}`}>
-                        <Check className="h-4 w-4" />
+                  
+                  {/* Recommended badge for Pro plan when not logged in */}
+                  {!user && plan.id === "pro" && (
+                    <div className="absolute top-0 right-0 -mt-2 -mr-2 bg-orange-500 text-white text-xs px-2 py-1 rounded-full">
+                      Recommended
+                    </div>
+                  )}
+                  
+                  {/* Highlight border for highlighted plan */}
+                  {isHighlighted && (
+                    <div className="absolute inset-0 rounded-2xl border-2 border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.5)] -z-10"></div>
+                  )}
+                  
+                  <div className="text-center mb-8">
+                    <h3 className="text-xl md:text-2xl font-bold text-white mb-2">{plan.name}</h3>
+                    <div className="text-3xl md:text-4xl font-extrabold text-orange-500 mb-2">
+                      {billingCycle === 'monthly' ? plan.monthlyPrice : plan.annualPrice}
+                      <span className="text-lg font-normal text-gray-400">
+                        {billingCycle === 'monthly' ? '/month' : '/year'}
                       </span>
-                      <span className={`ml-3 text-sm ${feature.included ? 'text-gray-300' : 'text-gray-500 line-through'}`}>
-                        {feature.text}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                
-                <div className="mt-auto">
-                  <button
-                    onClick={() => handlePlanSelect(plan)}
-                    disabled={loadingPlan === plan.id || !sessionChecked || 
-                      (!!user && plan.id === userPlan && !(billingCycle === 'annual' && getButtonText(plan) === "Switch to annual billing"))}
-                    className={`
-                      block w-full py-3 px-4 rounded-full text-center text-sm font-semibold transition-all duration-300
-                      ${plan.highlighted 
-                        ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-[0_0_15px_rgba(249,115,22,0.3)] hover:shadow-[0_0_20px_rgba(249,115,22,0.5)] hover:from-orange-400 hover:to-orange-600 hover:scale-[1.03]' 
-                        : 'border border-gray-400 text-white hover:bg-orange-500 hover:border-orange-500 hover:text-white hover:scale-[1.03]'
-                      }
-                      ${(loadingPlan === plan.id || !sessionChecked || (!!user && plan.id === userPlan && !(billingCycle === 'annual' && getButtonText(plan) === "Switch to annual billing"))) ? 'opacity-75 cursor-not-allowed' : ''}
-                    `}
-                  >
-                    {loadingPlan === plan.id ? (
-                      <span className="flex items-center justify-center">
-                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Processing...
-                      </span>
-                    ) : !sessionChecked ? (
-                      <span className="flex items-center justify-center">
-                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Loading...
-                      </span>
-                    ) : (
-                      getButtonText(plan)
+                    </div>
+                    {billingCycle === 'annual' && plan.monthlyPrice !== "$0" && (
+                      <div className="text-sm text-gray-400 mb-2">
+                        ${Math.round(parseInt(plan.annualPrice!.replace('$', '')) / 12)} per month, billed annually
+                      </div>
                     )}
-                  </button>
+                    <p className="text-gray-400">{plan.description}</p>
+                  </div>
+                  
+                  <ul className="space-y-4 mb-8">
+                    {plan.features.map((feature, featureIndex) => (
+                      <li key={featureIndex} className="flex items-start">
+                        <span className={`flex-shrink-0 h-6 w-6 rounded-full flex items-center justify-center ${feature.included ? 'text-orange-500' : 'text-gray-600'}`}>
+                          <Check className="h-4 w-4" />
+                        </span>
+                        <span className={`ml-3 text-sm ${feature.included ? 'text-gray-300' : 'text-gray-500 line-through'}`}>
+                          {feature.text}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  
+                  <div className="mt-auto">
+                    <button
+                      onClick={() => handlePlanSelect(plan)}
+                      disabled={loadingPlan === plan.id || !sessionChecked || 
+                        (!!user && plan.id === userPlan && !(billingCycle === 'annual' && getButtonText(plan) === "Switch to annual billing"))}
+                      className={`
+                        block w-full py-3 px-4 rounded-full text-center text-sm font-semibold transition-all duration-300
+                        ${isHighlighted 
+                          ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-[0_0_15px_rgba(249,115,22,0.3)] hover:shadow-[0_0_20px_rgba(249,115,22,0.5)] hover:from-orange-400 hover:to-orange-600 hover:scale-[1.03]' 
+                          : 'border border-gray-400 text-white hover:bg-orange-500 hover:border-orange-500 hover:text-white hover:scale-[1.03]'
+                        }
+                        ${(loadingPlan === plan.id || !sessionChecked || (!!user && plan.id === userPlan && !(billingCycle === 'annual' && getButtonText(plan) === "Switch to annual billing"))) ? 'opacity-75 cursor-not-allowed' : ''}
+                      `}
+                    >
+                      {loadingPlan === plan.id ? (
+                        <span className="flex items-center justify-center">
+                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Processing...
+                        </span>
+                      ) : !sessionChecked ? (
+                        <span className="flex items-center justify-center">
+                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Loading...
+                        </span>
+                      ) : (
+                        getButtonText(plan)
+                      )}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>

@@ -39,7 +39,7 @@ export default function DashboardPage() {
           if (plan === 'pro') {
             setMaxImagesPerMonth(400);
           } else if (plan === 'enterprise') {
-            setMaxImagesPerMonth(1000);
+            setMaxImagesPerMonth(800);
           } else {
             setMaxImagesPerMonth(3);
           }
@@ -73,7 +73,7 @@ export default function DashboardPage() {
             if (plan === 'pro') {
               setMaxImagesPerMonth(400);
             } else if (plan === 'enterprise') {
-              setMaxImagesPerMonth(1000);
+              setMaxImagesPerMonth(800);
             } else {
               setMaxImagesPerMonth(5);
             }

@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { CreditCard, Package, BarChart, Receipt, AlertCircle, CheckCircle, ChevronRight, PlusCircle, Edit, Trash2 } from 'lucide-react';
+import { CreditCard, Package, BarChart, AlertCircle, CheckCircle, ChevronRight, PlusCircle, Edit, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { 
   getBillingInfo, 
@@ -17,7 +17,6 @@ import {
 import BackendDebug from './debug';
 import axios from 'axios';
 import Link from 'next/link';
-import UsageStats from '@/components/UsageStats';
 
 // Mock data for demonstration
 const mockSubscriptionData = {
@@ -35,15 +34,6 @@ const mockSubscriptionData = {
   ]
 };
 
-const mockUsageData = {
-  imagesProcessed: 87,
-  imagesLimit: 100,
-  apiCalls: 230,
-  apiCallsLimit: 500,
-  storageUsed: '1.2 GB',
-  storageLimit: '5 GB',  // Corresponds to 5000 MB in the Pro plan
-};
-
 const mockPaymentMethods = [
   {
     id: 'pm_1',
@@ -56,43 +46,14 @@ const mockPaymentMethods = [
   }
 ];
 
-const mockBillingHistory = [
-  {
-    id: 'in_1',
-    date: '2023-11-01',
-    amount: '$9.99',
-    status: 'paid',
-    description: 'Pro Plan - Monthly',
-    downloadUrl: '#',
-  },
-  {
-    id: 'in_2',
-    date: '2023-10-01',
-    amount: '$9.99',
-    status: 'paid',
-    description: 'Pro Plan - Monthly',
-    downloadUrl: '#',
-  },
-  {
-    id: 'in_3',
-    date: '2023-09-01',
-    amount: '$9.99',
-    status: 'paid',
-    description: 'Pro Plan - Monthly',
-    downloadUrl: '#',
-  },
-];
-
 export default function BillingPage() {
-  const { user, session, refreshUser } = useAuth();
+  const { user, session, refreshUser, loading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const checkoutSuccess = searchParams.get('checkout_success');
   const [loading, setLoading] = useState(true);
   const [subscription, setSubscription] = useState(mockSubscriptionData);
-  const [usage, setUsage] = useState(mockUsageData);
   const [paymentMethods, setPaymentMethods] = useState(mockPaymentMethods);
-  const [billingHistory, setBillingHistory] = useState(mockBillingHistory);
   const [showAddPaymentMethod, setShowAddPaymentMethod] = useState(false);
   const [formData, setFormData] = useState({
     cardNumber: '',
@@ -102,17 +63,23 @@ export default function BillingPage() {
   const [backendError, setBackendError] = useState(false);
   const [usingMockData, setUsingMockData] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [statusMessage, setStatusMessage] = useState({
+    type: "success",
+    message: ""
+  });
 
   // Check if user is logged in
   useEffect(() => {
     let successMessageTimer: NodeJS.Timeout | null = null;
     let refreshCompleted = false;
     
-    if (!user) {
+    if (!user && !authLoading) {
       router.push('/auth/login');
       return;
     }
 
+    // Only proceed with fetching data if we have a user
+    if (user) {
     // Check for checkout success parameter
     if (checkoutSuccess === 'true' && !refreshCompleted) {
       setShowSuccessMessage(true);
@@ -186,13 +153,6 @@ export default function BillingPage() {
         setBackendError(false);
         setUsingMockData(false);
         
-        // Check if user is authenticated
-        if (!user) {
-          toast.error('Please log in to view billing information');
-          router.push('/auth/login');
-          return;
-        }
-        
         // Check for user metadata first (fastest if available)
         if (user?.user_metadata?.subscription_tier) {
           console.log('Found subscription tier in user metadata:', user.user_metadata);
@@ -228,11 +188,9 @@ export default function BillingPage() {
           
           // If we have real subscription data, but no other billing data,
           // we'll still use mock data for the rest
-          setUsage(mockUsageData);
           setPaymentMethods(mockPaymentMethods);
-          setBillingHistory(mockBillingHistory);
           
-          // Using real subscription data with mock billing info, 
+            // Using real subscription data with mock payment methods, 
           // so don't show the "Using Demo Data" banner
           setUsingMockData(false);
           setBackendError(false);
@@ -290,199 +248,69 @@ export default function BillingPage() {
             };
             
             setSubscription(realSubscription);
-            setUsage(mockUsageData);
             setPaymentMethods(mockPaymentMethods);
-            setBillingHistory(mockBillingHistory);
-            
-            // Using real subscription data with mock billing info, 
-            // so don't show the "Using Demo Data" banner
-            setUsingMockData(false);
-            setBackendError(false);
-            return;
-          }
-        } catch (dbError) {
-          console.error('Error accessing Supabase directly:', dbError);
-          // Continue to next fallback method
-        }
-        
-        // Fetch real subscription data from the API with timeout and retry
-        try {
-          const fetchWithTimeout = async (url: string, options: any, timeout = 10000): Promise<any> => {
-            const controller = new AbortController();
-            const id = setTimeout(() => controller.abort(), timeout);
-            
-            try {
-              const response = await fetch(url, {
-                ...options,
-                signal: controller.signal
-              });
-              clearTimeout(id);
-              return response;
-            } catch (error) {
-              clearTimeout(id);
-              throw error;
-            }
-          };
-          
-          const retryFetch = async (url: string, options: any, retries = 2): Promise<Response> => {
-            try {
-              return await fetchWithTimeout(url, options);
-            } catch (err) {
-              if (retries <= 0) throw err;
               
-              // Wait before retrying
-              await new Promise(resolve => setTimeout(resolve, 1000));
-              console.log(`Retrying fetch, ${retries} attempts left`);
-              return retryFetch(url, options, retries - 1);
-            }
-          };
-          
-          const subscriptionResponse = await retryFetch(`https://upscaloro.onrender.com/subscription/${user.id}`, {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session?.access_token || ''}`
-            }
-          });
-          
-          if (subscriptionResponse.ok) {
-            const subscriptionData = await subscriptionResponse.json();
-            
-            if (subscriptionData.status === 'success') {
-              // Create subscription object from real data
-              const realSubscription = {
-                plan: subscriptionData.data.subscription_tier || 'Free',
-                status: subscriptionData.data.subscription_status || 'active',
-                renewalDate: subscriptionData.data.current_period_end 
-                  ? new Date(subscriptionData.data.current_period_end).toISOString()
-                  : new Date(new Date().getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(), // Default to 30 days from now
-                price: subscriptionData.data.subscription_tier === 'pro' ? '$15.00' : '$0.00',
-                billingCycle: 'monthly',
-                features: subscriptionData.data.subscription_tier === 'pro' 
-                  ? [
-                      "Unlimited images",
-                      "Up to 16x upscaling",
-                      "All upscaling modes",
-                      "Batch image processing",
-                      "API access",
-                      "Priority support"
-                    ]
-                  : [
-                      "Up to 3 images per month",
-                      "2x and 4x upscaling",
-                      "Basic upscaling mode",
-                      "Standard support"
-                    ]
-              };
-              
-              setSubscription(realSubscription);
-              
-              // If we have real subscription data, but no other billing data,
-              // we'll still use mock data for the rest
-              setUsage(mockUsageData);
+              // Using partial data from the database with mock payment methods
               setPaymentMethods(mockPaymentMethods);
-              setBillingHistory(mockBillingHistory);
               
               // We're using partial real data
               setUsingMockData(true);
             } else {
-              throw new Error(subscriptionData.message || 'Failed to fetch subscription data');
+              console.log('No subscription data found in users table');
+              throw new Error('No subscription data found');
             }
-          } else {
-            throw new Error(`Failed to fetch subscription data: ${subscriptionResponse.statusText}`);
-          }
-        } catch (subscriptionError) {
-          console.error('Error fetching subscription data:', subscriptionError);
-          
-          // Fall back to fetching billing data from the billing endpoint
+          } catch (error) {
+            console.error('Error fetching subscription data from users table:', error);
+            
+            // If we can't get subscription data from the users table,
+            // try the billing API as a fallback
+            try {
+              console.log('Attempting to fetch billing data from API');
           const billingData = await getBillingInfo();
           
-          if (billingData) {
-            setSubscription(billingData.subscription || mockSubscriptionData);
-            setUsage(billingData.usage || mockUsageData);
-            setPaymentMethods(billingData.payment_methods || mockPaymentMethods);
-            setBillingHistory(billingData.invoices || mockBillingHistory);
+              if (billingData && billingData.subscription) {
+                console.log('Using real billing data from API', billingData);
+                
+                // Use the real subscription data
+                setSubscription(billingData.subscription);
+                
+                // Use real payment methods if available, otherwise use mock
+                setPaymentMethods(billingData.paymentMethods || mockPaymentMethods);
             
             // Check if we're using mock data (this happens when the backend doesn't have billing endpoints)
-            if (billingData === mockBillingData) {
+                if (billingData.usingMockData) {
+                  console.log('API returned that it is using mock data');
               setUsingMockData(true);
-            }
-          }
-        }
-      } catch (error: any) {
-        console.error('Error fetching billing data:', error);
-        
-        // Set backend error flag
-        if (error.message === 'Network Error' || 
-            error.message === 'Failed to fetch' ||
-            (axios.isAxiosError(error) && error.response?.status === 404)) {
-          setBackendError(true);
-          
-          // Special handling for render.com resource limitations
-          if (error.message === 'Failed to fetch' || 
-              (error.message && error.message.includes('ERR_INSUFFICIENT_RESOURCES'))) {
-            
-            toast.error('The server is experiencing resource limitations. Using local data instead.');
-            
-            // If the user has already completed checkout, use pro plan for display
-            if (checkoutSuccess === 'true' && user) {
-              const proSubscription = {
-                plan: 'Pro',
-                status: 'active',
-                renewalDate: new Date(new Date().getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-                price: '$15.00',
-                billingCycle: 'monthly',
-                features: [
-                  'Unlimited images',
-                  'Up to 16x upscaling',
-                  'All upscaling modes',
-                  'API access',
-                  'Priority support',
-                ]
-              };
-              
-              setSubscription(proSubscription);
-              setUsage(mockUsageData);
+                } else {
+                  setUsingMockData(false);
+                }
+                
+                setBackendError(false);
+              } else {
+                console.log('No real billing data available from API, using mock data');
+                // Use mock data
+                setSubscription(mockSubscriptionData);
               setPaymentMethods(mockPaymentMethods);
-              setBillingHistory(mockBillingHistory);
               setUsingMockData(true);
-              
               // Show a special message about the situation
-              toast('Your payment was successful! The updated subscription will be available once the server recovers.', 
-                { icon: '👍', duration: 6000 });
-            } else {
-              toast.error('Cannot connect to the backend server. Using mock data instead.');
+                setBackendError(false);
+              }
+            } catch (apiError) {
+              console.error('Error fetching billing data from API:', apiError);
+              // Complete fallback to mock data for everything
+              setSubscription(mockSubscriptionData);
+              setPaymentMethods(mockPaymentMethods);
+              setUsingMockData(true);
+              setBackendError(true);
             }
-          } else {
-            toast.error('Cannot connect to the backend server. Using mock data instead.');
           }
-        } else if (error.message === 'Authentication required') {
-          toast.error('Your session has expired. Please log in again.');
-          router.push('/auth/login');
-          return;
-        } else if (axios.isAxiosError(error) && error.response) {
-          // The request was made and the server responded with a status code
-          // that falls out of the range of 2xx
-          if (error.response.status === 401) {
-            toast.error('Authentication error. Please log in again.');
-            router.push('/auth/login');
-            return;
-          } else if (error.response.status === 403) {
-            toast.error('You do not have permission to access billing information.');
-          } else if (error.response.status === 404) {
-            toast.error('Billing information not found.');
-          } else {
-            toast.error(`Server error: ${error.response.data?.detail || 'Failed to load billing data'}`);
-          }
-        } else if (axios.isAxiosError(error) && error.request) {
-          // The request was made but no response was received
-          toast.error('No response from server. Please check your connection.');
-        } else {
-          // Something happened in setting up the request that triggered an Error
-          toast.error(`Error: ${error.message || 'Failed to load billing data'}`);
-        }
-        
-        // Fall back to mock data
+        } catch (finalError) {
+          console.error('Final error in billing data fetching:', finalError);
+          // Use mock data as a last resort
+          setSubscription(mockSubscriptionData);
+          setPaymentMethods(mockPaymentMethods);
+          setUsingMockData(true);
+          setBackendError(true);
       } finally {
         setLoading(false);
       }
@@ -490,6 +318,7 @@ export default function BillingPage() {
 
     if (user) {
       fetchBillingData();
+      }
     }
     
     // Cleanup function
@@ -500,7 +329,7 @@ export default function BillingPage() {
       // Clear all toasts when component unmounts to prevent duplicates
       toast.dismiss();
     };
-  }, [user, router, session, checkoutSuccess, refreshUser]);
+  }, [user, router, session, checkoutSuccess, refreshUser, authLoading]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
@@ -787,140 +616,96 @@ export default function BillingPage() {
             <div>
               <h4 className="text-sm font-medium text-gray-400 mb-3">Plan Features</h4>
               <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {subscription.features.map((feature, index) => (
-                  <li key={index} className="flex items-start">
+                {subscription.plan.toLowerCase() === 'free' ? (
+                  // Free plan features
+                  <>
+                    <li key="free-1" className="flex items-start">
                     <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
-                    <span className="text-gray-300">{feature}</span>
+                      <span className="text-gray-300">5 images per month</span>
                   </li>
-                ))}
+                    <li key="free-2" className="flex items-start">
+                      <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                      <span className="text-gray-300">Basic upscaling</span>
+                    </li>
+                    <li key="free-3" className="flex items-start">
+                      <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                      <span className="text-gray-300">Maximum 2K output resolution</span>
+                    </li>
+                    <li key="free-4" className="flex items-start">
+                      <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                      <span className="text-gray-300">Community support</span>
+                    </li>
+                  </>
+                ) : subscription.plan.toLowerCase() === 'pro' ? (
+                  // Pro plan features
+                  <>
+                    <li key="pro-1" className="flex items-start">
+                      <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                      <span className="text-gray-300">400 images per month</span>
+                    </li>
+                    <li key="pro-2" className="flex items-start">
+                      <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                      <span className="text-gray-300">Premium upscaling quality</span>
+                    </li>
+                    <li key="pro-3" className="flex items-start">
+                      <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                      <span className="text-gray-300">Maximum 4K output resolution</span>
+                    </li>
+                    <li key="pro-4" className="flex items-start">
+                      <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                      <span className="text-gray-300">Email support</span>
+                    </li>
+                    <li key="pro-5" className="flex items-start">
+                      <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                      <span className="text-gray-300">Fast processing speed</span>
+                    </li>
+                    <li key="pro-6" className="flex items-start">
+                      <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                      <span className="text-gray-300">All AI models</span>
+                    </li>
+                    <li key="pro-7" className="flex items-start">
+                      <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                      <span className="text-gray-300">Batch processing (up to 10 images)</span>
+                    </li>
+                  </>
+                ) : (
+                  // Enterprise plan features
+                  <>
+                    <li key="ent-1" className="flex items-start">
+                      <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                      <span className="text-gray-300">800 images per month</span>
+                    </li>
+                    <li key="ent-2" className="flex items-start">
+                      <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                      <span className="text-gray-300">Highest upscaling quality</span>
+                    </li>
+                    <li key="ent-3" className="flex items-start">
+                      <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                      <span className="text-gray-300">Maximum 16K output resolution</span>
+                    </li>
+                    <li key="ent-4" className="flex items-start">
+                      <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                      <span className="text-gray-300">Email support</span>
+                    </li>
+                    <li key="ent-5" className="flex items-start">
+                      <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                      <span className="text-gray-300">Ultra-fast processing speed</span>
+                    </li>
+                    <li key="ent-6" className="flex items-start">
+                      <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                      <span className="text-gray-300">All AI models plus beta access</span>
+                    </li>
+                    <li key="ent-7" className="flex items-start">
+                      <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                      <span className="text-gray-300">Batch processing</span>
+                    </li>
+                    <li key="ent-8" className="flex items-start">
+                      <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                      <span className="text-gray-300">API access</span>
+                    </li>
+                  </>
+                )}
               </ul>
-            </div>
-          </div>
-          
-          {/* Usage Section */}
-          <div className="bg-gray-900/50 backdrop-blur-sm rounded-xl p-6 border border-gray-800/50 shadow-xl mb-8">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center">
-                <BarChart className="h-6 w-6 text-orange-500 mr-2" />
-                <h2 className="text-xl font-semibold text-white">Usage</h2>
-              </div>
-            </div>
-            
-            {/* Use our UsageStats component instead of the demo usage data */}
-            {user && session ? (
-              <div className="relative group">
-                <UsageStats 
-                  userId={user.id} 
-                  token={session.access_token} 
-                />
-                {/* Overlay with refresh button that appears on hover */}
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30 rounded-lg backdrop-blur-sm">
-                  <button
-                    onClick={() => window.location.reload()}
-                    className="px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors"
-                  >
-                    Refresh Stats
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {/* Fallback to the original demo usage UI if user or session is missing */}
-                <div>
-                  <div className="flex justify-between mb-2">
-                    <span className="text-gray-300">Images Processed</span>
-                    <span className="text-gray-300">{usage.imagesProcessed} / {usage.imagesLimit}</span>
-                  </div>
-                  <div className="w-full bg-gray-700 rounded-full h-2.5">
-                    <div 
-                      className="bg-orange-500 h-2.5 rounded-full" 
-                      style={{ width: `${(usage.imagesProcessed / usage.imagesLimit) * 100}%` }}
-                    ></div>
-                  </div>
-                </div>
-                
-                <div>
-                  <div className="flex justify-between mb-2">
-                    <span className="text-gray-300">API Calls</span>
-                    <span className="text-gray-300">{usage.apiCalls} / {usage.apiCallsLimit}</span>
-                  </div>
-                  <div className="w-full bg-gray-700 rounded-full h-2.5">
-                    <div 
-                      className="bg-orange-500 h-2.5 rounded-full" 
-                      style={{ width: `${(usage.apiCalls / usage.apiCallsLimit) * 100}%` }}
-                    ></div>
-                  </div>
-                </div>
-                
-                <div>
-                  <div className="flex justify-between mb-2">
-                    <span className="text-gray-300">Storage Used</span>
-                    <span className="text-gray-300">{usage.storageUsed} / {usage.storageLimit}</span>
-                  </div>
-                  <div className="w-full bg-gray-700 rounded-full h-2.5">
-                    <div 
-                      className="bg-orange-500 h-2.5 rounded-full" 
-                      style={{ width: `${(parseInt(usage.storageUsed) / parseInt(usage.storageLimit)) * 100}%` }}
-                    ></div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-          
-          {/* Billing History Section */}
-          <div className="bg-gray-900/50 backdrop-blur-sm rounded-xl p-6 border border-gray-800/50 shadow-xl">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center">
-                <Receipt className="h-6 w-6 text-orange-500 mr-2" />
-                <h2 className="text-xl font-semibold text-white">Billing History</h2>
-              </div>
-              {!backendError && !usingMockData && subscription.plan === 'pro' && (
-                <span className="text-xs text-gray-400">Demo data - API integration pending</span>
-              )}
-            </div>
-            
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-800">
-                <thead>
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Description</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Amount</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Receipt</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-800">
-                  {billingHistory.map((invoice) => (
-                    <tr key={invoice.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                        {new Date(invoice.date).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                        {invoice.description}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                        {invoice.amount}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                          {invoice.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300 text-right">
-                        <a 
-                          href={invoice.downloadUrl} 
-                          className="text-orange-500 hover:text-orange-400"
-                        >
-                          Download
-                        </a>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
           </div>
         </div>
         
@@ -1056,6 +841,7 @@ export default function BillingPage() {
                   <p className="text-gray-400">No payment methods added yet.</p>
                 </div>
               )}
+              </div>
             </div>
           </div>
         </div>

@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, FormEvent, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { signIn } from '@/utils/supabase';
+import { signIn, isUserLoggedIn } from '@/utils/supabase';
+import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast';
 import Logo from '@/components/Logo';
 import { Eye, EyeOff } from 'lucide-react';
@@ -13,7 +14,43 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [initialCheckDone, setInitialCheckDone] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { redirectIfAuthenticated, user, loading: authLoading } = useAuth();
+  
+  // Get redirect URL from query parameter
+  const redirectPath = searchParams.get('redirect') || '/dashboard';
+
+  // Check if the user is already logged in on mount
+  useEffect(() => {
+    const checkLoggedInStatus = async () => {
+      try {
+        // Skip if still loading auth
+        if (authLoading) return;
+        
+        // Redirect if already authenticated
+        if (user) {
+          toast.success('You are already logged in');
+          await redirectIfAuthenticated(redirectPath);
+          return;
+        }
+        
+        // Fallback check using isUserLoggedIn
+        const loggedIn = await isUserLoggedIn();
+        if (loggedIn) {
+          toast.success('You are already logged in');
+          window.location.href = redirectPath;
+        }
+      } catch (error) {
+        console.error('Error checking login status:', error);
+      } finally {
+        setInitialCheckDone(true);
+      }
+    };
+
+    checkLoggedInStatus();
+  }, [user, authLoading, redirectPath, redirectIfAuthenticated]);
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
@@ -24,16 +61,58 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      console.log('Login attempt for:', email);
       const { data, error } = await signIn(email, password);
 
       if (error) {
+        console.error('Login API error:', error);
         toast.error(error.message);
         return;
       }
 
       if (data.user) {
+        console.log('Login successful, user ID:', data.user.id);
+        console.log('Target redirect path:', redirectPath);
         toast.success('Logged in successfully!');
-        router.push('/dashboard');
+        
+        // Try multiple redirect approaches to ensure it works
+        try {
+          // Wait a small delay to ensure auth state is updated
+          console.log('Attempting to redirect after brief delay...');
+          setTimeout(async () => {
+            // First try the auth context helper
+            console.log('Trying redirectIfAuthenticated method...');
+            const redirected = await redirectIfAuthenticated(redirectPath);
+            
+            // If redirectIfAuthenticated didn't redirect, use fallbacks
+            if (!redirected) {
+              console.log('redirectIfAuthenticated failed, trying router.push...');
+              try {
+                // Try Next.js router
+                router.push(redirectPath);
+                
+                // Set a small timeout and then use window.location for a hard redirect if necessary
+                setTimeout(() => {
+                  // If we're still on the login page after 300ms, try a hard redirect
+                  if (window.location.pathname.includes('/auth/login')) {
+                    console.log('Still on login page, trying window.location.href...');
+                    window.location.href = redirectPath;
+                  }
+                }, 300);
+              } catch (redirectError) {
+                console.error('Router redirect failed, using window.location:', redirectError);
+                window.location.href = redirectPath;
+              }
+            }
+          }, 200);
+        } catch (redirectError) {
+          // Last resort fallback
+          console.error('All redirect methods failed, using hardcoded redirect:', redirectError);
+          window.location.href = redirectPath;
+        }
+      } else {
+        console.warn('Login API returned success but no user data');
+        toast.error('Login successful but user data not found');
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -42,6 +121,15 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  // Don't render the form until we've checked if the user is already logged in
+  if (authLoading || !initialCheckDone) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex items-center justify-center px-4 sm:px-6 lg:px-8">

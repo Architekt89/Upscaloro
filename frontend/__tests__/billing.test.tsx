@@ -82,10 +82,6 @@ describe('BillingPage', () => {
     const currentPlanHeading = screen.getByText('Current Plan');
     expect(currentPlanHeading).toBeInTheDocument();
     
-    // Check if usage section is displayed
-    const usageHeading = screen.getByText('Usage');
-    expect(usageHeading).toBeInTheDocument();
-    
     // Check if billing history section is displayed
     const billingHistoryHeading = screen.getByText('Billing History');
     expect(billingHistoryHeading).toBeInTheDocument();

@@ -1,4 +1,18 @@
 {
+  "app/dashboard/billing/page.tsx -> @supabase/supabase-js": {
+    "id": "app/dashboard/billing/page.tsx -> @supabase/supabase-js",
+    "files": []
+  },
+  "app/dashboard/page.tsx -> @supabase/supabase-js": {
+    "id": "app/dashboard/page.tsx -> @supabase/supabase-js",
+    "files": []
+  },
+  "components/ImageUploader.tsx -> jszip": {
+    "id": "components/ImageUploader.tsx -> jszip",
+    "files": [
+      "static/chunks/_app-pages-browser_node_modules_jszip_dist_jszip_min_js.js"
+    ]
+  },
   "components/PricingSection.tsx -> @supabase/supabase-js": {
     "id": "components/PricingSection.tsx -> @supabase/supabase-js",
     "files": []
