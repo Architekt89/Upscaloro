@@ -322,15 +322,24 @@ class PaymentHandler:
                 
                 # Retrieve the subscription details from Stripe for additional verification
                 try:
-                    subscription = stripe.Subscription.retrieve(subscription_id)
-                    current_period_end = subscription.current_period_end
-                    status = subscription.status
+                    # Ensure we properly call stripe.Subscription.retrieve() to get the subscription object
+                    if subscription_id:
+                        logger.info(f"Retrieving subscription from Stripe: {subscription_id}")
+                        subscription = stripe.Subscription.retrieve(subscription_id)
+                        logger.info(f"Successfully retrieved subscription: {subscription.id}")
+                        current_period_end = subscription.current_period_end
+                        status = subscription.status
+                    else:
+                        logger.error("No subscription_id available to retrieve")
+                        current_period_end = int(datetime.now().timestamp()) + (365 * 24 * 60 * 60)  # Default to 1 year
+                        status = "active"  # Default status
                     
                     # CRITICAL ENTERPRISE FIX: Look for the Enterprise Price ID directly in the subscription for immediate detection
                     # This should catch any Enterprise plan upgrades reliably regardless of other processing
                     enterprise_detected = False
                     try:
-                        if subscription.items and subscription.items.data:
+                        # Check subscription items
+                        if hasattr(subscription, 'items') and subscription.items and hasattr(subscription.items, 'data') and subscription.items.data:
                             subscription_price_id = subscription.items.data[0].price.id
                             logger.info(f"🔎 Direct price ID check: {subscription_price_id}")
                             
@@ -361,9 +370,10 @@ class PaymentHandler:
                                         logger.error(f"❌ IMMEDIATE ENTERPRISE UPDATE failed")
                     except Exception as e:
                         logger.error(f"Error in direct Enterprise detection: {str(e)}")
+                        # Continue processing despite the error - don't let this stop the entire flow
                     
-                    # Check the price ID from the subscription
-                    if subscription.items and subscription.items.data:
+                    # Check the price ID from the subscription - use the subscription that was already retrieved properly
+                    if hasattr(subscription, 'items') and subscription.items and hasattr(subscription.items, 'data') and subscription.items.data:
                         price_id = subscription.items.data[0].price.id
                         price_amount = subscription.items.data[0].price.unit_amount
                         
@@ -977,6 +987,156 @@ class PaymentHandler:
                         "status": "error",
                         "message": f"Error processing invoice payment: {str(e)}"
                     }
+            
+            elif event.type == "customer.subscription.created":
+                subscription = event.data.object
+                customer_id = subscription.customer
+                logger.info(f"Subscription created for customer: {customer_id}")
+                
+                # Extract necessary data from the subscription
+                subscription_id = subscription.id
+                status = subscription.status
+                current_period_end = subscription.current_period_end
+                
+                # Get the price ID and plan ID from the subscription
+                if hasattr(subscription, 'items') and subscription.items and hasattr(subscription.items, 'data') and subscription.items.data:
+                    price_id = subscription.items.data[0].price.id
+                    
+                    # Find the plan ID that corresponds to this price ID
+                    plan_id = None
+                    
+                    # First, try the direct mapping we created from price ID to plan
+                    plan_id = PRICE_TO_PLAN_MAPPING.get(price_id)
+                    if plan_id:
+                        logger.info(f"✅ Found plan '{plan_id}' directly from price ID mapping")
+                    
+                    # If not found in direct mapping, fall back to the old approach
+                    if not plan_id:
+                        for plan, plan_price_id in SUBSCRIPTION_PLANS.items():
+                            if plan_price_id == price_id:
+                                plan_id = plan
+                                logger.info(f"✅ Found plan '{plan_id}' from subscription plans dictionary")
+                                break
+                    
+                    # CRITICAL FIX: If this is an Enterprise price ID, force the plan to be enterprise
+                    if price_id in ENTERPRISE_PRICE_IDS:
+                        logger.info(f"🚨 Enterprise price ID detected: {price_id}")
+                        plan_id = "enterprise"
+                        logger.info(f"✅ Setting plan to ENTERPRISE based on price ID: {price_id}")
+                        
+                        # Call emergency update for Enterprise plan
+                        try:
+                            # Determine billing cycle
+                            billing_cycle = "monthly"
+                            try:
+                                if hasattr(subscription.items.data[0], 'plan') and hasattr(subscription.items.data[0].plan, 'interval'):
+                                    if subscription.items.data[0].plan.interval == "year":
+                                        billing_cycle = "yearly"
+                            except Exception:
+                                pass  # Use default monthly
+                                
+                            emergency_result = await PaymentHandler.emergency_enterprise_update(
+                                user_id=user_id,
+                                customer_id=customer_id,
+                                subscription_id=subscription_id,
+                                customer_email=customer_email,
+                                billing_cycle=billing_cycle
+                            )
+                            logger.info(f"🚨 Emergency enterprise update result: {emergency_result}")
+                            
+                            # If emergency update succeeded, we can return early
+                            if emergency_result and emergency_result.get("status") == "success":
+                                logger.info("✅ Emergency enterprise update succeeded, skipping regular update")
+                                return {
+                                    "status": "success",
+                                    "message": "Subscription created with emergency enterprise update",
+                                    "emergency_update": emergency_result
+                                }
+                        except Exception as e:
+                            logger.error(f"Error in emergency enterprise update: {str(e)}")
+                            # Continue with regular update as fallback
+                
+                # Find the user from subscription metadata
+                try:
+                    user_id = subscription.metadata.get("user_id")
+                    if not user_id:
+                        logger.error("No user_id found in subscription metadata")
+                        return {
+                            "status": "error",
+                            "message": "No user_id found in subscription metadata"
+                        }
+                        
+                    # Get customer email
+                    customer_email = None
+                    try:
+                        customer = stripe.Customer.retrieve(customer_id)
+                        customer_email = customer.email
+                    except Exception as e:
+                        logger.warning(f"Could not retrieve customer email: {str(e)}")
+                        
+                    # If we don't have a plan_id yet, use "pro" as default
+                    if not plan_id:
+                        plan_id = "pro"
+                        logger.info("No plan_id determined, defaulting to 'pro'")
+                        
+                    # Update the user record
+                    subscription_data = {
+                        "subscription_tier": plan_id,
+                        "stripe_customer_id": customer_id,
+                        "stripe_subscription_id": subscription_id,
+                        "subscription_status": status,
+                        "subscription_current_period_end": datetime.fromtimestamp(current_period_end).isoformat(),
+                        "updated_at": datetime.now().isoformat()
+                    }
+                    
+                    # Determine billing cycle
+                    billing_cycle = "monthly"
+                    try:
+                        if hasattr(subscription.items.data[0], 'plan') and hasattr(subscription.items.data[0].plan, 'interval'):
+                            if subscription.items.data[0].plan.interval == "year":
+                                billing_cycle = "yearly"
+                    except Exception:
+                        pass  # Use default monthly
+                    
+                    subscription_data["subscription_billing_cycle"] = billing_cycle
+                    
+                    # Update user in database
+                    logger.info(f"Updating user {user_id} with subscription data")
+                    from backend.database import DatabaseHandler
+                    updated_user = await DatabaseHandler.update_user(user_id, subscription_data)
+                    
+                    # Also update subscription record
+                    if updated_user:
+                        logger.info(f"Successfully updated user record: {user_id}")
+                        subscription_result = await DatabaseHandler.upsert_subscription(
+                            user_id=user_id,
+                            stripe_customer_id=customer_id,
+                            stripe_subscription_id=subscription_id,
+                            plan=plan_id,
+                            status=status,
+                            current_period_end=datetime.fromtimestamp(current_period_end),
+                            email=customer_email,
+                            billing_cycle=billing_cycle
+                        )
+                        
+                        if subscription_result:
+                            logger.info(f"Successfully updated subscription record for user: {user_id}")
+                        else:
+                            logger.error(f"Failed to update subscription record for user: {user_id}")
+                    else:
+                        logger.error(f"Failed to update user record: {user_id}")
+                except Exception as e:
+                    logger.error(f"Error processing subscription creation: {str(e)}")
+                    return {
+                        "status": "error",
+                        "message": f"Error processing subscription creation: {str(e)}"
+                    }
+                
+                return {
+                    "status": "success",
+                    "message": f"Subscription created successfully",
+                    "plan_id": plan_id or "pro"
+                }
             
             # Return a response for unhandled event types
             return {
