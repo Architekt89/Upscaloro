@@ -352,7 +352,7 @@ class PaymentHandler:
                                 # Force Enterprise plan - don't wait for normal processing
                                 from supabase import create_client
                                 SUPABASE_URL = os.getenv("SUPABASE_URL")
-                                SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
+                                SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
                                 
                                 if SUPABASE_URL and SUPABASE_SERVICE_KEY:
                                     logger.info(f"⚡ IMMEDIATE ENTERPRISE UPDATE for user {user_id}")
@@ -390,7 +390,7 @@ class PaymentHandler:
                             try:
                                 from supabase import create_client
                                 SUPABASE_URL = os.getenv("SUPABASE_URL")
-                                SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
+                                SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
                                 
                                 if SUPABASE_URL and SUPABASE_SERVICE_KEY:
                                     logger.info(f"⚠️ CRITICAL ENTERPRISE FIX: Directly updating user {user_id} to Enterprise based on price ID")
@@ -702,50 +702,76 @@ class PaymentHandler:
                     
                     # Get the price ID from the subscription
                     if subscription.items and subscription.items.data:
-                        price_id = subscription.items.data[0].price.id
-                        
-                        # Find the plan ID that corresponds to this price ID
-                        plan_id = None
-                        
-                        # First, try the direct mapping we created from price ID to plan
-                        plan_id = PRICE_TO_PLAN_MAPPING.get(price_id)
-                        if plan_id:
-                            logger.info(f"✅ Found plan '{plan_id}' directly from price ID mapping for invoice.paid")
-                        
-                        # If not found in direct mapping, fall back to the old approach
-                        if not plan_id:
-                            for plan, plan_price_id in SUBSCRIPTION_PLANS.items():
-                                if plan_price_id == price_id:
-                                    plan_id = plan
-                                    logger.info(f"✅ Found plan '{plan_id}' from subscription plans dictionary for invoice.paid")
-                                    break
-                        
-                        if not plan_id:
-                            logger.error(f"No matching plan found for price ID: {price_id}")
+                        try:
+                            # Try to get the price data with proper error handling
+                            price_data = subscription.items.data[0].get('price')
+                            if not price_data and hasattr(subscription.items.data[0], 'price'):
+                                price_data = subscription.items.data[0].price
                             
-                            # Check if this is an enterprise plan based on price
-                            plan_amount = subscription.items.data[0].price.unit_amount
-                            logger.info(f"Examining price amount for plan detection: {plan_amount}")
-                            
-                            # Check product name/description for additional clues
-                            product_id = subscription.items.data[0].price.product
-                            try:
-                                product = stripe.Product.retrieve(product_id)
-                                logger.info(f"Product name: {product.name}, Product ID: {product_id}")
+                            if price_data:
+                                price_id = price_data.get('id') if isinstance(price_data, dict) else price_data.id
                                 
-                                # If product name contains enterprise, use enterprise plan
-                                if product.name and "enterprise" in product.name.lower():
-                                    logger.info(f"Product name indicates Enterprise plan: {product.name}")
-                                    plan_id = "enterprise"
-                            except Exception as e:
-                                logger.warning(f"Could not retrieve product info: {str(e)}")
+                                # Find the plan ID that corresponds to this price ID
+                                plan_id = None
+                                
+                                # First, try the direct mapping we created from price ID to plan
+                                plan_id = PRICE_TO_PLAN_MAPPING.get(price_id)
+                                if plan_id:
+                                    logger.info(f"✅ Found plan '{plan_id}' directly from price ID mapping for invoice.paid")
+                                
+                                # If not found in direct mapping, fall back to the old approach
+                                if not plan_id:
+                                    for plan, plan_price_id in SUBSCRIPTION_PLANS.items():
+                                        if plan_price_id == price_id:
+                                            plan_id = plan
+                                            logger.info(f"✅ Found plan '{plan_id}' from subscription plans dictionary for invoice.paid")
+                                            break
+                                
+                                if not plan_id:
+                                    logger.error(f"No matching plan found for price ID: {price_id}")
+                                    
+                                    # Check if this is an enterprise plan based on price
+                                    plan_amount = None
+                                    if isinstance(price_data, dict) and 'unit_amount' in price_data:
+                                        plan_amount = price_data['unit_amount']
+                                    elif hasattr(price_data, 'unit_amount'):
+                                        plan_amount = price_data.unit_amount
+                                    
+                                    logger.info(f"Examining price amount for plan detection: {plan_amount}")
+                                    
+                                    # Check product name/description for additional clues
+                                    product_id = None
+                                    if isinstance(price_data, dict) and 'product' in price_data:
+                                        product_id = price_data['product']
+                                    elif hasattr(price_data, 'product'):
+                                        product_id = price_data.product
                             
-                            if plan_amount and plan_amount >= 3000:  # $30.00 or more
-                                logger.info(f"Price amount {plan_amount} indicates Enterprise plan")
-                                plan_id = "enterprise"  # Set to enterprise for higher priced plans
+                                    if product_id:
+                                        try:
+                                            product = stripe.Product.retrieve(product_id)
+                                            logger.info(f"Product name: {product.name}, Product ID: {product_id}")
+                                            
+                                            # If product name contains enterprise, use enterprise plan
+                                            if product.name and "enterprise" in product.name.lower():
+                                                logger.info(f"Product name indicates Enterprise plan: {product.name}")
+                                                plan_id = "enterprise"
+                                        except Exception as e:
+                                            logger.warning(f"Could not retrieve product info: {str(e)}")
+                                    
+                                    if plan_amount and plan_amount >= 3000:  # $30.00 or more
+                                        logger.info(f"Price amount {plan_amount} indicates Enterprise plan")
+                                        plan_id = "enterprise"  # Set to enterprise for higher priced plans
+                                    else:
+                                        logger.info(f"Price amount {plan_amount} defaulting to Pro plan")
+                                        plan_id = "pro"  # Default to pro only for lower priced plans
                             else:
-                                logger.info(f"Price amount {plan_amount} defaulting to Pro plan")
-                                plan_id = "pro"  # Default to pro only for lower priced plans
+                                logger.error(f"No price data found in subscription items: {subscription_id}")
+                                price_id = None
+                                plan_id = "pro"  # Default to pro if no price found
+                        except Exception as e:
+                            logger.error(f"Error processing price data: {str(e)}")
+                            price_id = None
+                            plan_id = "pro"  # Default to pro if error occurs
                     else:
                         logger.error(f"No price found in subscription: {subscription_id}")
                         price_id = None
@@ -865,50 +891,76 @@ class PaymentHandler:
                     
                     # Get the price ID from the subscription
                     if subscription.items and subscription.items.data:
-                        price_id = subscription.items.data[0].price.id
-                        
-                        # Find the plan ID that corresponds to this price ID
-                        plan_id = None
-                        
-                        # First, try the direct mapping we created from price ID to plan
-                        plan_id = PRICE_TO_PLAN_MAPPING.get(price_id)
-                        if plan_id:
-                            logger.info(f"✅ Found plan '{plan_id}' directly from price ID mapping for payment_succeeded")
-                        
-                        # If not found in direct mapping, fall back to the old approach
-                        if not plan_id:
-                            for plan, plan_price_id in SUBSCRIPTION_PLANS.items():
-                                if plan_price_id == price_id:
-                                    plan_id = plan
-                                    logger.info(f"✅ Found plan '{plan_id}' from subscription plans dictionary for payment_succeeded")
-                                    break
-                        
-                        if not plan_id:
-                            logger.error(f"No matching plan found for price ID: {price_id}")
+                        try:
+                            # Try to get the price data with proper error handling
+                            price_data = subscription.items.data[0].get('price')
+                            if not price_data and hasattr(subscription.items.data[0], 'price'):
+                                price_data = subscription.items.data[0].price
                             
-                            # Check if this is an enterprise plan based on price
-                            plan_amount = subscription.items.data[0].price.unit_amount
-                            logger.info(f"Examining price amount for plan detection: {plan_amount}")
-                            
-                            # Check product name/description for additional clues
-                            product_id = subscription.items.data[0].price.product
-                            try:
-                                product = stripe.Product.retrieve(product_id)
-                                logger.info(f"Product name: {product.name}, Product ID: {product_id}")
+                            if price_data:
+                                price_id = price_data.get('id') if isinstance(price_data, dict) else price_data.id
                                 
-                                # If product name contains enterprise, use enterprise plan
-                                if product.name and "enterprise" in product.name.lower():
-                                    logger.info(f"Product name indicates Enterprise plan: {product.name}")
-                                    plan_id = "enterprise"
-                            except Exception as e:
-                                logger.warning(f"Could not retrieve product info: {str(e)}")
+                                # Find the plan ID that corresponds to this price ID
+                                plan_id = None
+                                
+                                # First, try the direct mapping we created from price ID to plan
+                                plan_id = PRICE_TO_PLAN_MAPPING.get(price_id)
+                                if plan_id:
+                                    logger.info(f"✅ Found plan '{plan_id}' directly from price ID mapping for payment_succeeded")
+                                
+                                # If not found in direct mapping, fall back to the old approach
+                                if not plan_id:
+                                    for plan, plan_price_id in SUBSCRIPTION_PLANS.items():
+                                        if plan_price_id == price_id:
+                                            plan_id = plan
+                                            logger.info(f"✅ Found plan '{plan_id}' from subscription plans dictionary for payment_succeeded")
+                                            break
+                                
+                                if not plan_id:
+                                    logger.error(f"No matching plan found for price ID: {price_id}")
+                                    
+                                    # Check if this is an enterprise plan based on price
+                                    plan_amount = None
+                                    if isinstance(price_data, dict) and 'unit_amount' in price_data:
+                                        plan_amount = price_data['unit_amount']
+                                    elif hasattr(price_data, 'unit_amount'):
+                                        plan_amount = price_data.unit_amount
+                                    
+                                    logger.info(f"Examining price amount for plan detection: {plan_amount}")
+                                    
+                                    # Check product name/description for additional clues
+                                    product_id = None
+                                    if isinstance(price_data, dict) and 'product' in price_data:
+                                        product_id = price_data['product']
+                                    elif hasattr(price_data, 'product'):
+                                        product_id = price_data.product
                             
-                            if plan_amount and plan_amount >= 3000:  # $30.00 or more
-                                logger.info(f"Price amount {plan_amount} indicates Enterprise plan")
-                                plan_id = "enterprise"  # Set to enterprise for higher priced plans
+                                    if product_id:
+                                        try:
+                                            product = stripe.Product.retrieve(product_id)
+                                            logger.info(f"Product name: {product.name}, Product ID: {product_id}")
+                                            
+                                            # If product name contains enterprise, use enterprise plan
+                                            if product.name and "enterprise" in product.name.lower():
+                                                logger.info(f"Product name indicates Enterprise plan: {product.name}")
+                                                plan_id = "enterprise"
+                                        except Exception as e:
+                                            logger.warning(f"Could not retrieve product info: {str(e)}")
+                                    
+                                    if plan_amount and plan_amount >= 3000:  # $30.00 or more
+                                        logger.info(f"Price amount {plan_amount} indicates Enterprise plan")
+                                        plan_id = "enterprise"  # Set to enterprise for higher priced plans
+                                    else:
+                                        logger.info(f"Price amount {plan_amount} defaulting to Pro plan")
+                                        plan_id = "pro"  # Default to pro only for lower priced plans
                             else:
-                                logger.info(f"Price amount {plan_amount} defaulting to Pro plan")
-                                plan_id = "pro"  # Default to pro only for lower priced plans
+                                logger.error(f"No price data found in subscription items: {subscription_id}")
+                                price_id = None
+                                plan_id = "pro"  # Default to pro if no price found
+                        except Exception as e:
+                            logger.error(f"Error processing price data: {str(e)}")
+                            price_id = None
+                            plan_id = "pro"  # Default to pro if error occurs
                     else:
                         logger.error(f"No price found in subscription: {subscription_id}")
                         price_id = None
@@ -1278,7 +1330,7 @@ class PaymentHandler:
                 # Only do this if we have Supabase client available
                 from supabase import create_client
                 SUPABASE_URL = os.getenv("SUPABASE_URL")
-                SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
+                SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
                 
                 if SUPABASE_URL and SUPABASE_SERVICE_KEY:
                     supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
@@ -1385,7 +1437,7 @@ class PaymentHandler:
             try:
                 from supabase import create_client
                 SUPABASE_URL = os.getenv("SUPABASE_URL")
-                SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
+                SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
                 
                 if SUPABASE_URL and SUPABASE_SERVICE_KEY:
                     logger.info(f"🔄 Updating user auth metadata for user {user_id}")
@@ -1545,7 +1597,7 @@ class PaymentHandler:
                 try:
                     from supabase import create_client
                     SUPABASE_URL = os.getenv("SUPABASE_URL")
-                    SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
+                    SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
                     
                     if SUPABASE_URL and SUPABASE_SERVICE_KEY:
                         supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
@@ -1605,7 +1657,7 @@ class PaymentHandler:
             # Using both direct Supabase queries and DatabaseHandler for redundancy
             from supabase import create_client
             SUPABASE_URL = os.getenv("SUPABASE_URL")
-            SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
+            SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
             
             if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
                 logger.error("Missing Supabase credentials for emergency update")
