@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import { uploadFile } from '@/utils/api';
 import { useAuth } from '@/context/AuthContext';
 import ImageComparisonSlider from './ImageComparisonSlider';
+import api from '@/utils/api';
 
 interface ImageUploaderProps {
   userSubscription: 'free' | 'pro' | 'enterprise';
@@ -88,7 +89,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
           sessionExpiry: session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : 'No expiry'
         });
         
-        const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/upscale/options`);
+        const response = await api.get('/upscale/options');
         console.log('Upscale options response:', response.data);
         setOptions(response.data);
         
