@@ -1,6 +1,6 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from jose import JWTError, jwt
+from jose import JWTError, jwt, ExpiredSignatureError
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
 from typing import Optional
@@ -71,7 +71,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 def decode_supabase_jwt(token: str):
     """
     Decode a Supabase JWT token without verification to extract claims.
-    This is used for debugging purposes.
+    This is used for debugging purposes only.
     """
     try:
         # Split the token into parts
@@ -94,6 +94,34 @@ def decode_supabase_jwt(token: str):
             return None
     except Exception as e:
         logger.error(f"Error processing JWT: {str(e)}")
+        return None
+
+def verify_supabase_token(token: str):
+    """
+    Verify and decode a Supabase JWT token using HS256 signature verification.
+    
+    Args:
+        token: The JWT token to verify
+        
+    Returns:
+        dict: The verified token payload or None if verification fails
+    """
+    if not SUPABASE_JWT_SECRET:
+        logger.error("SUPABASE_JWT_SECRET environment variable not set")
+        return None
+        
+    try:
+        # Verify and decode the token using the SUPABASE_JWT_SECRET
+        payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"])
+        return payload
+    except ExpiredSignatureError:
+        logger.warning("Token has expired")
+        return None
+    except JWTError as e:
+        logger.warning(f"Failed to verify Supabase token: {str(e)}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error verifying token: {str(e)}")
         return None
 
 async def get_current_user(token: Optional[str] = Depends(oauth2_scheme)):
@@ -133,36 +161,40 @@ async def get_current_user(token: Optional[str] = Depends(oauth2_scheme)):
         except JWTError as e:
             logger.warning(f"Failed to decode with app secret: {str(e)}")
             
-            # If that fails, try with Supabase JWT
-            # First, let's decode the token without verification to see what we're dealing with
-            decoded_payload = decode_supabase_jwt(token)
-            if decoded_payload:
-                logger.info(f"Decoded token payload (unverified): {decoded_payload}")
+            # If that fails, try with Supabase JWT verification
+            logger.info("Attempting to verify Supabase token")
+            # Verify the token cryptographically using HS256
+            verified_payload = verify_supabase_token(token)
+            
+            if not verified_payload:
+                # For debugging purposes, still attempt to decode without verification
+                # to get more information about the token
+                decoded_payload = decode_supabase_jwt(token)
+                if decoded_payload:
+                    logger.debug(f"Token payload (unverified, for debugging): {decoded_payload}")
                 
-                # Check if this looks like a Supabase token
-                if 'aud' in decoded_payload and decoded_payload.get('aud') == 'authenticated':
-                    logger.info("Token appears to be a Supabase token")
-                    
-                    # Extract user info from decoded payload
-                    user_id = decoded_payload.get("sub")
-                    email = decoded_payload.get("email")
-                    
-                    if not user_id:
-                        logger.warning("Supabase token missing 'sub' claim")
-                        raise credentials_exception
-                    
-                    # For Supabase tokens, we'll accept them without cryptographic verification
-                    # This is a temporary solution - in production, you should verify the token
-                    logger.info(f"Accepting Supabase token for user: {user_id}")
-                    
-                    # Get or create user in our database
-                    user = await get_or_create_user_from_supabase(user_id, email)
-                    return user
-                else:
-                    logger.warning("Token does not appear to be a Supabase token")
+                logger.warning("Failed to verify Supabase token signature")
+                raise credentials_exception
+                
+            # If verification succeeded, check if this is a Supabase token
+            if 'aud' in verified_payload and verified_payload.get('aud') == 'authenticated':
+                logger.info("Verified Supabase token")
+                
+                # Extract user info from verified payload
+                user_id = verified_payload.get("sub")
+                email = verified_payload.get("email")
+                
+                if not user_id:
+                    logger.warning("Supabase token missing 'sub' claim")
                     raise credentials_exception
+                
+                logger.info(f"Successfully verified Supabase token for user: {user_id}")
+                
+                # Get or create user in our database
+                user = await get_or_create_user_from_supabase(user_id, email)
+                return user
             else:
-                logger.error("Failed to decode token payload")
+                logger.warning("Token does not appear to be a valid Supabase token")
                 raise credentials_exception
     except Exception as e:
         logger.error(f"Unexpected error in authentication: {str(e)}")
