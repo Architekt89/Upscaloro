@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { CreditCard, Package, BarChart, Receipt, AlertCircle, CheckCircle, ChevronRight, PlusCircle, Edit, Trash2 } from 'lucide-react';
@@ -99,6 +99,7 @@ export default function BillingPage() {
     type: "success",
     message: ""
   });
+  const dataFetchedRef = useRef(false);
 
   // Define fetchBillingHistory as a callback to avoid lint errors
   const fetchBillingHistory = useCallback(async () => {
@@ -163,8 +164,9 @@ export default function BillingPage() {
       return;
     }
 
-    // Only proceed with fetching data if we have a user
-    if (user) {
+    // Only proceed with fetching data if we have a user and haven't fetched data yet
+    if (user && !dataFetchedRef.current) {
+      dataFetchedRef.current = true;
       // Check for checkout success parameter
       if (checkoutSuccess === 'true' && !refreshCompleted) {
         setShowSuccessMessage(true);
@@ -545,7 +547,18 @@ export default function BillingPage() {
 
   // Add a separate useEffect for billing history to allow it to be refreshed independently
   useEffect(() => {
+    const BILLING_HISTORY_COOLDOWN = 60000; // 1 minute cooldown
+    const lastFetchTimeRef = useRef(0);
+    const now = Date.now();
+    
     if (user && !loading && subscription.plan.toLowerCase() !== 'free') {
+      // Check if we're within the cooldown period
+      if (now - lastFetchTimeRef.current < BILLING_HISTORY_COOLDOWN) {
+        console.log('Billing history fetch on cooldown, skipping request');
+        return;
+      }
+      
+      lastFetchTimeRef.current = now;
       fetchBillingHistory();
     }
   }, [user, loading, subscription.plan, fetchBillingHistory]);

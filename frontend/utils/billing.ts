@@ -72,6 +72,15 @@ export const mockBillingData = {
   ]
 };
 
+// Add cache system to reduce API calls
+let billingInfoCache: any = null;
+let billingInfoCacheTime = 0;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Caching for billing history
+let billingHistoryCache: any = null;
+let billingHistoryCacheTime = 0;
+
 // Convert storage_gb to storage_mb (100MB = 0.1GB, etc.)
 // storage_gb: 0.1 → storage_mb: 100
 // storage_gb: 5 → storage_mb: 5000
@@ -87,15 +96,32 @@ export const getBillingInfo = async () => {
       throw new Error('Authentication required');
     }
     
+    // Check if we have cached data that's still valid
+    const now = Date.now();
+    if (billingInfoCache && (now - billingInfoCacheTime < CACHE_TTL)) {
+      console.log('Using cached billing data');
+      return billingInfoCache;
+    }
+    
     console.log('Making request to /billing endpoint');
     try {
       const response = await api.get('/billing');
       console.log('Response received:', response.status);
+      
+      // Cache the response
+      billingInfoCache = response.data;
+      billingInfoCacheTime = now;
+      
       return response.data;
     } catch (error) {
       // If the endpoint doesn't exist (404), return mock data
       if (axios.isAxiosError(error) && error.response?.status === 404) {
         console.log('Billing endpoint not found, using mock data');
+        
+        // Cache the mock data as well
+        billingInfoCache = mockBillingData;
+        billingInfoCacheTime = now;
+        
         return mockBillingData;
       }
       throw error;
@@ -269,6 +295,13 @@ export const getBillingHistory = async () => {
       throw new Error('Authentication required');
     }
     
+    // Check if we have cached data that's still valid
+    const now = Date.now();
+    if (billingHistoryCache && (now - billingHistoryCacheTime < CACHE_TTL)) {
+      console.log('Using cached billing history data');
+      return billingHistoryCache;
+    }
+    
     // First try to get history from the billing endpoint
     console.log('Making request to /billing endpoint for history');
     try {
@@ -278,6 +311,9 @@ export const getBillingHistory = async () => {
       // Check if the billing response has invoices
       if (response.data && response.data.invoices && Array.isArray(response.data.invoices) && response.data.invoices.length > 0) {
         console.log('Found invoices in billing data');
+        // Cache the response
+        billingHistoryCache = response.data.invoices;
+        billingHistoryCacheTime = now;
         return response.data.invoices;
       }
     } catch (error) {

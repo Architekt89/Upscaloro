@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useUser } from '@/hooks/useUser';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -20,15 +20,31 @@ export default function SubscriptionInfo() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [subscriptionData, setSubscriptionData] = useState<SubscriptionData | null>(null);
+  const dataFetchedRef = useRef(false);
+  const lastFetchTimeRef = useRef(0);
+  const FETCH_COOLDOWN_MS = 60000; // 1 minute cooldown between fetches
 
   useEffect(() => {
     const fetchSubscriptionData = async () => {
       if (!user?.id) return;
       
+      // Check if we've already fetched data during this component's lifecycle
+      if (dataFetchedRef.current) return;
+      
+      // Check if we're within the cooldown period
+      const now = Date.now();
+      if (now - lastFetchTimeRef.current < FETCH_COOLDOWN_MS) {
+        console.log('Subscription data fetch on cooldown, skipping request');
+        return;
+      }
+      
       try {
         setLoading(true);
         setError(null);
+        dataFetchedRef.current = true;
+        lastFetchTimeRef.current = now;
         
+        console.log('Fetching subscription data');
         const response = await fetch(`https://upscaloro.onrender.com/subscription/${user.id}`, {
           method: 'GET',
           headers: {
@@ -56,6 +72,11 @@ export default function SubscriptionInfo() {
     };
     
     fetchSubscriptionData();
+    
+    // Clean up function resets the fetch flag when the component unmounts
+    return () => {
+      dataFetchedRef.current = false;
+    };
   }, [user?.id, user?.token]);
   
   const getStatusColor = (status: string | null) => {
@@ -111,7 +132,10 @@ export default function SubscriptionInfo() {
           <Button 
             variant="outline" 
             className="mt-4"
-            onClick={() => window.location.reload()}
+            onClick={() => {
+              dataFetchedRef.current = false; // Allow a new fetch
+              window.location.reload();
+            }}
           >
             Retry
           </Button>
