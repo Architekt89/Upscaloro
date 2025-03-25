@@ -487,18 +487,35 @@ class PaymentHandler:
                         logger.warning(f"⚠️ CRITICAL: Intended plan is enterprise but detected as {plan_id}. FORCING ENTERPRISE.")
                         plan_id = "enterprise"
                         
-                        # Force Enterprise plan using the dedicated handler
+                        # Call the emergency enterprise update
                         try:
-                            # Also call force_upgrade_to_enterprise to ensure all systems are updated
-                            force_result = await PaymentHandler.force_upgrade_to_enterprise(
-                                user_id=user_id,
+                            billing_cycle = session.metadata.get("billing_cycle", "monthly")
+                            emergency_result = await PaymentHandler.emergency_enterprise_update(
+                                user_id=user_id, 
                                 customer_id=customer_id,
                                 subscription_id=subscription_id,
-                                customer_email=customer_email
+                                customer_email=customer_email,
+                                billing_cycle=billing_cycle
                             )
-                            logger.info(f"✅ FINAL CHECK Force upgrade result: {force_result}")
+                            logger.info(f"🚨 Emergency enterprise update result: {emergency_result}")
                         except Exception as e:
-                            logger.error(f"❌ Error in final enterprise force upgrade: {str(e)}")
+                            logger.error(f"Error in emergency enterprise update: {str(e)}")
+                    
+                    # If this is enterprise plan by any detection mechanism, use the emergency update
+                    elif plan_id == "enterprise":
+                        # Call the emergency enterprise update as backup
+                        try:
+                            billing_cycle = session.metadata.get("billing_cycle", "monthly")
+                            emergency_result = await PaymentHandler.emergency_enterprise_update(
+                                user_id=user_id, 
+                                customer_id=customer_id,
+                                subscription_id=subscription_id,
+                                customer_email=customer_email,
+                                billing_cycle=billing_cycle
+                            )
+                            logger.info(f"🚨 Enterprise backup update result: {emergency_result}")
+                        except Exception as e:
+                            logger.error(f"Error in enterprise backup update: {str(e)}")
                     
                     # Update the user record with subscription details
                     subscription_data = {
@@ -512,89 +529,7 @@ class PaymentHandler:
                         "updated_at": datetime.now().isoformat()
                     }
                     
-                    # IMPORTANT: Use multiple update methods to ensure the change is applied
-                    
-                    # Method 1: CRITICAL: Try direct SQL update first for guaranteed update
-                    try:
-                        from supabase import create_client
-                        SUPABASE_URL = os.getenv("SUPABASE_URL")
-                        SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
-                        
-                        if SUPABASE_URL and SUPABASE_SERVICE_KEY:
-                            logger.info(f"🔧 Attempting direct SQL update for user {user_id} to {plan_id}")
-                            supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-                            
-                            # Update user record directly via SQL - most reliable method
-                            update_data = {
-                                "subscription_tier": plan_id,
-                                "subscription_status": status,
-                                "stripe_customer_id": customer_id,
-                                "stripe_subscription_id": subscription_id,
-                                "subscription_current_period_end": datetime.fromtimestamp(current_period_end).isoformat(),
-                                "updated_at": datetime.now().isoformat()
-                            }
-                            
-                            update_response = supabase.table("users").update(update_data).eq("id", user_id).execute()
-                            
-                            if update_response.data and len(update_response.data) > 0:
-                                logger.info(f"✅ Direct SQL update successful for user {user_id} to {plan_id}")
-                                
-                                # Also update subscription record
-                                subscription_table_data = {
-                                    "user_id": user_id,
-                                    "plan": plan_id,
-                                    "status": status,
-                                    "current_period_end": datetime.fromtimestamp(current_period_end),
-                                    "stripe_customer_id": customer_id,
-                                    "stripe_subscription_id": subscription_id,
-                                    "email": customer_email,
-                                    "updated_at": datetime.now().isoformat()
-                                }
-                                
-                                # Check if subscription record exists
-                                sub_response = supabase.table("subscriptions").select("*").eq("user_id", user_id).execute()
-                                
-                                if sub_response.data and len(sub_response.data) > 0:
-                                    # Update existing subscription
-                                    supabase.table("subscriptions").update(subscription_table_data).eq("user_id", user_id).execute()
-                                    logger.info(f"Updated existing subscription record for user {user_id}")
-                                else:
-                                    # Insert new subscription
-                                    supabase.table("subscriptions").insert(subscription_table_data).execute()
-                                    logger.info(f"Created new subscription record for user {user_id}")
-                                
-                                # Also update user auth metadata
-                                try:
-                                    auth_update = supabase.auth.admin.update_user_by_id(
-                                        user_id,
-                                        user_metadata={
-                                            "subscription_tier": plan_id,
-                                            "subscription_status": status
-                                        }
-                                    )
-                                    logger.info(f"Updated user auth metadata for {user_id}")
-                                except Exception as e:
-                                    logger.warning(f"Could not update auth metadata: {str(e)}")
-                            else:
-                                logger.error(f"❌ Direct SQL update failed for user {user_id}")
-                        else:
-                            logger.warning("Supabase credentials not available for direct update")
-                    except Exception as e:
-                        logger.error(f"Error in direct SQL update: {str(e)}")
-                    
-                    # Method 2: Force an immediate upgrade for Enterprise plans through a separate process
-                    # This ensures the user gets Enterprise even if the database update somehow fails
-                    if plan_id == "enterprise":
-                        logger.info(f"🔒 Enterprise plan confirmed - ensuring Enterprise tier is applied")
-                        force_result = await PaymentHandler.force_upgrade_to_enterprise(
-                            user_id=user_id,
-                            customer_id=customer_id,
-                            subscription_id=subscription_id,
-                            customer_email=customer_email
-                        )
-                        logger.info(f"Force upgrade result at checkout: {force_result}")
-                    
-                    # Method 3: Regular database update as backup
+                    # Normal database update as fallback
                     logger.info(f"Updating user record with subscription data: {subscription_data}")
                     from backend.database import DatabaseHandler
                     updated_user = await DatabaseHandler.update_user(user_id, subscription_data)
@@ -629,16 +564,18 @@ class PaymentHandler:
                                 # Double check if the tier should be enterprise but it's not
                                 if plan_id == "enterprise" and verified_tier != "enterprise":
                                     logger.error(f"🚨 Verification failed! Plan should be enterprise but is {verified_tier}")
-                                    # Last resort attempt - try another direct SQL update
+                                    # Last resort attempt using emergency function
                                     try:
-                                        supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-                                        final_update = supabase.table("users").update({
-                                            "subscription_tier": "enterprise",
-                                            "updated_at": datetime.now().isoformat()
-                                        }).eq("id", user_id).execute()
-                                        logger.info(f"Emergency fix applied for user {user_id}")
+                                        emergency_result = await PaymentHandler.emergency_enterprise_update(
+                                            user_id=user_id,
+                                            customer_id=customer_id,
+                                            subscription_id=subscription_id,
+                                            customer_email=customer_email,
+                                            billing_cycle=session.metadata.get("billing_cycle", "monthly")
+                                        )
+                                        logger.info(f"🚨 Final verification emergency fix result: {emergency_result}")
                                     except Exception as e:
-                                        logger.error(f"Emergency fix failed: {str(e)}")
+                                        logger.error(f"Final verification emergency fix failed: {str(e)}")
                             else:
                                 logger.error(f"Verification failed: Could not find user {user_id}")
                         except Exception as e:
@@ -661,285 +598,6 @@ class PaymentHandler:
                     "message": f"Checkout completed for user {user_id} with plan {plan_id}",
                     "user_id": user_id,
                     "plan_id": plan_id
-                }
-                
-            elif event.type == "customer.subscription.created":
-                subscription = event.data.object
-                customer_id = subscription.customer
-                logger.info(f"Subscription created for customer: {customer_id}")
-                
-                # Extract necessary data from the subscription
-                subscription_id = subscription.id
-                status = subscription.status
-                current_period_end = subscription.current_period_end
-                
-                # Get the price ID and plan ID from the subscription
-                if subscription.items and subscription.items.data:
-                    price_id = subscription.items.data[0].price.id
-                    
-                    # Find the plan ID that corresponds to this price ID
-                    plan_id = None
-                    
-                    # First, try the direct mapping we created from price ID to plan
-                    plan_id = PRICE_TO_PLAN_MAPPING.get(price_id)
-                    if plan_id:
-                        logger.info(f"✅ Found plan '{plan_id}' directly from price ID mapping")
-                    
-                    # If not found in direct mapping, fall back to the old approach
-                    if not plan_id:
-                        for plan, plan_price_id in SUBSCRIPTION_PLANS.items():
-                            if plan_price_id == price_id:
-                                plan_id = plan
-                                logger.info(f"✅ Found plan '{plan_id}' from subscription plans dictionary")
-                                break
-                    
-                    if not plan_id:
-                        logger.error(f"No matching plan found for price ID: {price_id}")
-                        
-                        # Check if this is an enterprise plan based on price
-                        plan_amount = subscription.items.data[0].price.unit_amount
-                        logger.info(f"Examining price amount for plan detection: {plan_amount}")
-                        
-                        # Check product name/description for additional clues
-                        product_id = subscription.items.data[0].price.product
-                        try:
-                            product = stripe.Product.retrieve(product_id)
-                            logger.info(f"Product name: {product.name}, Product ID: {product_id}")
-                            
-                            # If product name contains enterprise, use enterprise plan
-                            if product.name and "enterprise" in product.name.lower():
-                                logger.info(f"Product name indicates Enterprise plan: {product.name}")
-                                plan_id = "enterprise"
-                                logger.info(f"✅ Setting plan to ENTERPRISE based on product name")
-                        except Exception as e:
-                            logger.warning(f"Could not retrieve product info: {str(e)}")
-                        
-                        if plan_amount and plan_amount >= 3000:  # $30.00 or more
-                            logger.info(f"Price amount {plan_amount} indicates Enterprise plan")
-                            plan_id = "enterprise"  # Set to enterprise for higher priced plans
-                            logger.info(f"✅ Setting plan to ENTERPRISE based on price amount >= 3000")
-                        else:
-                            logger.info(f"Price amount {plan_amount} defaulting to Pro plan")
-                            plan_id = "pro"  # Default to pro only for lower priced plans
-                else:
-                    logger.error(f"No price found in subscription: {subscription_id}")
-                    price_id = None
-                    plan_id = "pro"  # Default to pro if no price found
-                
-                # Find the user associated with this customer ID
-                try:
-                    from backend.database import DatabaseHandler
-                    # This is a simplified approach - in a real app, you would have a mapping between
-                    # Stripe customer IDs and your user IDs
-                    # For now, we'll assume the user ID is stored in the subscription metadata
-                    user_id = subscription.metadata.get("user_id")
-                    
-                    if not user_id:
-                        logger.error(f"No user ID found in subscription metadata: {subscription_id}")
-                        return {
-                            "status": "error",
-                            "message": "No user ID found in subscription metadata"
-                        }
-                except Exception as e:
-                    logger.error(f"Error retrieving user_id from subscription metadata: {str(e)}")
-                    return {
-                        "status": "error",
-                        "message": f"Error retrieving user data: {str(e)}"
-                    }
-                    
-                # Get the user's email from Stripe customer
-                customer_email = None
-                try:
-                    customer = stripe.Customer.retrieve(customer_id)
-                    customer_email = customer.email
-                except Exception as e:
-                    logger.warning(f"Could not retrieve customer email: {str(e)}")
-                
-                # Update the user record with subscription details
-                subscription_data = {
-                    "subscription_tier": plan_id or "pro",  # Default to pro if plan_id is not found
-                    "stripe_customer_id": customer_id,
-                    "stripe_subscription_id": subscription_id,
-                    "subscription_status": status,
-                    "subscription_price_id": price_id,
-                    "subscription_current_period_end": datetime.fromtimestamp(current_period_end).isoformat(),
-                    "updated_at": datetime.now().isoformat()
-                }
-                
-                logger.info(f"🔄 Updating user {user_id} subscription tier to: {plan_id or 'pro'}")
-                updated_user = await DatabaseHandler.update_user(user_id, subscription_data)
-                
-                if updated_user:
-                    logger.info(f"✅ Successfully updated user {user_id} to {plan_id} tier")
-                else:
-                    logger.error(f"❌ Failed to update user {user_id} to {plan_id} tier")
-                
-                # Then upsert the subscription record
-                subscription_result = await DatabaseHandler.upsert_subscription(
-                    user_id=user_id,
-                    stripe_customer_id=customer_id,
-                    stripe_subscription_id=subscription_id,
-                    plan=plan_id or "pro",  # Default to pro if plan_id is not found
-                    status=status,
-                    current_period_end=datetime.fromtimestamp(current_period_end),
-                    email=customer_email,
-                    billing_cycle=session.metadata.get("billing_cycle", "monthly")
-                )
-                
-                if updated_user and subscription_result:
-                    logger.info(f"Successfully updated subscription for user: {user_id}")
-                else:
-                    logger.error(f"Failed to update subscription in database: {user_id}")
-                    return {
-                        "status": "error",
-                        "message": f"Failed to update subscription in database: {user_id}"
-                    }
-                
-                return {
-                    "status": "success",
-                    "message": f"Subscription created for customer {customer_id}",
-                }
-                
-            elif event.type == "customer.subscription.updated":
-                subscription = event.data.object
-                customer_id = subscription.customer
-                logger.info(f"Subscription updated for customer: {customer_id}")
-                
-                # Extract necessary data from the subscription
-                subscription_id = subscription.id
-                status = subscription.status
-                current_period_end = subscription.current_period_end
-                
-                # Get the price ID and plan ID from the subscription
-                if subscription.items and subscription.items.data:
-                    price_id = subscription.items.data[0].price.id
-                    
-                    # Find the plan ID that corresponds to this price ID
-                    plan_id = None
-                    
-                    # First, try the direct mapping we created from price ID to plan
-                    plan_id = PRICE_TO_PLAN_MAPPING.get(price_id)
-                    if plan_id:
-                        logger.info(f"✅ Found plan '{plan_id}' directly from price ID mapping")
-                    
-                    # If not found in direct mapping, fall back to the old approach
-                    if not plan_id:
-                        for plan, plan_price_id in SUBSCRIPTION_PLANS.items():
-                            if plan_price_id == price_id:
-                                plan_id = plan
-                                logger.info(f"✅ Found plan '{plan_id}' from subscription plans dictionary")
-                                break
-                    
-                    if not plan_id:
-                        logger.error(f"No matching plan found for price ID: {price_id}")
-                        
-                        # Check if this is an enterprise plan based on price
-                        plan_amount = subscription.items.data[0].price.unit_amount
-                        logger.info(f"Examining price amount for plan detection: {plan_amount}")
-                        
-                        # Check product name/description for additional clues
-                        product_id = subscription.items.data[0].price.product
-                        try:
-                            product = stripe.Product.retrieve(product_id)
-                            logger.info(f"Product name: {product.name}, Product ID: {product_id}")
-                            
-                            # If product name contains enterprise, use enterprise plan
-                            if product.name and "enterprise" in product.name.lower():
-                                logger.info(f"Product name indicates Enterprise plan: {product.name}")
-                                plan_id = "enterprise"
-                        except Exception as e:
-                            logger.warning(f"Could not retrieve product info: {str(e)}")
-                        
-                        if plan_amount and plan_amount >= 3000:  # $30.00 or more
-                            logger.info(f"Price amount {plan_amount} indicates Enterprise plan")
-                            plan_id = "enterprise"  # Set to enterprise for higher priced plans
-                        else:
-                            logger.info(f"Price amount {plan_amount} defaulting to Pro plan")
-                            plan_id = "pro"  # Default to pro only for lower priced plans
-                else:
-                    logger.error(f"No price found in subscription: {subscription_id}")
-                    price_id = None
-                    plan_id = "pro"  # Default to pro if no price found
-                
-                # Find the user associated with this customer ID
-                try:
-                    from backend.database import DatabaseHandler
-                    # This is a simplified approach - in a real app, you would have a mapping between
-                    # Stripe customer IDs and your user IDs
-                    # For now, we'll assume the user ID is stored in the subscription metadata
-                    user_id = subscription.metadata.get("user_id")
-                    
-                    if not user_id:
-                        logger.error(f"No user ID found in subscription metadata: {subscription_id}")
-                        return {
-                            "status": "error",
-                            "message": "No user ID found in subscription metadata"
-                        }
-                    
-                    # Get the user's email from Stripe customer
-                    customer_email = None
-                    try:
-                        customer = stripe.Customer.retrieve(customer_id)
-                        customer_email = customer.email
-                        logger.info(f"Retrieved customer email: {customer_email}")
-                        
-                        # Check if this is a whitelisted Enterprise user
-                        if customer_email in ENTERPRISE_USERS:
-                            logger.info(f"⚠️ Whitelisted Enterprise user detected: {customer_email}")
-                            plan_id = "enterprise"  # Override to enterprise for whitelisted users
-                            logger.info(f"Overriding plan_id to 'enterprise' for whitelisted user")
-                            
-                    except Exception as e:
-                        logger.warning(f"Could not retrieve customer email: {str(e)}")
-                    
-                    # Update the user record with subscription details
-                    subscription_data = {
-                        "subscription_tier": plan_id or "pro",  # Default to pro if plan_id is not found
-                        "stripe_subscription_id": subscription_id,
-                        "subscription_status": status,
-                        "subscription_price_id": price_id,
-                        "subscription_current_period_end": datetime.fromtimestamp(current_period_end).isoformat(),
-                        "updated_at": datetime.now().isoformat()
-                    }
-                    
-                    logger.info(f"🔄 Updating user {user_id} subscription tier to: {plan_id or 'pro'}")
-                    updated_user = await DatabaseHandler.update_user(user_id, subscription_data)
-                    
-                    if updated_user:
-                        logger.info(f"✅ Successfully updated user {user_id} to {plan_id} tier")
-                    else:
-                        logger.error(f"❌ Failed to update user {user_id} to {plan_id} tier")
-                    
-                    # Then upsert the subscription record
-                    subscription_result = await DatabaseHandler.upsert_subscription(
-                        user_id=user_id,
-                        stripe_customer_id=customer_id,
-                        stripe_subscription_id=subscription_id,
-                        plan=plan_id or "pro",  # Default to pro if plan_id is not found
-                        status=status,
-                        current_period_end=datetime.fromtimestamp(current_period_end),
-                        email=customer_email,
-                        billing_cycle=session.metadata.get("billing_cycle", "monthly")
-                    )
-                    
-                    if updated_user and subscription_result:
-                        logger.info(f"Successfully updated subscription for user: {user_id}")
-                    else:
-                        logger.error(f"Failed to update subscription in database: {user_id}")
-                        return {
-                            "status": "error",
-                            "message": f"Failed to update subscription in database: {user_id}"
-                        }
-                except Exception as e:
-                    logger.error(f"Error updating subscription in database: {str(e)}")
-                    return {
-                        "status": "error",
-                        "message": f"Error updating subscription in database: {str(e)}"
-                    }
-                
-                return {
-                    "status": "success",
-                    "message": f"Subscription updated for customer {customer_id}",
                 }
                 
             elif event.type == "customer.subscription.deleted":
@@ -988,7 +646,7 @@ class PaymentHandler:
                         status="canceled",
                         current_period_end=datetime.fromtimestamp(subscription.current_period_end),
                         email=customer_email,
-                        billing_cycle=session.metadata.get("billing_cycle", "monthly")
+                        billing_cycle="monthly"  # Default to monthly since we can't access session metadata here
                     )
                     
                     if updated_user and subscription_result:
@@ -1135,7 +793,7 @@ class PaymentHandler:
                         status=status,
                         current_period_end=datetime.fromtimestamp(current_period_end),
                         email=customer_email,
-                        billing_cycle=session.metadata.get("billing_cycle", "monthly")
+                        billing_cycle="monthly"  # Default to monthly since we can't access session metadata here
                     )
                     
                     if subscription_result:
@@ -1298,7 +956,7 @@ class PaymentHandler:
                         status=status,
                         current_period_end=datetime.fromtimestamp(current_period_end),
                         email=customer_email,
-                        billing_cycle=session.metadata.get("billing_cycle", "monthly")
+                        billing_cycle="monthly"  # Default to monthly since we can't access session metadata here
                     )
                     
                     if subscription_result:
@@ -1763,4 +1421,128 @@ class PaymentHandler:
             return {
                 "status": "error",
                 "message": f"Error updating user: {str(e)}"
+            }
+    
+    @staticmethod
+    async def emergency_enterprise_update(user_id: str, customer_id: str = None, subscription_id: str = None, customer_email: str = None, billing_cycle: str = "monthly"):
+        """
+        Emergency function to directly update a user to Enterprise tier when regular methods might fail.
+        This is a safety net to ensure Enterprise users get their upgrade.
+        
+        Args:
+            user_id: The user ID to upgrade
+            customer_id: The Stripe customer ID (optional)
+            subscription_id: The Stripe subscription ID (optional)
+            customer_email: The customer's email (optional)
+            billing_cycle: The billing cycle (monthly or yearly)
+            
+        Returns:
+            Dict[str, Any]: Result of the operation
+        """
+        try:
+            logger.info(f"🚨 EMERGENCY ENTERPRISE UPDATE for user {user_id}")
+            
+            # Using both direct Supabase queries and DatabaseHandler for redundancy
+            from supabase import create_client
+            SUPABASE_URL = os.getenv("SUPABASE_URL")
+            SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
+            
+            if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+                logger.error("Missing Supabase credentials for emergency update")
+                return {"status": "error", "message": "Missing Supabase credentials"}
+            
+            supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+            
+            # 1. Update user record in users table
+            user_data = {
+                "subscription_tier": "enterprise",
+                "subscription_status": "active",
+                "updated_at": datetime.now().isoformat(),
+                "subscription_billing_cycle": billing_cycle
+            }
+            
+            if customer_id:
+                user_data["stripe_customer_id"] = customer_id
+                
+            if subscription_id:
+                user_data["stripe_subscription_id"] = subscription_id
+            
+            # First try direct update
+            direct_update = supabase.table("users").update(user_data).eq("id", user_id).execute()
+            
+            if direct_update.data and len(direct_update.data) > 0:
+                logger.info(f"✅ Emergency direct update successful for user {user_id}")
+                user_updated = True
+            else:
+                logger.error(f"❌ Emergency direct update failed for user {user_id}")
+                user_updated = False
+            
+            # 2. Update auth metadata
+            try:
+                auth_update = supabase.auth.admin.update_user_by_id(
+                    user_id,
+                    user_metadata={
+                        "subscription_tier": "enterprise",
+                        "subscription_status": "active",
+                        "updated_at": datetime.now().isoformat()
+                    }
+                )
+                logger.info(f"✅ Emergency auth metadata update successful")
+                metadata_updated = True
+            except Exception as e:
+                logger.error(f"❌ Emergency auth metadata update failed: {str(e)}")
+                metadata_updated = False
+            
+            # 3. Update or create subscription record
+            from backend.database import DatabaseHandler
+            
+            subscription_result = None
+            try:
+                # Get current period end from Stripe if possible
+                current_period_end = None
+                if subscription_id:
+                    try:
+                        subscription = stripe.Subscription.retrieve(subscription_id)
+                        current_period_end = datetime.fromtimestamp(subscription.current_period_end)
+                    except Exception as e:
+                        logger.warning(f"Could not retrieve subscription period from Stripe: {str(e)}")
+                        # Default to 1 year from now as fallback
+                        current_period_end = datetime.now() + timedelta(days=365)
+                else:
+                    # Default to 1 year from now as fallback
+                    current_period_end = datetime.now() + timedelta(days=365)
+                
+                # Upsert subscription record
+                subscription_result = await DatabaseHandler.upsert_subscription(
+                    user_id=user_id,
+                    stripe_customer_id=customer_id or "emergency_update",
+                    stripe_subscription_id=subscription_id or "emergency_update",
+                    plan="enterprise",
+                    status="active",
+                    current_period_end=current_period_end,
+                    email=customer_email,
+                    billing_cycle=billing_cycle
+                )
+                
+                if subscription_result:
+                    logger.info(f"✅ Emergency subscription record update successful")
+                    subscription_updated = True
+                else:
+                    logger.error(f"❌ Emergency subscription record update failed")
+                    subscription_updated = False
+            except Exception as e:
+                logger.error(f"❌ Error in emergency subscription update: {str(e)}")
+                subscription_updated = False
+            
+            return {
+                "status": "success" if (user_updated or metadata_updated or subscription_updated) else "error",
+                "user_updated": user_updated,
+                "metadata_updated": metadata_updated,
+                "subscription_updated": subscription_updated
+            }
+        except Exception as e:
+            logger.error(f"❌ Emergency enterprise update failed with error: {str(e)}")
+            return {
+                "status": "error",
+                "message": f"Emergency update failed: {str(e)}"
             }
