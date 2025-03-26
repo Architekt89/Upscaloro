@@ -185,40 +185,13 @@ export default function BillingPage() {
             
             // If subscriptions table is empty but payment was successful, try manual upgrade
             const manualUpgrade = async () => {
-              try {
-                if (!user || !user.id) return;
-                
-                // Call manual upgrade endpoint
-                const response = await fetch(`https://upscaloro.onrender.com/billing/manual-upgrade`, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({
-                    user_id: user.id,
-                    plan_id: 'pro'
-                  })
-                });
-                
-                if (response.ok) {
-                  const data = await response.json();
-                  console.log('Manual upgrade successful:', data);
-                  toast.success('Manual upgrade successful. Refreshing data...');
-                  
-                  // Refresh user data again after manual upgrade (only once)
-                  setTimeout(() => refreshUser(), 1000);
-                } else {
-                  console.error('Manual upgrade failed:', await response.text());
-                }
-              } catch (error) {
-                console.error('Error during manual upgrade:', error);
-              }
+              console.log("Manual upgrade functionality is disabled");
             };
             
-            // If user doesn't have subscription tier in metadata, try manual upgrade
-            if (!user.user_metadata?.subscription_tier || user.user_metadata?.subscription_tier === 'free') {
-              manualUpgrade();
-            }
+            // If user doesn't have subscription tier in metadata, we no longer try manual upgrade
+            // if (!user.user_metadata?.subscription_tier || user.user_metadata?.subscription_tier === 'free') {
+            //   manualUpgrade();
+            // }
           } catch (error) {
             console.error('Error refreshing user data after payment:', error);
             toast.error('Failed to refresh subscription data');
@@ -760,46 +733,8 @@ export default function BillingPage() {
           <strong className="font-bold">Server Resource Limitation: </strong>
           <span className="block sm:inline">
             Your payment was successful, but our server on Render.com is experiencing resource limitations. 
-            Your subscription may not update immediately.
+            Your subscription may not update immediately. Please contact support if your subscription doesn't update within 24 hours.
           </span>
-          <div className="mt-3">
-            <button 
-              onClick={async () => {
-                if (!user || !user.id) return;
-                
-                try {
-                  const response = await fetch(`https://upscaloro.onrender.com/billing/manual-upgrade`, {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                      user_id: user.id,
-                      plan_id: 'pro'
-                    })
-                  });
-                  
-                  if (response.ok) {
-                    const data = await response.json();
-                    console.log('Manual upgrade successful:', data);
-                    toast.success('Manual upgrade successful. Refreshing data...');
-                    
-                    // Refresh user data again after manual upgrade
-                    setTimeout(() => refreshUser(), 1000);
-                  } else {
-                    console.error('Manual upgrade failed:', await response.text());
-                    toast.error('Manual upgrade failed. Server is still experiencing resource limitations.');
-                  }
-                } catch (error) {
-                  console.error('Error during manual upgrade:', error);
-                  toast.error('Could not connect to the server. Please try again later.');
-                }
-              }}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-              Manually Upgrade Account
-            </button>
-          </div>
         </div>
       )}
       
