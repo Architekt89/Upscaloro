@@ -5,6 +5,7 @@ from typing import Optional, Dict, Any, List
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from datetime import datetime, timedelta
+import uuid
 
 # Load environment variables
 load_dotenv()
@@ -287,7 +288,12 @@ class DatabaseHandler:
                 subscription_id = existing.data[0]["id"]
                 result = supabase.table("subscriptions").update(subscription_data).eq("id", subscription_id).execute()
             else:
-                # Create new subscription with a generated UUID
+                # Create new subscription with an explicitly generated UUID
+                subscription_data["id"] = str(uuid.uuid4())  # Explicitly set UUID for new subscription
+                
+                # Log the complete data we're trying to insert
+                logger.info(f"Creating new subscription with data: {subscription_data}")
+                
                 result = supabase.table("subscriptions").insert(subscription_data).execute()
             
             if result.data:

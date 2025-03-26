@@ -4,6 +4,7 @@ import stripe
 from typing import Optional, Dict, Any
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
+import time
 
 # Load environment variables
 load_dotenv()
@@ -253,11 +254,168 @@ class PaymentHandler:
             if event.type == "checkout.session.completed":
                 session = event.data.object
                 logger.info(f"Checkout session completed: {session.id}")
-                logger.info(f"Customer: {session.customer}, Subscription: {session.subscription}")
                 
-                # Extract necessary data from the session
+                # Extract session metadata
+                plan_id = session.metadata.get("plan")
+                billing_cycle = session.metadata.get("billing_cycle")
+                
+                # Get customer ID and subscription ID
                 customer_id = session.customer
                 subscription_id = session.subscription
+                
+                logger.info(f"Session metadata - Plan: {plan_id}, Billing: {billing_cycle}")
+                logger.info(f"Customer ID: {customer_id}, Subscription ID: {subscription_id}")
+                
+                if not customer_id:
+                    logger.error("No customer ID found in session")
+                    return {
+                        "status": "error",
+                        "message": "No customer ID found in session"
+                    }
+                
+                if not subscription_id:
+                    logger.error("No subscription ID found in session")
+                    return {
+                        "status": "error",
+                        "message": "No subscription ID found in session"
+                    }
+                
+                # Retrieve the subscription details from Stripe for additional verification
+                try:
+                    subscription = stripe.Subscription.retrieve(subscription_id)
+                    logger.info(f"Successfully retrieved subscription: {subscription_id}")
+                    current_period_end = subscription.current_period_end
+                    status = subscription.status
+                    
+                    # Method 2: Check the price ID from the subscription
+                    price_id = None
+                    price_amount = None
+                    product_id = None
+                    
+                    if hasattr(subscription, 'items') and subscription.items and hasattr(subscription.items, 'data') and subscription.items.data:
+                        # First try to get price from the items data
+                        try:
+                            item = subscription.items.data[0]
+                            
+                            # Check if price is available as an attribute
+                            if hasattr(item, 'price'):
+                                price = item.price
+                                price_id = price.id
+                                price_amount = price.unit_amount
+                                product_id = price.product
+                                logger.info(f"Price found in subscription.items.data[0].price: {price_id}")
+                            # Check if price is available as a dictionary key
+                            elif isinstance(item, dict) and 'price' in item:
+                                price = item['price']
+                                price_id = price.get('id') if isinstance(price, dict) else price.id
+                                price_amount = price.get('unit_amount') if isinstance(price, dict) else price.unit_amount
+                                product_id = price.get('product') if isinstance(price, dict) else price.product
+                                logger.info(f"Price found in subscription.items.data[0]['price']: {price_id}")
+                        except Exception as e:
+                            logger.warning(f"Error getting price from items: {str(e)}")
+                    
+                    # If we can't get price from subscription, try to get it from the checkout session
+                    if not price_id:
+                        try:
+                            # Try to get price from the session
+                            if hasattr(session, 'line_items'):
+                                line_items = stripe.checkout.Session.list_line_items(session.id)
+                                if line_items and line_items.data:
+                                    price_id = line_items.data[0].price.id
+                                    price_amount = line_items.data[0].price.unit_amount
+                                    product_id = line_items.data[0].price.product
+                                    logger.info(f"Price found in session line items: {price_id}")
+                            elif session.get('line_items'):
+                                line_items = stripe.checkout.Session.list_line_items(session.id)
+                                if line_items and line_items.data:
+                                    price_id = line_items.data[0].price.id
+                                    price_amount = line_items.data[0].price.unit_amount
+                                    product_id = line_items.data[0].price.product
+                                    logger.info(f"Price found in session line items: {price_id}")
+                        except Exception as e:
+                            logger.warning(f"Error getting price from session: {str(e)}")
+                    
+                    # If we still don't have a price_id, check if there's one in the session directly
+                    if not price_id and hasattr(session, 'display_items') and session.display_items:
+                        try:
+                            price_id = session.display_items[0].price.id
+                            logger.info(f"Price found in session.display_items: {price_id}")
+                        except Exception as e:
+                            logger.warning(f"Error getting price from display_items: {str(e)}")
+                    
+                    # Last resort - use metadata from the checkout session
+                    if not price_id and 'price_id' in session.metadata:
+                        price_id = session.metadata.get('price_id')
+                        logger.info(f"Price found in session metadata: {price_id}")
+                    
+                    # If we still don't have a price ID but have a plan ID from metadata, use that
+                    if not price_id and plan_id:
+                        logger.info(f"Using plan ID from metadata as fallback: {plan_id}")
+                        
+                        # If plan_id is specified as enterprise in the metadata, respect it
+                        if plan_id.lower() == "enterprise":
+                            logger.info("Enterprise plan confirmed from session metadata")
+                            is_enterprise_plan = True
+                    else:
+                        logger.error(f"No price found in subscription: {subscription_id}")
+                    
+                    # Check if this should be considered an Enterprise plan
+                    is_enterprise_plan = False
+                    
+                    # Method 1: Check plan_id directly from metadata
+                    if plan_id and plan_id.lower() == "enterprise":
+                        is_enterprise_plan = True
+                        logger.info(f"✅ Enterprise plan confirmed from metadata: {plan_id}")
+                    
+                    # Log the detected price
+                    if price_id and price_amount:
+                        logger.info(f"💰 Price ID from subscription: {price_id}, Amount: {price_amount}")
+                        
+                        # Check against known Enterprise price IDs
+                        if price_id in ENTERPRISE_PRICE_IDS:
+                            logger.info(f"⚠️ CRITICAL ENTERPRISE DETECTION: Price ID {price_id} is a KNOWN ENTERPRISE price ID")
+                            plan_id = "enterprise"  # Override with enterprise
+                            logger.info(f"✅ Setting plan to ENTERPRISE based on price ID: {price_id}")
+                    
+                    # Check price amount (Enterprise is $30+)
+                    if price_amount and price_amount >= 3000:  # $30.00 or more in cents
+                        plan_id = "enterprise"  # Override with enterprise
+                        logger.info(f"✅ Setting plan to ENTERPRISE based on price amount: {price_amount} >= 3000")
+                    
+                    # Check product name for additional confirmation
+                    if product_id:
+                        try:
+                            product = stripe.Product.retrieve(product_id)
+                            logger.info(f"📦 Product name: {product.name}, ID: {product_id}")
+                            
+                            if product.name and "enterprise" in product.name.lower():
+                                plan_id = "enterprise"  # Override with enterprise
+                                logger.info(f"✅ Setting plan to ENTERPRISE based on product name: {product.name}")
+                        except Exception as e:
+                            logger.warning(f"Could not retrieve product info: {str(e)}")
+                
+                    # If we still don't have a plan_id, use the one from metadata or default to "pro"
+                    if not plan_id:
+                        plan_id = session.metadata.get("plan", "pro")
+                        logger.info(f"Using plan from metadata as fallback: {plan_id}")
+                
+                except Exception as e:
+                    logger.error(f"Error retrieving subscription: {str(e)}")
+                    # Continue with the flow since we may have plan information from the session metadata
+                    
+                    # If we have a plan ID from metadata, use it; otherwise, default to "pro"
+                    if not plan_id:
+                        plan_id = session.metadata.get("plan", "pro")
+                    
+                    # Estimate current_period_end for 30 days from now if not set
+                    if not current_period_end:
+                        current_period_end = int(time.time()) + (30 * 24 * 60 * 60)  # 30 days in seconds
+                    
+                    # Default status to "active" if not set
+                    if not status:
+                        status = "active"
+                
+                # Extract necessary data from the session
                 user_id = session.metadata.get("user_id")
                 
                 # CRITICAL: Get the plan directly from session metadata - most reliable source
@@ -1455,7 +1613,7 @@ class PaymentHandler:
                     
                     if auth_update.user:
                         logger.info(f"✅ Successfully updated auth metadata to Enterprise for user {user_id}")
-                        metadata_update_success = True
+                        metadata_updated = True
                     else:
                         logger.error(f"❌ Failed to update auth metadata for user {user_id}")
             except Exception as e:
@@ -1470,7 +1628,7 @@ class PaymentHandler:
                     "details": {
                         "sql_update": sql_update_success,
                         "db_update": db_update_success,
-                        "metadata_update": metadata_update_success
+                        "metadata_update": metadata_updated
                     }
                 }
             else:
@@ -1481,7 +1639,7 @@ class PaymentHandler:
                     "details": {
                         "sql_update": sql_update_success,
                         "db_update": db_update_success,
-                        "metadata_update": metadata_update_success
+                        "metadata_update": metadata_updated
                     }
                 }
                 
@@ -1665,12 +1823,27 @@ class PaymentHandler:
             
             supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
             
+            # Get current period end from Stripe if possible
+            current_period_end = None
+            if subscription_id:
+                try:
+                    subscription = stripe.Subscription.retrieve(subscription_id)
+                    current_period_end = datetime.fromtimestamp(subscription.current_period_end)
+                except Exception as e:
+                    logger.warning(f"Could not retrieve subscription period from Stripe: {str(e)}")
+                    # Default to 1 year from now as fallback
+                    current_period_end = datetime.now() + timedelta(days=365)
+            else:
+                # Default to 1 year from now as fallback
+                current_period_end = datetime.now() + timedelta(days=365)
+                
             # 1. Update user record in users table
             user_data = {
                 "subscription_tier": "enterprise",
                 "subscription_status": "active",
                 "updated_at": datetime.now().isoformat(),
-                "subscription_billing_cycle": billing_cycle
+                "subscription_billing_cycle": billing_cycle,
+                "subscription_current_period_end": current_period_end.isoformat()
             }
             
             if customer_id:
@@ -1690,40 +1863,43 @@ class PaymentHandler:
                 user_updated = False
             
             # 2. Update auth metadata
+            metadata_updated = False
             try:
                 auth_update = supabase.auth.admin.update_user_by_id(
                     user_id,
                     user_metadata={
                         "subscription_tier": "enterprise",
                         "subscription_status": "active",
-                        "updated_at": datetime.now().isoformat()
+                        "subscription_current_period_end": current_period_end.isoformat()
                     }
                 )
                 logger.info(f"✅ Emergency auth metadata update successful")
                 metadata_updated = True
             except Exception as e:
                 logger.error(f"❌ Emergency auth metadata update failed: {str(e)}")
-                metadata_updated = False
+                # Try alternative approach
+                try:
+                    auth_update = supabase.auth.admin.update_user(
+                        user_id,
+                        {
+                            "data": {
+                                "subscription_tier": "enterprise",
+                                "subscription_status": "active"
+                            }
+                        }
+                    )
+                    logger.info(f"✅ Emergency auth metadata update successful with alternative method")
+                    metadata_updated = True
+                except Exception as e2:
+                    logger.error(f"❌ Alternative auth metadata update failed too: {str(e2)}")
+                    metadata_updated = False
             
             # 3. Update or create subscription record
             from backend.database import DatabaseHandler
             
             subscription_result = None
+            subscription_updated = False
             try:
-                # Get current period end from Stripe if possible
-                current_period_end = None
-                if subscription_id:
-                    try:
-                        subscription = stripe.Subscription.retrieve(subscription_id)
-                        current_period_end = datetime.fromtimestamp(subscription.current_period_end)
-                    except Exception as e:
-                        logger.warning(f"Could not retrieve subscription period from Stripe: {str(e)}")
-                        # Default to 1 year from now as fallback
-                        current_period_end = datetime.now() + timedelta(days=365)
-                else:
-                    # Default to 1 year from now as fallback
-                    current_period_end = datetime.now() + timedelta(days=365)
-                
                 # Upsert subscription record
                 subscription_result = await DatabaseHandler.upsert_subscription(
                     user_id=user_id,
