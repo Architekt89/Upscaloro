@@ -44,8 +44,14 @@ ADMIN_API_KEY = os.getenv("ADMIN_API_KEY")
 if not ADMIN_API_KEY:
     logger.warning("⚠️ ADMIN_API_KEY environment variable is not set! Admin-only endpoints will be unsecured!")
     
-# Initialize Stripe
-stripe.api_key = os.getenv("STRIPE_API_KEY", "")
+# Initialize Stripe with proper API key
+stripe_api_key = os.getenv("STRIPE_API_KEY") or os.getenv("STRIPE_SECRET_KEY")
+if not stripe_api_key:
+    logger.error("❌ CRITICAL: Neither STRIPE_API_KEY nor STRIPE_SECRET_KEY environment variables are set! Stripe functionality will fail.")
+else:
+    logger.info(f"✅ Stripe API key configured successfully (starts with: {stripe_api_key[:4]}...)")
+
+stripe.api_key = stripe_api_key
 
 app = FastAPI(
     title="Upscalor API",
@@ -1726,6 +1732,9 @@ async def webhook_test():
     Test endpoint to verify webhook configuration.
     """
     try:
+        # Get webhook secret
+        webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
+        
         # Create a diagnostic result
         result = {
             "api_endpoints": {
