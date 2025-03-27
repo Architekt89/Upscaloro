@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Check } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
@@ -9,6 +9,299 @@ import toast from 'react-hot-toast';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/utils/supabase';
 import { Switch } from '@/components/ui/switch';
+// Import Swiper components
+import { Swiper, SwiperSlide } from 'swiper/react';
+import { Pagination, Keyboard, Navigation, EffectCoverflow } from 'swiper/modules';
+import type { Swiper as SwiperType } from 'swiper';
+
+// Import Swiper styles
+import 'swiper/css';
+import 'swiper/css/pagination';
+import 'swiper/css/navigation';
+import 'swiper/css/effect-coverflow';
+
+// Custom styles for Swiper
+const swiperStyles = `
+  .swiper-pricing {
+    padding: 60px 0;
+    position: relative;
+    overflow: visible;
+    perspective: 1200px;
+    width: 110%;
+    margin-left: -5%;
+  }
+  
+  /* Additional width for mobile */
+  @media (max-width: 640px) {
+    .swiper-pricing {
+      width: 130%;
+      margin-left: -15%;
+    }
+    
+    .pricing-container {
+      max-width: 130% !important;
+      margin-left: -15% !important;
+      margin-right: -15% !important;
+    }
+    
+    .swiper-slide {
+      transform: scale(0.7) translateZ(-150px) rotateY(15deg);
+    }
+    
+    .swiper-slide-active {
+      transform: scale(1) translateZ(0) rotateY(0deg) translateY(-10px);
+    }
+
+    .swiper-slide-prev {
+      transform: scale(0.8) translateZ(-100px) rotateY(20deg);
+    }
+    
+    .swiper-slide-next {
+      transform: scale(0.8) translateZ(-100px) rotateY(-20deg);
+    }
+  }
+  
+  .swiper-pagination {
+    position: relative;
+    margin-top: 2.5rem;
+  }
+  
+  .swiper-pagination-bullet {
+    width: 10px;
+    height: 10px;
+    background: rgba(255, 255, 255, 0.2);
+    opacity: 1;
+    margin: 0 5px;
+    transition: all 0.3s ease;
+  }
+  
+  .swiper-pagination-bullet-active {
+    background: #f97316 !important;
+    transform: scale(1.3);
+    box-shadow: 0 0 8px rgba(249, 115, 22, 0.6);
+  }
+  
+  .swiper-slide {
+    height: auto;
+    transition: all 0.7s cubic-bezier(0.215, 0.61, 0.355, 1);
+    opacity: 0.35;
+    transform-origin: center;
+    filter: blur(3px) brightness(0.65);
+    transform: scale(0.75) translateZ(-120px) rotateY(12deg);
+    pointer-events: none;
+    touch-action: pan-y;
+  }
+  
+  .swiper-slide-active {
+    opacity: 1;
+    filter: blur(0) brightness(1);
+    transform: scale(1) translateZ(0) rotateY(0deg) translateY(-15px);
+    z-index: 10;
+    pointer-events: auto;
+  }
+
+  .swiper-slide-prev {
+    filter: blur(2px) brightness(0.75);
+    transform: scale(0.85) translateZ(-80px) rotateY(18deg);
+    transform-origin: right center;
+    z-index: 5;
+    opacity: 0.6;
+  }
+  
+  .swiper-slide-next {
+    filter: blur(2px) brightness(0.75);
+    transform: scale(0.85) translateZ(-80px) rotateY(-18deg);
+    transform-origin: left center;
+    z-index: 5;
+    opacity: 0.6;
+  }
+  
+  .swiper-slide-active .pricing-card {
+    border-color: #f97316;
+    box-shadow: 0 25px 50px rgba(249, 115, 22, 0.3), 0 0 20px rgba(249, 115, 22, 0.2);
+    transform: translateY(0);
+  }
+  
+  .pricing-card {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.6s cubic-bezier(0.215, 0.61, 0.355, 1);
+    backface-visibility: hidden;
+    transform-style: preserve-3d;
+    background: linear-gradient(to bottom, rgba(31, 31, 35, 0.9), rgba(17, 17, 23, 0.9));
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 1.5rem;
+    margin: 0 0.25rem;
+  }
+  
+  /* Hide navigation arrows on mobile */
+  @media (max-width: 640px) {
+    .swiper-button-next,
+    .swiper-button-prev {
+      display: none !important;
+    }
+  }
+  
+  .swiper-button-next,
+  .swiper-button-prev {
+    color: #f97316;
+    background: rgba(20, 20, 20, 0.7);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    transform: translateZ(20px);
+  }
+  
+  .swiper-button-next:hover,
+  .swiper-button-prev:hover {
+    background: rgba(249, 115, 22, 0.9);
+    color: white;
+    transform: scale(1.1) translateZ(20px);
+  }
+  
+  .swiper-button-next:after,
+  .swiper-button-prev:after {
+    font-size: 18px;
+    font-weight: bold;
+  }
+  
+  .swiper-button-next {
+    right: 10px;
+  }
+  
+  .swiper-button-prev {
+    left: 10px;
+  }
+
+  /* Add visual cue for swipe interaction on mobile */
+  @media (max-width: 640px) {
+    .swiper-slide-active::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 50px;
+      margin-top: -25px;
+      background: linear-gradient(90deg, rgba(249, 115, 22, 0.1) 0%, rgba(0, 0, 0, 0) 15%, rgba(0, 0, 0, 0) 85%, rgba(249, 115, 22, 0.1) 100%);
+      border-radius: 25px;
+      pointer-events: none;
+      opacity: 0.5;
+      animation: fadeInOut 2s infinite;
+      z-index: 100;
+    }
+    
+    @keyframes fadeInOut {
+      0%, 100% { opacity: 0; }
+      50% { opacity: 0.5; }
+    }
+  }
+
+  /* Desktop styling to match the reference */
+  @media (min-width: 1024px) {
+    .pricing-card {
+      background: #0F1218;
+      border-radius: 1rem;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 2rem;
+      height: 100%;
+    }
+    
+    .pricing-card.highlighted {
+      border: 2px solid #f97316;
+      box-shadow: 0 0 20px rgba(249, 115, 22, 0.3);
+      position: relative;
+    }
+    
+    .pricing-card .plan-name {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+      text-align: center;
+    }
+    
+    .pricing-card .plan-price {
+      font-size: 2.5rem;
+      font-weight: 800;
+      color: #f97316;
+      margin-bottom: 0.75rem;
+      text-align: center;
+    }
+    
+    .pricing-card .plan-price .period {
+      font-size: 1rem;
+      font-weight: normal;
+      color: rgba(255, 255, 255, 0.6);
+    }
+    
+    .pricing-card .plan-description {
+      text-align: center;
+      color: rgba(255, 255, 255, 0.7);
+      margin-bottom: 1.5rem;
+    }
+    
+    .pricing-card .feature-list {
+      margin-bottom: 2rem;
+    }
+    
+    .pricing-card .feature-item {
+      display: flex;
+      align-items: flex-start;
+      margin-bottom: 1rem;
+    }
+    
+    .pricing-card .feature-icon {
+      color: #f97316;
+      margin-right: 0.75rem;
+      flex-shrink: 0;
+    }
+    
+    .pricing-card .feature-text {
+      color: rgba(255, 255, 255, 0.8);
+    }
+    
+    .pricing-card .feature-text.disabled {
+      color: rgba(255, 255, 255, 0.3);
+      text-decoration: line-through;
+    }
+    
+    .pricing-card .action-button {
+      width: 100%;
+      padding: 0.75rem;
+      border-radius: 2rem;
+      font-weight: 600;
+      transition: all 0.2s ease;
+      text-align: center;
+    }
+    
+    .pricing-card.highlighted .action-button {
+      background: linear-gradient(to right, #f97316, #fb923c);
+      color: white;
+    }
+    
+    .pricing-card:not(.highlighted) .action-button {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: white;
+    }
+    
+    .pricing-card:not(.highlighted) .action-button:hover {
+      background: rgba(249, 115, 22, 0.1);
+      border-color: #f97316;
+    }
+    
+    .pricing-container {
+      background: #000000; 
+    }
+  }
+`;
 
 interface PricingFeature {
   text: string;
@@ -98,6 +391,9 @@ export default function PricingSection() {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  // Add state for viewport detection
+  const [isMobileOrTablet, setIsMobileOrTablet] = useState(false);
+  const swiperRef = useRef<SwiperType | null>(null);
   
   // Get auth context with refreshUser
   const { user, loading: authLoading, refreshUser, session } = useAuth();
@@ -328,6 +624,30 @@ export default function PricingSection() {
       router.replace('/pricing');
     }
   }, [searchParams, router, fetchUserPlan, user, session]);
+
+  // Check viewport size on mount and resize
+  useEffect(() => {
+    const checkViewport = () => {
+      setIsMobileOrTablet(window.innerWidth < 1024);
+    };
+    
+    // Initial check
+    checkViewport();
+    
+    // Add resize listener
+    window.addEventListener('resize', checkViewport);
+    
+    // Cleanup
+    return () => window.removeEventListener('resize', checkViewport);
+  }, []);
+
+  // Initialize swiper when it's ready
+  useEffect(() => {
+    if (swiperRef.current) {
+      // Ensure Pro plan starts in the center (slide index 0)
+      swiperRef.current.slideToLoop(0, 0);
+    }
+  }, [swiperRef.current]);
 
   const handleBillingToggle = (cycle: 'monthly' | 'annual') => {
     setBillingCycle(cycle);
@@ -575,6 +895,9 @@ export default function PricingSection() {
 
   return (
     <>
+      {/* Add custom swiper styles */}
+      <style jsx global>{swiperStyles}</style>
+      
       {/* Show dev controls at the top if in development mode */}
       {process.env.NODE_ENV === 'development' && (
         <div className="container mx-auto px-4 pt-4">
@@ -586,8 +909,14 @@ export default function PricingSection() {
       {showLoginPrompt && <LoginPrompt />}
       
       <section className="relative bg-[#000000] overflow-hidden py-16 md:py-24">
+        {/* Background elements */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-[30%] -right-[25%] w-[60%] h-[60%] bg-gradient-to-br from-orange-500/20 to-purple-600/20 rounded-full blur-3xl opacity-30"></div>
+          <div className="absolute -bottom-[30%] -left-[25%] w-[60%] h-[60%] bg-gradient-to-tr from-blue-500/20 to-purple-600/20 rounded-full blur-3xl opacity-30"></div>
+        </div>
+        
         {/* Content container */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <div className="pricing-container max-w-[110%] md:max-w-[110%] lg:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 -mx-[5%] md:mx-auto">
           <div className="text-center mb-12 md:mb-16">
             <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-tight mb-4">
               <span className="bg-gradient-to-r from-orange-500 via-orange-400 to-white bg-clip-text text-transparent">
@@ -628,112 +957,375 @@ export default function PricingSection() {
             </div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {pricingPlans.map((plan, index) => {
-              // Determine if this plan should be highlighted
-              const isHighlighted = user 
-                ? plan.id === userPlan  // If user is logged in, highlight their current plan
-                : plan.id === "pro";    // If not logged in, highlight the Pro plan
-              
-              return (
-                <div 
-                  key={index}
-                  className={`
-                    relative rounded-2xl p-6 md:p-8 bg-gray-900/60 backdrop-blur-sm border border-gray-800 
-                    shadow-xl transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl
-                    ${isHighlighted ? 'md:scale-105 md:-translate-y-2 z-10' : 'z-0'}
-                    ${user && plan.id === userPlan ? 'ring-2 ring-orange-500' : ''}
-                  `}
-                >
-                  {/* Current plan badge */}
-                  {user && plan.id === userPlan && (
-                    <div className="absolute top-0 right-0 -mt-2 -mr-2 bg-orange-500 text-white text-xs px-2 py-1 rounded-full">
-                      Current Plan
-                    </div>
-                  )}
-                  
-                  {/* Recommended badge for Pro plan when not logged in */}
-                  {!user && plan.id === "pro" && (
-                    <div className="absolute top-0 right-0 -mt-2 -mr-2 bg-orange-500 text-white text-xs px-2 py-1 rounded-full">
-                      Recommended
-                    </div>
-                  )}
-                  
-                  {/* Highlight border for highlighted plan */}
-                  {isHighlighted && (
-                    <div className="absolute inset-0 rounded-2xl border-2 border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.5)] -z-10"></div>
-                  )}
-                  
-                  <div className="text-center mb-8">
-                    <h3 className="text-xl md:text-2xl font-bold text-white mb-2">{plan.name}</h3>
-                    <div className="text-3xl md:text-4xl font-extrabold text-orange-500 mb-2">
-                      {billingCycle === 'monthly' ? plan.monthlyPrice : plan.annualPrice}
-                      <span className="text-lg font-normal text-gray-400">
-                        {billingCycle === 'monthly' ? '/month' : '/year'}
-                      </span>
-                    </div>
-                    {billingCycle === 'annual' && plan.monthlyPrice !== "$0" && (
-                      <div className="text-sm text-gray-400 mb-2">
-                        ${Math.round(parseInt(plan.annualPrice!.replace('$', '')) / 12)} per month, billed annually
-                      </div>
-                    )}
-                    <p className="text-gray-400">{plan.description}</p>
-                  </div>
-                  
-                  <ul className="space-y-4 mb-8">
-                    {plan.features.map((feature, featureIndex) => (
-                      <li key={featureIndex} className="flex items-start">
-                        <span className={`flex-shrink-0 h-6 w-6 rounded-full flex items-center justify-center ${feature.included ? 'text-orange-500' : 'text-gray-600'}`}>
-                          <Check className="h-4 w-4" />
-                        </span>
-                        <span className={`ml-3 text-sm ${feature.included ? 'text-gray-300' : 'text-gray-500 line-through'}`}>
-                          {feature.text}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                  
-                  <div className="mt-auto">
-                    <button
-                      onClick={() => handlePlanSelect(plan)}
-                      disabled={loadingPlan === plan.id || !sessionChecked || 
-                        (!!user && plan.id === userPlan && !(billingCycle === 'annual' && getButtonText(plan) === "Switch to annual billing"))}
+          {/* Conditional rendering based on viewport size */}
+          {isMobileOrTablet ? (
+            // Mobile/Tablet Swiper layout
+            <Swiper
+              ref={swiperRef}
+              modules={[Pagination, Keyboard, Navigation, EffectCoverflow]}
+              effect="coverflow"
+              coverflowEffect={{
+                rotate: 15,
+                stretch: 0,
+                depth: 200,
+                modifier: 2,
+                slideShadows: false,
+              }}
+              spaceBetween={-20}
+              slidesPerView={1.7}
+              initialSlide={0}
+              centeredSlides={true}
+              grabCursor={true}
+              keyboard={{ enabled: true }}
+              navigation={{
+                enabled: false,
+              }}
+              loop={true}
+              loopAdditionalSlides={3}
+              speed={800}
+              touchRatio={1.5}
+              shortSwipes={true}
+              longSwipesRatio={0.2}
+              pagination={{
+                clickable: true,
+                bulletActiveClass: 'swiper-pagination-bullet-active',
+              }}
+              breakpoints={{
+                // Mobile (< 480px)
+                0: {
+                  slidesPerView: 1.9,
+                  spaceBetween: -20,
+                  touchRatio: 1.8,
+                  coverflowEffect: {
+                    rotate: 15,
+                    stretch: 0,
+                    depth: 200,
+                    modifier: 2.2,
+                  }
+                },
+                // When window width is >= 480px
+                480: {
+                  slidesPerView: 2.1,
+                  spaceBetween: -10,
+                  touchRatio: 1.2,
+                  coverflowEffect: {
+                    rotate: 12,
+                    stretch: 0,
+                    depth: 200,
+                    modifier: 2,
+                  }
+                },
+                // When window width is >= 640px
+                640: {
+                  slidesPerView: 2.2,
+                  spaceBetween: 0,
+                  touchRatio: 1,
+                  navigation: {
+                    enabled: false,
+                  },
+                  coverflowEffect: {
+                    rotate: 10,
+                    stretch: 0,
+                    depth: 250,
+                    modifier: 2.2,
+                  }
+                },
+                // When window width is >= 768px
+                768: {
+                  slidesPerView: 2.5,
+                  spaceBetween: 20,
+                  touchRatio: 1,
+                  navigation: {
+                    enabled: false,
+                  },
+                  coverflowEffect: {
+                    rotate: 8,
+                    stretch: 10,
+                    depth: 300,
+                    modifier: 2.5,
+                  }
+                }
+              }}
+              className="mb-8 swiper-pricing"
+              onSwiper={(swiper: SwiperType) => {
+                // Store swiper instance for later use
+                swiperRef.current = swiper;
+              }}
+            >
+              {/* Reorder the plans to ensure Pro is in the middle, with correct order for infinite loop */}
+              {[
+                // Order: Pro (initially centered), Enterprise (next right), Free (next right/previous left)
+                ...pricingPlans.filter(plan => plan.id === "pro"),
+                ...pricingPlans.filter(plan => plan.id === "enterprise"),
+                ...pricingPlans.filter(plan => plan.id === "free")
+              ].map((plan, index) => {
+                // Determine if this plan should be highlighted
+                const isHighlighted = user 
+                  ? plan.id === userPlan  // If user is logged in, highlight their current plan
+                  : plan.id === "pro";    // If not logged in, highlight the Pro plan
+                
+                return (
+                  <SwiperSlide key={plan.id}>
+                    <div 
                       className={`
-                        block w-full py-3 px-4 rounded-full text-center text-sm font-semibold transition-all duration-300
-                        ${isHighlighted 
-                          ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-[0_0_15px_rgba(249,115,22,0.3)] hover:shadow-[0_0_20px_rgba(249,115,22,0.5)] hover:from-orange-400 hover:to-orange-600 hover:scale-[1.03]' 
-                          : 'border border-gray-400 text-white hover:bg-orange-500 hover:border-orange-500 hover:text-white hover:scale-[1.03]'
-                        }
-                        ${(loadingPlan === plan.id || !sessionChecked || (!!user && plan.id === userPlan && !(billingCycle === 'annual' && getButtonText(plan) === "Switch to annual billing"))) ? 'opacity-75 cursor-not-allowed' : ''}
+                        pricing-card relative rounded-2xl p-6 md:p-8 bg-gray-900/70 backdrop-blur-sm border border-gray-800 
+                        shadow-xl transition-all duration-500
+                        ${isHighlighted ? 'border-orange-500' : ''}
+                        ${user && plan.id === userPlan ? 'ring-2 ring-orange-500' : ''}
                       `}
                     >
-                      {loadingPlan === plan.id ? (
-                        <span className="flex items-center justify-center">
-                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          Processing...
-                        </span>
-                      ) : !sessionChecked ? (
-                        <span className="flex items-center justify-center">
-                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          Loading...
-                        </span>
-                      ) : (
-                        getButtonText(plan)
+                      {/* Current plan badge */}
+                      {user && plan.id === userPlan && (
+                        <div className="absolute top-0 right-0 -mt-2 -mr-2 bg-orange-500 text-white text-xs px-2 py-1 rounded-full">
+                          Current Plan
+                        </div>
                       )}
-                    </button>
+                      
+                      {/* Recommended badge for Pro plan when not logged in */}
+                      {!user && plan.id === "pro" && (
+                        <div className="absolute top-0 right-0 -mt-2 -mr-2 bg-orange-500 text-white text-xs px-2 py-1 rounded-full">
+                          Recommended
+                        </div>
+                      )}
+                      
+                      {/* Highlight border for highlighted plan */}
+                      {isHighlighted && (
+                        <div className="absolute inset-0 rounded-2xl border-2 border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.5)] -z-10"></div>
+                      )}
+                      
+                      <div className="text-center mb-8">
+                        <h3 className="plan-name text-xl md:text-2xl font-bold text-white mb-2">{plan.name}</h3>
+                        <div className="plan-price text-3xl md:text-4xl font-extrabold text-orange-500 mb-2">
+                          {billingCycle === 'monthly' ? plan.monthlyPrice : plan.annualPrice}
+                          <span className="period text-lg font-normal text-gray-400">
+                            {billingCycle === 'monthly' ? '/month' : '/year'}
+                          </span>
+                        </div>
+                        {billingCycle === 'annual' && plan.monthlyPrice !== "$0" && (
+                          <div className="text-sm text-gray-400 mb-2">
+                            ${Math.round(parseInt(plan.annualPrice!.replace('$', '')) / 12)} per month, billed annually
+                          </div>
+                        )}
+                        <p className="plan-description text-gray-400">{plan.description}</p>
+                      </div>
+                      
+                      <ul className="feature-list space-y-4 mb-8">
+                        {plan.features.map((feature, featureIndex) => (
+                          <li key={featureIndex} className="feature-item flex items-start">
+                            <span className={`feature-icon flex-shrink-0 h-6 w-6 rounded-full flex items-center justify-center ${feature.included ? 'text-orange-500' : 'text-gray-600'}`}>
+                              <Check className="h-4 w-4" />
+                            </span>
+                            <span className={`feature-text ml-3 text-sm ${feature.included ? 'text-gray-300' : 'text-gray-500 line-through disabled'}`}>
+                              {feature.text}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                      
+                      <div className="mt-auto">
+                        <button
+                          onClick={() => handlePlanSelect(plan)}
+                          disabled={loadingPlan === plan.id || !sessionChecked || 
+                            (!!user && plan.id === userPlan && !(billingCycle === 'annual' && getButtonText(plan) === "Switch to annual billing"))}
+                          className={`
+                            action-button block w-full py-3 px-4 rounded-full text-center text-sm font-semibold transition-all duration-300
+                            ${isHighlighted 
+                              ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-[0_0_15px_rgba(249,115,22,0.3)] hover:shadow-[0_0_20px_rgba(249,115,22,0.5)] hover:from-orange-400 hover:to-orange-600 hover:scale-[1.02]' 
+                              : 'border border-gray-400 text-white hover:bg-orange-500 hover:border-orange-500 hover:text-white hover:scale-[1.02]'
+                            }
+                            ${(loadingPlan === plan.id || !sessionChecked || (!!user && plan.id === userPlan && !(billingCycle === 'annual' && getButtonText(plan) === "Switch to annual billing"))) ? 'opacity-75 cursor-not-allowed' : ''}
+                          `}
+                        >
+                          {loadingPlan === plan.id ? (
+                            <span className="flex items-center justify-center">
+                              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              Processing...
+                            </span>
+                          ) : !sessionChecked ? (
+                            <span className="flex items-center justify-center">
+                              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              Loading...
+                            </span>
+                          ) : (
+                            getButtonText(plan)
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </SwiperSlide>
+                );
+              })}
+            </Swiper>
+          ) : (
+            // Desktop layout
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mx-auto max-w-6xl">
+              {pricingPlans.map((plan, index) => {
+                // Determine if this plan should be highlighted
+                const isHighlighted = user 
+                  ? plan.id === userPlan  // If user is logged in, highlight their current plan
+                  : plan.id === "pro";    // If not logged in, highlight the Pro plan
+                
+                return (
+                  <div 
+                    key={index}
+                    className={`
+                      relative transition-all duration-500
+                      ${isHighlighted ? 'lg:-translate-y-4 z-10' : 'z-0'}
+                    `}
+                  >
+                    {/* Current plan badge */}
+                    {user && plan.id === userPlan && (
+                      <div className="absolute top-0 right-0 -mt-2 -mr-2 bg-orange-500 text-white text-xs px-2 py-1 rounded-full z-20">
+                        Current Plan
+                      </div>
+                    )}
+                    
+                    {/* Recommended badge for Pro plan when not logged in */}
+                    {!user && plan.id === "pro" && (
+                      <div className="absolute top-0 right-0 -mt-2 -mr-2 bg-orange-500 text-white text-xs px-2 py-1 rounded-full z-20">
+                        Recommended
+                      </div>
+                    )}
+                    
+                    {/* Highlight border for highlighted plan */}
+                    {isHighlighted && (
+                      <div className="absolute inset-0 rounded-2xl border-2 border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.5)] -z-10"></div>
+                    )}
+                    
+                    <div className={`p-6 lg:p-8 bg-gray-900 border ${isHighlighted ? 'border-orange-500' : 'border-gray-800'} rounded-2xl h-full flex flex-col shadow-xl ${isHighlighted ? 'shadow-orange-500/10' : ''}`}>
+                      <div className="text-center mb-8">
+                        <h3 className="plan-name text-xl lg:text-2xl font-bold text-white mb-2">{plan.name}</h3>
+                        <div className="plan-price text-3xl lg:text-4xl font-extrabold text-orange-500 mb-2">
+                          {billingCycle === 'monthly' ? plan.monthlyPrice : plan.annualPrice}
+                          <span className="period text-lg font-normal text-gray-400">
+                            {billingCycle === 'monthly' ? '/month' : '/year'}
+                          </span>
+                        </div>
+                        {billingCycle === 'annual' && plan.monthlyPrice !== "$0" && (
+                          <div className="text-sm text-gray-400 mb-2">
+                            ${Math.round(parseInt(plan.annualPrice!.replace('$', '')) / 12)} per month, billed annually
+                          </div>
+                        )}
+                        <p className="plan-description text-gray-400">{plan.description}</p>
+                      </div>
+                      
+                      <ul className="feature-list space-y-4 mb-8">
+                        {plan.features.map((feature, featureIndex) => (
+                          <li key={featureIndex} className="feature-item flex items-start">
+                            <span className={`feature-icon flex-shrink-0 h-6 w-6 rounded-full flex items-center justify-center ${feature.included ? 'text-orange-500' : 'text-gray-600'}`}>
+                              <Check className="h-4 w-4" />
+                            </span>
+                            <span className={`feature-text ml-3 text-sm ${feature.included ? 'text-gray-300' : 'text-gray-500 line-through disabled'}`}>
+                              {feature.text}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                      
+                      <div className="mt-auto">
+                        <button
+                          onClick={() => handlePlanSelect(plan)}
+                          disabled={loadingPlan === plan.id || !sessionChecked || 
+                            (!!user && plan.id === userPlan && !(billingCycle === 'annual' && getButtonText(plan) === "Switch to annual billing"))}
+                          className={`
+                            action-button block w-full py-3 px-4 rounded-full text-center text-sm font-semibold transition-all duration-300
+                            ${isHighlighted 
+                              ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-[0_0_15px_rgba(249,115,22,0.3)] hover:shadow-[0_0_20px_rgba(249,115,22,0.5)] hover:from-orange-400 hover:to-orange-600 hover:scale-[1.03]' 
+                              : 'border border-gray-700 text-white hover:bg-gray-800 hover:border-gray-600 hover:text-white hover:scale-[1.02]'
+                            }
+                            ${(loadingPlan === plan.id || !sessionChecked || (!!user && plan.id === userPlan && !(billingCycle === 'annual' && getButtonText(plan) === "Switch to annual billing"))) ? 'opacity-75 cursor-not-allowed' : ''}
+                          `}
+                        >
+                          {loadingPlan === plan.id ? (
+                            <span className="flex items-center justify-center">
+                              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              Processing...
+                            </span>
+                          ) : !sessionChecked ? (
+                            <span className="flex items-center justify-center">
+                              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              Loading...
+                            </span>
+                          ) : (
+                            getButtonText(plan)
+                          )}
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+          )}
+          
+          <div className="text-center mt-8 text-gray-400 text-sm">
+            <p>All plans include 24/7 support. Pricing in USD.</p>
           </div>
         </div>
       </section>
+
+      {/* Custom styles for Swiper pricing carousel */}
+      <style jsx global>{`
+        .swiper-pricing {
+          overflow: visible;
+          padding-bottom: 60px;
+        }
+        
+        .swiper-pricing .swiper-pagination {
+          bottom: 0;
+        }
+        
+        .swiper-pricing .swiper-pagination-bullet {
+          width: 10px;
+          height: 10px;
+          background: rgba(255, 255, 255, 0.2);
+          opacity: 1;
+          transition: all 0.3s;
+        }
+        
+        .swiper-pricing .swiper-pagination-bullet-active {
+          background: #f97316;
+          transform: scale(1.3);
+        }
+        
+        .swiper-pricing .swiper-slide {
+          transition: all 0.6s ease;
+        }
+        
+        .swiper-pricing .swiper-slide:not(.swiper-slide-active) {
+          opacity: 0.6;
+          transform: scale(0.85) translateY(30px) rotateY(-20deg);
+        }
+        
+        /* Mobile-specific styles */
+        @media (max-width: 640px) {
+          .pricing-container {
+            max-width: 130% !important;
+            margin-left: -15% !important;
+            margin-right: -15% !important;
+          }
+          
+          .swiper-pricing .swiper-slide:not(.swiper-slide-active) {
+            transform: scale(0.65) translateY(40px) rotateY(-25deg);
+          }
+          
+          .swiper-pricing .swiper-navigation {
+            display: none !important;
+          }
+        }
+      `}</style>
     </>
   );
 } 

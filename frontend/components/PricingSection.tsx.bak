@@ -1,0 +1,930 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { Check } from 'lucide-react';
+import Link from 'next/link';
+import { useAuth } from '@/context/AuthContext';
+import axios from 'axios';
+import toast from 'react-hot-toast';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { supabase } from '@/utils/supabase';
+import { Switch } from '@/components/ui/switch';
+// Import Swiper React components
+import { Swiper, SwiperSlide } from 'swiper/react';
+// Import Swiper styles
+import 'swiper/css';
+import 'swiper/css/pagination';
+import 'swiper/css/navigation';
+// Import required modules
+import { Pagination, Navigation } from 'swiper/modules';
+
+interface PricingFeature {
+  text: string;
+  included: boolean;
+}
+
+interface PricingPlan {
+  id: string;
+  name: string;
+  monthlyPrice: string;
+  annualPrice?: string;
+  description: string;
+  buttonText: string;
+  highlighted: boolean;
+  features: PricingFeature[];
+  monthlyPriceId?: string;  // Stripe price ID for monthly billing
+  annualPriceId?: string;   // Stripe price ID for annual billing
+}
+
+const pricingPlans: PricingPlan[] = [
+  {
+    id: "free",
+    name: "Free",
+    monthlyPrice: "$0",
+    annualPrice: "$0",
+    description: "Great for getting started with basic image upscaling",
+    buttonText: "Get Started",
+    highlighted: false,
+    features: [
+      { text: "5 images per month", included: true },
+      { text: "Basic upscaling", included: true },
+      { text: "Maximum 2K output resolution", included: true },
+      { text: "Community support", included: true },
+      { text: "Standard processing speed", included: false },
+      { text: "Advanced AI models", included: false },
+      { text: "Batch processing", included: false },
+      { text: "Priority support", included: false },
+    ],
+  },
+  {
+    id: "pro",
+    name: "Pro",
+    monthlyPrice: "$15",
+    annualPrice: "$144",
+    description: "Perfect for professionals with advanced needs",
+    buttonText: "Upgrade Now",
+    highlighted: true,
+    features: [
+      { text: "400 images per month", included: true },
+      { text: "Premium upscaling quality", included: true },
+      { text: "Maximum 4K output resolution", included: true },
+      { text: "Email support", included: true },
+      { text: "Fast processing speed", included: true },
+      { text: "All AI models", included: true },
+      { text: "Batch processing (up to 10 images)", included: true },
+      { text: "Priority support", included: false },
+    ],
+    monthlyPriceId: "price_1R1UVUBQ1z6vW0DwWfGtyIW0",
+    annualPriceId: "price_1R1UWMBQ1z6vW0DwRkcoXWT7"
+  },
+  {
+    id: "enterprise",
+    name: "Enterprise",
+    monthlyPrice: "$30",
+    annualPrice: "$288",
+    description: "For businesses with high-volume requirements",
+    buttonText: "Upgrade to Enterprise",
+    highlighted: false,
+    features: [
+      { text: "800 images per month", included: true },
+      { text: "Highest upscaling quality", included: true },
+      { text: "Maximum 16K output resolution", included: true },
+      { text: "Email support", included: true },
+      { text: "Ultra-fast processing speed", included: true },
+      { text: "All AI models plus beta access", included: true },
+      { text: "Batch processing", included: true },
+      { text: "API access", included: true },
+    ],
+    monthlyPriceId: "price_1R1UWzBQ1z6vW0DwRDLKndlG",
+    annualPriceId: "price_1R1UXlBQ1z6vW0DwMaBDmKaZ"
+  },
+];
+
+export default function PricingSection() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
+  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  // Add state for tracking viewport size
+  const [isMobile, setIsMobile] = useState(false);
+  
+  // Get auth context with refreshUser
+  const { user, loading: authLoading, refreshUser, session } = useAuth();
+  const [sessionChecked, setSessionChecked] = useState(false);
+  const [userPlan, setUserPlan] = useState<string>("free");
+  const [allowUnauthCheckout, setAllowUnauthCheckout] = useState(false);
+
+  // Check session status on component mount
+  useEffect(() => {
+    if (!authLoading) {
+      setSessionChecked(true);
+      fetchUserPlan();
+    }
+  }, [authLoading, user]);
+  
+  // Add effect to track window size for responsive behavior
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 1024); // Consider tablet and mobile as < 1024px
+    };
+    
+    // Set initial value
+    handleResize();
+    
+    // Add event listener
+    window.addEventListener('resize', handleResize);
+    
+    // Cleanup
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  
+  // This function will be called when the component mounts and whenever user changes
+  const fetchUserPlan = useCallback(async () => {
+    if (!user) {
+      setUserPlan("free");
+      setLoadingPlan(null);
+      return;
+    }
+
+    try {
+      setLoadingPlan("fetching");
+      
+      // Method 1: Check user metadata first (fastest if available)
+      if (user.user_metadata && user.user_metadata.subscription_tier) {
+        console.log('Found subscription tier in user metadata:', user.user_metadata.subscription_tier);
+        setUserPlan(user.user_metadata.subscription_tier.toLowerCase());
+        setLoadingPlan(null);
+        return;
+      }
+      
+      // Method 2: Directly query Supabase users table
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+      );
+      
+      console.log('Fetching subscription data from users table for user ID:', user.id);
+      
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('subscription_tier')
+        .eq('id', user.id)
+        .single();
+      
+      if (userError) {
+        console.error('Error fetching user data from Supabase:', userError);
+        // Don't throw an error, just log it and continue to the next method
+        // For new users, they might not exist in the database yet
+        console.log('User might be new or database record not yet created, continuing to next method');
+      } else if (userData && userData.subscription_tier) {
+        console.log('Found subscription data in users table:', userData);
+        setUserPlan(userData.subscription_tier.toLowerCase());
+        return;
+      }
+      
+      // Method 3: Try backend API as fallback (legacy method)
+      const backendUrl = "https://upscaloro.onrender.com";
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      
+      if (session?.access_token) {
+        headers["Authorization"] = `Bearer ${session.access_token}`;
+      }
+      
+      try {
+        const response = await fetch(`${backendUrl}/subscription/${user.id}`, {
+          method: "GET",
+          headers
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.status === 'success' && data.data && data.data.subscription_tier) {
+            setUserPlan(data.data.subscription_tier.toLowerCase());
+            return;
+          }
+        } else {
+          console.log(`Backend API returned status ${response.status}, defaulting to free plan`);
+        }
+      } catch (apiError) {
+        console.error("Error calling backend API:", apiError);
+        // Don't throw, just log and continue to default free plan
+      }
+      
+      // Default to free if all methods fail
+      console.log('No subscription data found, defaulting to free plan');
+      setUserPlan("free");
+    } catch (error) {
+      console.error("Error fetching user plan:", error);
+      // Default to free if there's an error
+      setUserPlan("free");
+      
+      // Only show error toast for serious errors, not just when we can't find the user
+      if (error instanceof TypeError && error.message.includes('fetch failed')) {
+        // Network error - more serious
+        toast.error("Network error: Failed to connect to the server");
+      } else if (!(error instanceof Error) || !error.message.includes('fetch user subscription data')) {
+        // Other serious errors, but not the expected "failed to fetch user subscription data" error
+        toast.error("An unexpected error occurred. Please try again later.");
+      } else {
+        // Expected errors for new users, don't show toast
+        console.log("Expected error for new user, not showing error toast");
+      }
+    } finally {
+      setLoadingPlan(null);
+    }
+  }, [user, session]);
+
+  // Check for success parameter in URL
+  useEffect(() => {
+    const success = searchParams.get('success');
+    const plan = searchParams.get('plan');
+    const checkoutSuccess = searchParams.get('checkout_success');
+    const sessionId = searchParams.get('session_id');
+    
+    if (success === 'true' && plan) {
+      toast.success(`Successfully upgraded to ${plan.charAt(0).toUpperCase() + plan.slice(1)} plan!`);
+      
+      // Clear the URL parameters
+      router.replace('/pricing');
+      
+      // Refresh the user's plan
+      fetchUserPlan();
+    } else if (checkoutSuccess === 'true' || sessionId) {
+      // Additional verification for Stripe checkout success
+      if (user) {
+        // Show immediate feedback
+        toast.success("Processing your upgrade...");
+        
+        // First check if we have a session ID from the URL
+        const verifySessionId = sessionId || searchParams.get('session_id');
+        
+        const verifyUpgrade = async () => {
+          try {
+            const backendUrl = "https://upscaloro.onrender.com";
+            const headers: Record<string, string> = {
+              "Content-Type": "application/json",
+            };
+            
+            if (session?.access_token) {
+              headers["Authorization"] = `Bearer ${session.access_token}`;
+            }
+            
+            // Use the new session verification endpoint if we have a session ID
+            if (verifySessionId) {
+              console.log(`Verifying checkout session: ${verifySessionId}`);
+              const sessionResponse = await fetch(`${backendUrl}/api/verify-checkout/${verifySessionId}`, {
+                method: "GET",
+                headers
+              });
+              
+              if (sessionResponse.ok) {
+                const sessionData = await sessionResponse.json();
+                console.log("Session verification data:", sessionData);
+                
+                if (sessionData.payment_status === "paid" && sessionData.status === "complete") {
+                  const planId = sessionData.plan_id;
+                  
+                  if (planId === "enterprise") {
+                    toast.success("Successfully upgraded to Enterprise plan!");
+                  } else if (planId === "pro") {
+                    toast.success("Successfully upgraded to Pro plan!");
+                  } else {
+                    toast.success("Your subscription was updated successfully!");
+                  }
+                  
+                  // Check if a force upgrade was applied
+                  if (sessionData.upgrade_action === "forced_upgrade_to_enterprise") {
+                    console.log("Force upgrade was applied:", sessionData.upgrade_result);
+                  }
+                  
+                  // Refresh the user's plan data after confirmation
+                  fetchUserPlan();
+                  return;
+                } else {
+                  console.warn("Session verification shows incomplete payment:", sessionData);
+                  toast.error("Your payment is being processed. It may take a moment to reflect in your account.");
+                }
+              } else {
+                console.error("Error verifying session:", await sessionResponse.text());
+              }
+            }
+            
+            // Fallback to standard subscription check
+            console.log("Using fallback subscription check");
+            const response = await fetch(`${backendUrl}/api/subscription/check`, {
+              method: "GET",
+              headers,
+            });
+            
+            if (response.ok) {
+              const data = await response.json();
+              
+              // Check if the user has an Enterprise subscription
+              if (data.is_enterprise) {
+                toast.success("Successfully upgraded to Enterprise plan!");
+              } else if (data.is_pro) {
+                toast.success("Successfully upgraded to Pro plan!");
+              } else {
+                toast.success("Your subscription was updated!");
+              }
+              
+              // Refresh the user's plan data
+              fetchUserPlan();
+            } else {
+              // If verification fails, still try to refresh user data
+              console.error("Error checking subscription status:", await response.text());
+              fetchUserPlan();
+            }
+          } catch (error) {
+            console.error("Error verifying subscription:", error);
+            // If verification fails, still try to refresh user data
+            fetchUserPlan();
+          }
+        };
+        
+        // Wait a short time for database updates to propagate
+        setTimeout(verifyUpgrade, 2000); // Wait 2 seconds before checking
+      }
+      
+      // Clear the URL parameters regardless
+      router.replace('/pricing');
+    }
+  }, [searchParams, router, fetchUserPlan, user, session]);
+
+  const handleBillingToggle = (cycle: 'monthly' | 'annual') => {
+    setBillingCycle(cycle);
+  };
+
+  const handlePlanSelect = async (plan: PricingPlan) => {
+    // If user is not logged in and we don't allow unauthenticated checkout, show login prompt
+    if (!user && !allowUnauthCheckout) {
+      setShowLoginPrompt(true);
+      return;
+    }
+
+    // Special handling for Enterprise plan upgrades
+    if (plan.id === "enterprise") {
+      // Log extra details for enterprise upgrade tracking
+      console.log("🔒 ENTERPRISE UPGRADE REQUEST:");
+      console.log(`User ID: ${user?.id || 'anonymous'}`);
+      console.log(`Current Plan: ${userPlan || 'none'}`);
+      console.log(`Requested Plan: ${plan.id}`);
+      console.log(`Billing Cycle: ${billingCycle}`);
+      
+      // If upgrading from Free or Pro, handle differently based on current plan
+      if (userPlan === "free" || userPlan === "pro") {
+        try {
+          setLoadingPlan(plan.id);
+          
+          // Determine billing cycle and price ID based on period
+          const cycleType = billingCycle === 'annual' ? 'yearly' : 'monthly';
+          // Use the appropriate property based on billing cycle
+          const priceId = cycleType === 'yearly' ? plan.annualPriceId : plan.monthlyPriceId;
+          
+          // Log the enterprise upgrade details
+          console.log("🔒 ENTERPRISE UPGRADE DETAILS (Direct):");
+          console.log(`Plan ID: ${plan.id}`);
+          console.log(`Price ID: ${priceId}`);
+          console.log(`Billing Cycle: ${cycleType}`);
+          
+          // For Enterprise upgrades, prefer using Stripe checkout directly
+          // Skip the direct API update attempt which is causing issues
+          console.log("Using Stripe checkout flow for Enterprise plan upgrade");
+          await proceedWithCheckoutSession(plan, cycleType, priceId);
+          return;
+        } catch (error) {
+          console.error("Error upgrading to Enterprise:", error);
+          toast.error("Failed to upgrade to Enterprise plan. Please try again.");
+          setLoadingPlan("");
+        }
+        return;
+      }
+    }
+
+    // For non-Enterprise upgrades or when other conditions aren't met
+    // Regular checkout process for new or upgraded plans
+    try {
+      setLoadingPlan(plan.id);
+      
+      // Determine billing cycle and price ID based on period
+      const cycleType = billingCycle === 'annual' ? 'yearly' : 'monthly';
+      // Use the appropriate property based on billing cycle
+      const priceId = cycleType === 'yearly' ? plan.annualPriceId : plan.monthlyPriceId;
+      
+      // Log the upgrade details for debugging
+      if (plan.id === "enterprise") {
+        console.log("🔒 ENTERPRISE UPGRADE DETAILS:");
+        console.log(`Plan ID: ${plan.id}`);
+        console.log(`Price ID: ${priceId}`);
+        console.log(`Billing Cycle: ${cycleType}`);
+      }
+      
+      await proceedWithCheckoutSession(plan, cycleType, priceId);
+    } catch (error) {
+      console.error("Error processing plan selection:", error);
+      toast.error("Failed to process plan selection. Please try again.");
+      setLoadingPlan("");
+    }
+  };
+
+  // Helper function to proceed with checkout session
+  const proceedWithCheckoutSession = async (plan: PricingPlan, cycleType: string, priceId: string | undefined) => {
+    if (!priceId) {
+      console.error("No valid price ID found");
+      toast.error("Error: Could not find a valid price for this plan.");
+      setLoadingPlan("");
+      return;
+    }
+    
+    // Prepare headers with Authorization token if user is logged in
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    
+    // Add Authorization header with Bearer token if user is logged in
+    if (user && session?.access_token) {
+      headers["Authorization"] = `Bearer ${session.access_token}`;
+      console.log("Adding auth token to checkout request");
+    } else {
+      console.log("No auth token available for checkout request");
+    }
+    
+    // Fix the URL construction
+    const backendUrl = "https://upscaloro.onrender.com";
+    let response = await fetch(`${backendUrl}/billing/create-checkout-session`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        plan_id: plan.id,
+        price_id: priceId,
+        billing_cycle: cycleType,
+        success_url: `${window.location.origin}/dashboard/billing?checkout_success=true`,
+        cancel_url: `${window.location.origin}/pricing?checkout_canceled=true`,
+        skip_auth: !user && allowUnauthCheckout
+      })
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      console.error("Checkout error:", data);
+      
+      // If not authorized, prompt user to log in again
+      if (response.status === 401) {
+        toast.error(data.error || "Authentication failed. Please log in again.");
+        setTimeout(() => {
+          refreshUser();
+        }, 2000);
+        return;
+      }
+      
+      throw new Error(data.error || "Failed to create checkout session");
+    }
+
+    const { url } = await response.json();
+    
+    // Redirect to Stripe Checkout
+    if (url) {
+      window.location.href = url;
+    } else {
+      throw new Error("No checkout URL returned");
+    }
+  };
+
+  const getButtonText = (plan: PricingPlan) => {
+    // If user is not logged in, show "Get Started" variants
+    if (!user) {
+      if (plan.id === "free") {
+        return "Get Started for Free";
+      } else {
+        return "Get Started";
+      }
+    }
+    
+    // If this plan is the user's current plan
+    if (plan.id === userPlan) {
+      // If showing the current plan in a different billing cycle than what user has
+      if (billingCycle === 'annual' && userPlan === plan.id) {
+        return "Switch to annual billing";
+      }
+      return "Current Plan";
+    }
+    
+    // If user is on a higher tier and trying to go to a lower tier
+    if (
+      (userPlan === "enterprise" && (plan.id === "pro" || plan.id === "free")) ||
+      (userPlan === "pro" && plan.id === "free")
+    ) {
+      return "Downgrade";
+    }
+    
+    // If user is on a lower tier and trying to go to a higher tier
+    if (
+      (userPlan === "free" && (plan.id === "pro" || plan.id === "enterprise")) ||
+      (userPlan === "pro" && plan.id === "enterprise")
+    ) {
+      return "Upgrade";
+    }
+    
+    // Default fallback
+    return "Select Plan";
+  };
+
+  // Add login prompt component
+  const LoginPrompt = () => (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+      <div className="bg-white p-6 rounded-lg max-w-md w-full">
+        <h3 className="text-xl font-bold mb-2">Session Expired</h3>
+        <p className="text-gray-600 mb-4">
+          Your session has expired or is invalid. Please sign in again to continue.
+        </p>
+        <div className="flex space-x-2">
+          <button
+            onClick={() => {
+              router.push('/auth/login');
+            }}
+            className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90"
+          >
+            Sign In
+          </button>
+          <button
+            onClick={() => setShowLoginPrompt(false)}
+            className="px-4 py-2 border border-gray-300 rounded"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Add a toggle for unauthenticated checkout in development mode
+  const DevControls = () => {
+    // Only show in development mode
+    if (process.env.NODE_ENV !== 'development') return null;
+    
+    return (
+      <div className="mb-8 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+        <h2 className="text-lg font-semibold text-yellow-700 mb-2">Development Controls</h2>
+        <div className="flex items-center mb-2">
+          <input
+            type="checkbox"
+            id="allowUnauthCheckout"
+            checked={allowUnauthCheckout}
+            onChange={(e) => setAllowUnauthCheckout(e.target.checked)}
+            className="mr-2 h-4 w-4"
+          />
+          <label htmlFor="allowUnauthCheckout" className="text-sm text-yellow-700">
+            Allow checkout without authentication (Testing only)
+          </label>
+        </div>
+        <div className="mt-3 flex flex-col space-y-2">
+          <Link 
+            href="/checkout-test" 
+            className="text-sm text-blue-600 hover:text-blue-800 underline"
+          >
+            Go to Checkout Test Page →
+          </Link>
+          <Link 
+            href="/token-test" 
+            className="text-sm text-blue-600 hover:text-blue-800 underline"
+          >
+            Go to Token Test Page →
+          </Link>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <>
+      {/* Show dev controls at the top if in development mode */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="container mx-auto px-4 pt-4">
+          <DevControls />
+        </div>
+      )}
+      
+      {/* Show login prompt when needed */}
+      {showLoginPrompt && <LoginPrompt />}
+      
+      <section className="relative bg-[#000000] overflow-hidden py-16 md:py-24">
+        {/* Content container */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="text-center mb-12 md:mb-16">
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-tight mb-4">
+              <span className="bg-gradient-to-r from-orange-500 via-orange-400 to-white bg-clip-text text-transparent">
+                Choose Your Plan
+              </span>
+            </h2>
+            <p className="max-w-2xl mx-auto text-gray-300 text-lg md:text-xl mb-8">
+              Select the perfect plan for your image upscaling needs
+            </p>
+            
+            {/* Billing toggle */}
+            <div className="flex justify-center mb-8">
+              <div className="bg-gray-800/60 backdrop-blur-sm p-1 rounded-full inline-flex">
+                <button
+                  onClick={() => handleBillingToggle('monthly')}
+                  className={`px-6 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
+                    billingCycle === 'monthly'
+                      ? 'bg-gray-700 text-white shadow-md'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  Monthly billing
+                </button>
+                <button
+                  onClick={() => handleBillingToggle('annual')}
+                  className={`px-6 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
+                    billingCycle === 'annual'
+                      ? 'bg-gray-700 text-white shadow-md'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  Yearly billing
+                  <span className="ml-2 bg-orange-500 text-white text-xs px-2 py-0.5 rounded-full whitespace-nowrap">
+                    Save 20%
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          {/* Desktop version (grid layout) */}
+          {!isMobile && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {pricingPlans.map((plan, index) => {
+                // Determine if this plan should be highlighted
+                const isHighlighted = user 
+                  ? plan.id === userPlan  // If user is logged in, highlight their current plan
+                  : plan.id === "pro";    // If not logged in, highlight the Pro plan
+                
+                return (
+                  <div 
+                    key={index}
+                    className={`
+                      relative rounded-2xl p-6 md:p-8 bg-gray-900/60 backdrop-blur-sm border border-gray-800 
+                      shadow-xl transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl
+                      ${isHighlighted ? 'md:scale-105 md:-translate-y-2 z-10' : 'z-0'}
+                      ${user && plan.id === userPlan ? 'ring-2 ring-orange-500' : ''}
+                    `}
+                  >
+                    {/* Current plan badge */}
+                    {user && plan.id === userPlan && (
+                      <div className="absolute top-0 right-0 -mt-2 -mr-2 bg-orange-500 text-white text-xs px-2 py-1 rounded-full">
+                        Current Plan
+                      </div>
+                    )}
+                    
+                    {/* Recommended badge for Pro plan when not logged in */}
+                    {!user && plan.id === "pro" && (
+                      <div className="absolute top-0 right-0 -mt-2 -mr-2 bg-orange-500 text-white text-xs px-2 py-1 rounded-full">
+                        Recommended
+                      </div>
+                    )}
+                    
+                    {/* Highlight border for highlighted plan */}
+                    {isHighlighted && (
+                      <div className="absolute inset-0 rounded-2xl border-2 border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.5)] -z-10"></div>
+                    )}
+                    
+                    <div className="text-center mb-8">
+                      <h3 className="text-xl md:text-2xl font-bold text-white mb-2">{plan.name}</h3>
+                      <div className="text-3xl md:text-4xl font-extrabold text-orange-500 mb-2">
+                        {billingCycle === 'monthly' ? plan.monthlyPrice : plan.annualPrice}
+                        <span className="text-lg font-normal text-gray-400">
+                          {billingCycle === 'monthly' ? '/month' : '/year'}
+                        </span>
+                      </div>
+                      {billingCycle === 'annual' && plan.monthlyPrice !== "$0" && (
+                        <div className="text-sm text-gray-400 mb-2">
+                          ${Math.round(parseInt(plan.annualPrice!.replace('$', '')) / 12)} per month, billed annually
+                        </div>
+                      )}
+                      <p className="text-gray-400">{plan.description}</p>
+                    </div>
+                    
+                    <ul className="space-y-4 mb-8">
+                      {plan.features.map((feature, featureIndex) => (
+                        <li key={featureIndex} className="flex items-start">
+                          <span className={`flex-shrink-0 h-6 w-6 rounded-full flex items-center justify-center ${feature.included ? 'text-orange-500' : 'text-gray-600'}`}>
+                            <Check className="h-4 w-4" />
+                          </span>
+                          <span className={`ml-3 text-sm ${feature.included ? 'text-gray-300' : 'text-gray-500 line-through'}`}>
+                            {feature.text}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                    
+                    <div className="mt-auto">
+                      <button
+                        onClick={() => handlePlanSelect(plan)}
+                        disabled={loadingPlan === plan.id || !sessionChecked || 
+                          (!!user && plan.id === userPlan && !(billingCycle === 'annual' && getButtonText(plan) === "Switch to annual billing"))}
+                        className={`
+                          block w-full py-3 px-4 rounded-full text-center text-sm font-semibold transition-all duration-300
+                          ${isHighlighted 
+                            ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-[0_0_15px_rgba(249,115,22,0.3)] hover:shadow-[0_0_20px_rgba(249,115,22,0.5)] hover:from-orange-400 hover:to-orange-600 hover:scale-[1.03]' 
+                            : 'border border-gray-400 text-white hover:bg-orange-500 hover:border-orange-500 hover:text-white hover:scale-[1.03]'
+                          }
+                          ${(loadingPlan === plan.id || !sessionChecked || (!!user && plan.id === userPlan && !(billingCycle === 'annual' && getButtonText(plan) === "Switch to annual billing"))) ? 'opacity-75 cursor-not-allowed' : ''}
+                        `}
+                      >
+                        {loadingPlan === plan.id ? (
+                          <span className="flex items-center justify-center">
+                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Processing...
+                          </span>
+                        ) : !sessionChecked ? (
+                          <span className="flex items-center justify-center">
+                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Loading...
+                          </span>
+                        ) : (
+                          getButtonText(plan)
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          
+          {/* Mobile/Tablet version (swiper) */}
+          {isMobile && (
+            <div className="relative">
+              <Swiper
+                initialSlide={1} // Start with Pro plan (center)
+                spaceBetween={20}
+                slidesPerView={'auto'}
+                centeredSlides={true}
+                pagination={{
+                  clickable: true,
+                }}
+                navigation={true}
+                modules={[Pagination, Navigation]}
+                className="pricing-swiper"
+              >
+                {pricingPlans.map((plan, index) => {
+                  // Determine if this plan should be highlighted
+                  const isHighlighted = user 
+                    ? plan.id === userPlan  // If user is logged in, highlight their current plan
+                    : plan.id === "pro";    // If not logged in, highlight the Pro plan
+                  
+                  return (
+                    <SwiperSlide key={index} className="!w-[85%] sm:!w-[350px]">
+                      <div 
+                        className={`
+                          relative rounded-2xl p-6 h-full bg-gray-900/60 backdrop-blur-sm border border-gray-800 
+                          shadow-xl transition-all duration-300
+                          ${isHighlighted ? 'scale-[1.02] z-10' : 'z-0'}
+                          ${user && plan.id === userPlan ? 'ring-2 ring-orange-500' : ''}
+                        `}
+                      >
+                        {/* Current plan badge */}
+                        {user && plan.id === userPlan && (
+                          <div className="absolute top-0 right-0 -mt-2 -mr-2 bg-orange-500 text-white text-xs px-2 py-1 rounded-full">
+                            Current Plan
+                          </div>
+                        )}
+                        
+                        {/* Recommended badge for Pro plan when not logged in */}
+                        {!user && plan.id === "pro" && (
+                          <div className="absolute top-0 right-0 -mt-2 -mr-2 bg-orange-500 text-white text-xs px-2 py-1 rounded-full">
+                            Recommended
+                          </div>
+                        )}
+                        
+                        {/* Highlight border for highlighted plan */}
+                        {isHighlighted && (
+                          <div className="absolute inset-0 rounded-2xl border-2 border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.5)] -z-10"></div>
+                        )}
+                        
+                        <div className="text-center mb-6">
+                          <h3 className="text-xl font-bold text-white mb-2">{plan.name}</h3>
+                          <div className="text-3xl font-extrabold text-orange-500 mb-2">
+                            {billingCycle === 'monthly' ? plan.monthlyPrice : plan.annualPrice}
+                            <span className="text-base font-normal text-gray-400">
+                              {billingCycle === 'monthly' ? '/month' : '/year'}
+                            </span>
+                          </div>
+                          {billingCycle === 'annual' && plan.monthlyPrice !== "$0" && (
+                            <div className="text-sm text-gray-400 mb-2">
+                              ${Math.round(parseInt(plan.annualPrice!.replace('$', '')) / 12)} per month, billed annually
+                            </div>
+                          )}
+                          <p className="text-gray-400 text-sm">{plan.description}</p>
+                        </div>
+                        
+                        <ul className="space-y-3 mb-6">
+                          {plan.features.map((feature, featureIndex) => (
+                            <li key={featureIndex} className="flex items-start">
+                              <span className={`flex-shrink-0 h-5 w-5 rounded-full flex items-center justify-center ${feature.included ? 'text-orange-500' : 'text-gray-600'}`}>
+                                <Check className="h-3 w-3" />
+                              </span>
+                              <span className={`ml-2 text-xs ${feature.included ? 'text-gray-300' : 'text-gray-500 line-through'}`}>
+                                {feature.text}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                        
+                        <div className="mt-auto">
+                          <button
+                            onClick={() => handlePlanSelect(plan)}
+                            disabled={loadingPlan === plan.id || !sessionChecked || 
+                              (!!user && plan.id === userPlan && !(billingCycle === 'annual' && getButtonText(plan) === "Switch to annual billing"))}
+                            className={`
+                              block w-full py-3 px-4 rounded-full text-center text-sm font-semibold transition-all duration-300
+                              ${isHighlighted 
+                                ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-[0_0_15px_rgba(249,115,22,0.3)]' 
+                                : 'border border-gray-400 text-white hover:bg-orange-500 hover:border-orange-500 hover:text-white'
+                              }
+                              ${(loadingPlan === plan.id || !sessionChecked || (!!user && plan.id === userPlan && !(billingCycle === 'annual' && getButtonText(plan) === "Switch to annual billing"))) ? 'opacity-75 cursor-not-allowed' : ''}
+                            `}
+                          >
+                            {loadingPlan === plan.id ? (
+                              <span className="flex items-center justify-center">
+                                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Processing...
+                              </span>
+                            ) : !sessionChecked ? (
+                              <span className="flex items-center justify-center">
+                                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Loading...
+                              </span>
+                            ) : (
+                              getButtonText(plan)
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </SwiperSlide>
+                  );
+                })}
+              </Swiper>
+            </div>
+          )}
+          
+        </div>
+      </section>
+      
+      {/* Add custom styles for the Swiper */}
+      <style jsx global>{`
+        .pricing-swiper {
+          padding-bottom: 40px;
+          margin-left: auto;
+          margin-right: auto;
+        }
+        
+        .pricing-swiper .swiper-pagination {
+          bottom: 0;
+        }
+        
+        .pricing-swiper .swiper-pagination-bullet {
+          background: #6b7280;
+          opacity: 0.5;
+        }
+        
+        .pricing-swiper .swiper-pagination-bullet-active {
+          background: #f97316;
+          opacity: 1;
+        }
+        
+        .pricing-swiper .swiper-button-next,
+        .pricing-swiper .swiper-button-prev {
+          color: #f97316;
+        }
+        
+        .pricing-swiper .swiper-button-disabled {
+          opacity: 0.35;
+        }
+        
+        @media (max-width: 640px) {
+          .pricing-swiper .swiper-button-next,
+          .pricing-swiper .swiper-button-prev {
+            display: none;
+          }
+        }
+      `}</style>
+    </>
+  );
+} 

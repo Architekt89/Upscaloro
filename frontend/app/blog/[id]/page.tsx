@@ -7,52 +7,98 @@ import { ArrowLeft, Calendar, Clock, User } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 
 // Mock data for blog posts (same as in blog/page.tsx)
-const MOCK_POSTS = Array(18).fill(null).map((_, index) => ({
-  id: index + 1,
-  title: `How AI is Revolutionizing Image Upscaling in ${2023 + Math.floor(index / 3)}`,
-  excerpt: 'Discover how artificial intelligence is transforming the way we enhance and upscale images with unprecedented quality and detail.',
-  category: ['TECHNOLOGY', 'AI', 'DESIGN', 'TUTORIAL'][index % 4],
-  coverImage: `/blog/post-${(index % 6) + 1}.jpg`,
-  author: {
-    name: ['Alex Johnson', 'Maria Garcia', 'Sam Chen', 'Taylor Swift'][index % 4],
-    avatar: `/avatars/avatar-${(index % 6) + 1}.jpg`,
+const MOCK_POSTS = [
+  {
+    id: 1,
+    title: "The Future of AI in Image Upscaling",
+    excerpt: "Exploring the next generation of AI technologies that will revolutionize image enhancement.",
+    category: "TECHNOLOGY",
+    coverImage: "/blog/post-1.jpg",
+    author: {
+      name: "Alex Johnson",
+      avatar: "/avatars/avatar-1.jpg",
+    },
+    publishedAt: new Date(2023, 8, 15).toISOString(),
+    content: `
+      <p>Image upscaling technology has come a long way in recent years, driven primarily by advances in artificial intelligence. This post explores where the technology is headed.</p>
+      
+      <h2>Current State of AI Upscaling</h2>
+      <p>Today's AI upscalers use deep neural networks to analyze low-resolution images and intelligently add details that weren't present in the original. The results can be stunning, with images that maintain natural appearances while significantly increasing resolution.</p>
+      
+      <h2>Emerging Approaches</h2>
+      <p>New research is pushing the boundaries of what's possible:</p>
+      <ul>
+        <li>Multi-frame super-resolution that combines information from multiple images</li>
+        <li>Context-aware upscaling that understands the semantic content of images</li>
+        <li>Hybrid approaches that combine traditional and AI methods</li>
+      </ul>
+      
+      <p>These advances are making AI upscaling more accessible and powerful than ever before.</p>
+    `,
   },
-  publishedAt: new Date(2023, 5 + Math.floor(index / 3), 10 + (index % 20)).toISOString(),
-  content: `
-    <p>Artificial intelligence has made remarkable strides in recent years, transforming various industries and applications. One area where AI has shown exceptional promise is in image upscaling and enhancement.</p>
-    
-    <h2>The Evolution of Image Upscaling</h2>
-    <p>Traditional image upscaling methods often resulted in blurry or pixelated images when enlarging low-resolution photos. These methods typically used simple interpolation techniques that couldn't add new details to the image.</p>
-    
-    <p>With the advent of deep learning and neural networks, AI-powered upscaling has revolutionized this process. Modern AI upscalers can analyze the content of an image and intelligently add details that weren't present in the original, resulting in sharper, more detailed enlargements.</p>
-    
-    <h2>How AI Upscaling Works</h2>
-    <p>AI upscaling uses deep neural networks, typically convolutional neural networks (CNNs) or generative adversarial networks (GANs), that have been trained on millions of images. These networks learn to recognize patterns and features in images and can predict what higher-resolution versions of those patterns should look like.</p>
-    
-    <p>When upscaling an image, the AI analyzes the low-resolution input and generates new pixels based on its training, effectively "hallucinating" details that enhance the image while maintaining its natural appearance.</p>
-    
-    <h2>Applications of AI Image Upscaling</h2>
-    <ul>
-      <li><strong>Photography:</strong> Enhancing old or low-resolution photos</li>
-      <li><strong>Film and TV:</strong> Restoring and upscaling classic films to modern resolutions</li>
-      <li><strong>Gaming:</strong> Improving textures and graphics in real-time</li>
-      <li><strong>Medical imaging:</strong> Enhancing diagnostic images for better analysis</li>
-      <li><strong>Surveillance:</strong> Clarifying details in security footage</li>
-    </ul>
-    
-    <h2>The Future of AI Upscaling</h2>
-    <p>As AI technology continues to advance, we can expect even more impressive results from image upscaling algorithms. Future developments may include:</p>
-    
-    <ul>
-      <li>Real-time upscaling for live video streams</li>
-      <li>More accurate preservation of text and fine details</li>
-      <li>Better handling of artistic styles and unique visual elements</li>
-      <li>Reduced computational requirements for mobile applications</li>
-    </ul>
-    
-    <p>The field of AI image upscaling is rapidly evolving, and it's exciting to imagine what new capabilities will emerge in the coming years.</p>
-  `,
-}));
+  {
+    id: 2,
+    title: "Practical Guide to Image Enhancement",
+    excerpt: "Step-by-step instructions for improving your photos using modern AI tools.",
+    category: "TUTORIAL",
+    coverImage: "/blog/post-2.jpg",
+    author: {
+      name: "Maria Garcia",
+      avatar: "/avatars/avatar-2.jpg",
+    },
+    publishedAt: new Date(2023, 9, 5).toISOString(),
+    content: `
+      <p>This tutorial will walk you through the process of enhancing your photos using AI-powered tools.</p>
+      
+      <h2>Choosing the Right Tool</h2>
+      <p>There are many AI image enhancers available today. When selecting one, consider:</p>
+      <ul>
+        <li>Processing speed</li>
+        <li>Supported file formats</li>
+        <li>Special features (face enhancement, noise reduction, etc.)</li>
+        <li>Cost structure (one-time purchase vs. subscription)</li>
+      </ul>
+      
+      <h2>Basic Enhancement Workflow</h2>
+      <p>Follow these steps for best results:</p>
+      <ol>
+        <li>Start with the highest quality original available</li>
+        <li>Apply basic adjustments (exposure, contrast) before upscaling</li>
+        <li>Use the AI upscaler with appropriate settings</li>
+        <li>Apply finishing touches after upscaling</li>
+      </ol>
+      
+      <p>With practice, you'll develop an eye for which images respond best to AI enhancement.</p>
+    `,
+  },
+  {
+    id: 3,
+    title: "Comparing Top AI Upscaling Algorithms",
+    excerpt: "An in-depth analysis of the leading AI upscaling technologies and their strengths.",
+    category: "AI",
+    coverImage: "/blog/post-3.jpg",
+    author: {
+      name: "Sam Chen",
+      avatar: "/avatars/avatar-3.jpg",
+    },
+    publishedAt: new Date(2023, 9, 20).toISOString(),
+    content: `
+      <p>Not all AI upscalers are created equal. This post compares the top algorithms in the field.</p>
+      
+      <h2>ESRGAN vs. SRCNN</h2>
+      <p>ESRGAN (Enhanced Super-Resolution Generative Adversarial Network) generally produces more photorealistic results than SRCNN (Super-Resolution Convolutional Neural Network), but at the cost of higher computational requirements.</p>
+      
+      <h2>Diffusion Models</h2>
+      <p>The newest generation of upscalers uses diffusion models, which start with pure noise and gradually transform it into a clear image. These models excel at preserving fine details and textures.</p>
+      
+      <h2>Transformer-Based Approaches</h2>
+      <p>Inspired by advances in natural language processing, transformer architectures are now being applied to image upscaling with impressive results, particularly for images with complex patterns.</p>
+      
+      <p>The best choice depends on your specific use case, with tradeoffs between quality, speed, and resource usage.</p>
+    `,
+  },
+  // Add more posts as needed, up to 18 total
+];
 
 // Category color mapping
 const CATEGORY_COLORS: Record<string, string> = {

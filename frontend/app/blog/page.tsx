@@ -6,18 +6,45 @@ import Link from 'next/link';
 import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
 
 // Mock data for blog posts
-const MOCK_POSTS = Array(18).fill(null).map((_, index) => ({
-  id: index + 1,
-  title: `How AI is Revolutionizing Image Upscaling in ${2023 + Math.floor(index / 3)}`,
-  excerpt: 'Discover how artificial intelligence is transforming the way we enhance and upscale images with unprecedented quality and detail.',
-  category: ['TECHNOLOGY', 'AI', 'DESIGN', 'TUTORIAL'][index % 4],
-  coverImage: `/blog/post-${(index % 6) + 1}.jpg`,
-  author: {
-    name: ['Alex Johnson', 'Maria Garcia', 'Sam Chen', 'Taylor Swift'][index % 4],
-    avatar: `/avatars/avatar-${(index % 6) + 1}.jpg`,
+const MOCK_POSTS = [
+  {
+    id: 1,
+    title: "The Future of AI in Image Upscaling",
+    excerpt: "Exploring the next generation of AI technologies that will revolutionize image enhancement.",
+    category: "TECHNOLOGY",
+    coverImage: "/blog/post-1.jpg",
+    author: {
+      name: "Alex Johnson",
+      avatar: "/avatars/avatar-1.jpg",
+    },
+    publishedAt: new Date(2023, 8, 15).toISOString(),
   },
-  publishedAt: new Date(2023, 5 + Math.floor(index / 3), 10 + (index % 20)).toISOString(),
-}));
+  {
+    id: 2,
+    title: "Practical Guide to Image Enhancement",
+    excerpt: "Step-by-step instructions for improving your photos using modern AI tools.",
+    category: "TUTORIAL",
+    coverImage: "/blog/post-2.jpg",
+    author: {
+      name: "Maria Garcia",
+      avatar: "/avatars/avatar-2.jpg",
+    },
+    publishedAt: new Date(2023, 9, 5).toISOString(),
+  },
+  {
+    id: 3,
+    title: "Comparing Top AI Upscaling Algorithms",
+    excerpt: "An in-depth analysis of the leading AI upscaling technologies and their strengths.",
+    category: "AI",
+    coverImage: "/blog/post-3.jpg",
+    author: {
+      name: "Sam Chen",
+      avatar: "/avatars/avatar-3.jpg",
+    },
+    publishedAt: new Date(2023, 9, 20).toISOString(),
+  },
+  // Add more posts as needed, up to 18 total
+];
 
 // Category color mapping
 const CATEGORY_COLORS: Record<string, string> = {
