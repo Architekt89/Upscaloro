@@ -2034,64 +2034,16 @@ async def force_enterprise_upgrade(
     Returns:
         dict: Result of the upgrade
     """
-    try:
-        logger.info(f"🔥 Force upgrading user to Enterprise: user_id={user_id}, email={email}")
-        
-        # Validate inputs
-        if not user_id and not email:
-            return JSONResponse(
-                status_code=400,
-                content={"error": "Either user_id or email must be provided"}
-            )
-        
-        # If only email is provided, look up the user ID
-        if not user_id and email:
-            from backend.database import DatabaseHandler
-            user = await DatabaseHandler.get_user_by_email(email)
-            if user:
-                user_id = user.get("id")
-                logger.info(f"Found user ID for email {email}: {user_id}")
-            else:
-                return JSONResponse(
-                    status_code=404,
-                    content={"error": f"User not found for email: {email}"}
-                )
-        
-        # Force upgrade to Enterprise
-        from backend.payment import PaymentHandler
-        result = await PaymentHandler.force_upgrade_to_enterprise(
-            user_id=user_id,
-            customer_email=email
-        )
-        
-        logger.info(f"Force upgrade result: {result}")
-        
-        # Add extra diagnostics in the response
-        response_data = {
-            "status": "success",
-            "message": "Forced upgrade to Enterprise plan completed",
-            "user_id": user_id,
-            "email": email,
-            "force_upgrade_result": result
+    # Endpoint is disabled because subscription system now works properly
+    logger.info(f"Force enterprise upgrade endpoint was called but is now disabled: user_id={user_id}, email={email}")
+    return JSONResponse(
+        status_code=410,
+        content={
+            "status": "disabled",
+            "message": "This endpoint is no longer available. The subscription system is working properly without the need for forced upgrades.",
+            "info": "If you believe this is an error, please contact support."
         }
-        
-        # Try to get the current user data to verify upgrade
-        try:
-            from backend.database import DatabaseHandler
-            user = await DatabaseHandler.get_user(user_id)
-            if user:
-                response_data["current_subscription_tier"] = user.get("subscription_tier")
-                response_data["verification"] = user.get("subscription_tier") == "enterprise"
-        except Exception as e:
-            logger.error(f"Error getting user data: {str(e)}")
-        
-        return response_data
-    except Exception as e:
-        logger.error(f"Error in force_enterprise_upgrade: {str(e)}")
-        return JSONResponse(
-            status_code=500,
-            content={"error": f"Error upgrading to Enterprise: {str(e)}"}
-        )
+    )
 
 if __name__ == "__main__":
     import uvicorn

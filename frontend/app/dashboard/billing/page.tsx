@@ -100,6 +100,7 @@ export default function BillingPage() {
     message: ""
   });
   const dataFetchedRef = useRef(false);
+  const lastFetchTimeRef = useRef(0);
 
   // Define fetchBillingHistory as a callback to avoid lint errors
   const fetchBillingHistory = useCallback(async () => {
@@ -248,13 +249,22 @@ export default function BillingPage() {
             
             // If we have real subscription data, but no other billing data,
             // we'll still use mock data for the rest
-            setPaymentMethods(mockPaymentMethods);
-            setBillingHistory(mockBillingHistory);
-            
             // Using real subscription data with mock billing info, 
             // so don't show the "Using Demo Data" banner
             setUsingMockData(false);
             setBackendError(false);
+            
+            // Still try to fetch billing history in the background for paying users
+            if (userMetadata.subscription_tier !== 'free') {
+              try {
+                fetchBillingHistory();
+              } catch (historyError) {
+                console.error('Error fetching billing history in background:', historyError);
+                // Don't set error state as we already have subscription data
+              }
+            }
+            
+            setLoading(false);
             return;
           }
           
@@ -428,7 +438,7 @@ export default function BillingPage() {
         } catch (error: any) {
           console.error('Error fetching billing data:', error);
           
-          // Set backend error flag
+          // Set backend error flag but still show the page with mock data
           if (error.message === 'Network Error' || 
               error.message === 'Failed to fetch' ||
               (axios.isAxiosError(error) && error.response?.status === 404)) {
@@ -466,10 +476,48 @@ export default function BillingPage() {
                 toast('Your payment was successful! The updated subscription will be available once the server recovers.', 
                   { icon: '👍', duration: 6000 });
               } else {
-                toast.error('Cannot connect to the backend server. Using mock data instead.');
+                // Try to access user metadata for subscription information
+                if (user?.user_metadata?.subscription_tier) {
+                  const userMetadata = user.user_metadata;
+                  setSubscription({
+                    plan: userMetadata.subscription_tier || 'Free',
+                    status: userMetadata.subscription_status || 'active',
+                    renewalDate: userMetadata.subscription_current_period_end 
+                      ? new Date(userMetadata.subscription_current_period_end).toISOString()
+                      : new Date(new Date().getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+                    price: userMetadata.subscription_tier === 'pro' ? '$15.00' : '$0.00',
+                    billingCycle: userMetadata.subscription_billing_cycle || 'monthly',
+                    features: userMetadata.subscription_tier === 'pro' 
+                      ? [
+                          "Unlimited images",
+                          "Up to 16x upscaling",
+                          "All upscaling modes",
+                          "Batch image processing",
+                          "API access",
+                          "Priority support"
+                        ]
+                      : [
+                          "Up to 3 images per month",
+                          "2x and 4x upscaling",
+                          "Basic upscaling mode",
+                          "Standard support"
+                        ]
+                  });
+                } else {
+                  // Fallback to mock data if we can't get user metadata
+                  setSubscription(mockSubscriptionData);
+                  setPaymentMethods(mockPaymentMethods);
+                  setBillingHistory(mockBillingHistory);
+                  setUsingMockData(true);
+                }
+                toast.error('Cannot connect to the backend server. Using local data instead.');
               }
             } else {
-              toast.error('Cannot connect to the backend server. Using mock data instead.');
+              toast.error('Cannot connect to the backend server. Using local data instead.');
+              setSubscription(mockSubscriptionData);
+              setPaymentMethods(mockPaymentMethods);
+              setBillingHistory(mockBillingHistory);
+              setUsingMockData(true);
             }
           } else if (error.message === 'Authentication required') {
             toast.error('Your session has expired. Please log in again.');
@@ -489,15 +537,33 @@ export default function BillingPage() {
             } else {
               toast.error(`Server error: ${error.response.data?.detail || 'Failed to load billing data'}`);
             }
+            
+            // Fall back to mock data
+            setSubscription(mockSubscriptionData);
+            setPaymentMethods(mockPaymentMethods);
+            setBillingHistory(mockBillingHistory);
+            setUsingMockData(true);
+            
           } else if (axios.isAxiosError(error) && error.request) {
             // The request was made but no response was received
             toast.error('No response from server. Please check your connection.');
+            
+            // Fall back to mock data
+            setSubscription(mockSubscriptionData);
+            setPaymentMethods(mockPaymentMethods);
+            setBillingHistory(mockBillingHistory);
+            setUsingMockData(true);
+            
           } else {
             // Something happened in setting up the request that triggered an Error
             toast.error(`Error: ${error.message || 'Failed to load billing data'}`);
+            
+            // Fall back to mock data
+            setSubscription(mockSubscriptionData);
+            setPaymentMethods(mockPaymentMethods);
+            setBillingHistory(mockBillingHistory);
+            setUsingMockData(true);
           }
-          
-          // Fall back to mock data
         } finally {
           setLoading(false);
         }
@@ -519,22 +585,18 @@ export default function BillingPage() {
   }, [user, router, session, checkoutSuccess, refreshUser, authLoading]);
 
   // Add a separate useEffect for billing history to allow it to be refreshed independently
-  useEffect(() => {
+  const checkAndFetchBillingHistory = useCallback(() => {
     const BILLING_HISTORY_COOLDOWN = 60000; // 1 minute cooldown
-    const lastFetchTimeRef = useRef(0);
     const now = Date.now();
     
     if (user && !loading && subscription.plan.toLowerCase() !== 'free') {
-      // Check if we're within the cooldown period
-      if (now - lastFetchTimeRef.current < BILLING_HISTORY_COOLDOWN) {
-        console.log('Billing history fetch on cooldown, skipping request');
-        return;
+      // Use the lastFetchTimeRef that was defined at the top level
+      if (now - lastFetchTimeRef.current > BILLING_HISTORY_COOLDOWN) {
+        lastFetchTimeRef.current = now;
+        fetchBillingHistory();
       }
-      
-      lastFetchTimeRef.current = now;
-      fetchBillingHistory();
     }
-  }, [user, loading, subscription.plan, fetchBillingHistory]);
+  }, [user, loading, subscription, fetchBillingHistory]);
 
   // Add an effect to retry fetching billing history if it failed
   useEffect(() => {
@@ -592,21 +654,9 @@ export default function BillingPage() {
     }
   };
 
-  const handleUpgradeToEnterprise = async () => {
-    try {
-      const result = await updateSubscription('enterprise');
-      if (result.success) {
-        toast.success(result.message || 'Subscription upgraded to Enterprise successfully');
-        // Refresh billing data
-        const billingData = await getBillingInfo();
-        if (billingData) {
-          setSubscription(billingData.subscription || mockSubscriptionData);
-        }
-      }
-    } catch (error) {
-      console.error('Error upgrading to Enterprise subscription:', error);
-      toast.error('Failed to upgrade to Enterprise subscription');
-    }
+  const handleUpgradeToEnterprise = () => {
+    // Redirect to pricing page
+    router.push('/pricing');
   };
 
   const handleCancel = async () => {
@@ -701,8 +751,8 @@ export default function BillingPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div data-testid="loading-spinner" className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
+      <div className="flex justify-center items-center py-20">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-orange-500"></div>
       </div>
     );
   }
@@ -815,42 +865,41 @@ export default function BillingPage() {
                   {subscription.price}/{subscription.billingCycle} • Renews on {new Date(subscription.renewalDate).toLocaleDateString()}
                 </p>
               </div>
-              <div className="mt-4 md:mt-0 space-x-3">
+              <div className="mt-4 md:mt-0 flex flex-col gap-4">
                 {subscription?.plan === 'pro' && (
-                  <div className="mb-6">
-                    <Button 
-                      onClick={handleUpgradeToEnterprise} 
-                      variant="default" 
-                      className="w-full md:w-auto bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700"
-                    >
-                      Upgrade to Enterprise
-                    </Button>
-                  </div>
+                  <Button 
+                    onClick={handleUpgradeToEnterprise} 
+                    variant="default" 
+                    className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700"
+                  >
+                    Upgrade to Enterprise
+                  </Button>
                 )}
                 {subscription?.plan === 'free' && (
-                  <div className="mb-6 flex flex-col md:flex-row gap-4">
+                  <>
                     <Button 
                       onClick={handleUpgrade} 
                       variant="default" 
-                      className="w-full md:w-auto bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700"
+                      className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700"
                     >
                       Upgrade to Pro
                     </Button>
                     <Button 
                       onClick={handleUpgradeToEnterprise} 
                       variant="outline" 
-                      className="w-full md:w-auto"
+                      className="w-full"
                     >
                       Upgrade to Enterprise
                     </Button>
-                  </div>
+                  </>
                 )}
-                <button 
+                <Button 
                   onClick={handleCancel}
-                  className="px-4 py-2 border border-gray-600 text-gray-300 rounded-lg shadow-sm hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:ring-offset-gray-900"
+                  variant="outline" 
+                  className="w-full"
                 >
                   Cancel
-                </button>
+                </Button>
               </div>
             </div>
             
@@ -912,139 +961,76 @@ export default function BillingPage() {
                 ) : (
                   // Enterprise plan features
                   <>
-                    <li key="ent-1" className="flex items-start">
+                    <li key="enterprise-1" className="flex items-start">
                       <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
-                      <span className="text-gray-300">800 images per month</span>
+                      <span className="text-gray-300">Custom volume of images</span>
                     </li>
-                    <li key="ent-2" className="flex items-start">
+                    <li key="enterprise-2" className="flex items-start">
                       <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
-                      <span className="text-gray-300">Highest upscaling quality</span>
+                      <span className="text-gray-300">Premium upscaling quality</span>
                     </li>
-                    <li key="ent-3" className="flex items-start">
+                    <li key="enterprise-3" className="flex items-start">
                       <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
-                      <span className="text-gray-300">Maximum 16K output resolution</span>
+                      <span className="text-gray-300">Up to 8K output resolution</span>
                     </li>
-                    <li key="ent-4" className="flex items-start">
+                    <li key="enterprise-4" className="flex items-start">
                       <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
-                      <span className="text-gray-300">Email support</span>
+                      <span className="text-gray-300">Priority support</span>
                     </li>
-                    <li key="ent-5" className="flex items-start">
+                    <li key="enterprise-5" className="flex items-start">
                       <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
-                      <span className="text-gray-300">Ultra-fast processing speed</span>
-                    </li>
-                    <li key="ent-6" className="flex items-start">
-                      <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
-                      <span className="text-gray-300">All AI models plus beta access</span>
-                    </li>
-                    <li key="ent-7" className="flex items-start">
-                      <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
-                      <span className="text-gray-300">Batch processing</span>
-                    </li>
-                    <li key="ent-8" className="flex items-start">
-                      <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
-                      <span className="text-gray-300">API access</span>
+                      <span className="text-gray-300">Dedicated account manager</span>
                     </li>
                   </>
                 )}
               </ul>
             </div>
-          </div>
-          
-          {/* Billing History Section */}
-          <div className="bg-gray-900/50 backdrop-blur-sm rounded-xl p-6 border border-gray-800/50 shadow-xl">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center">
-                <Receipt className="h-6 w-6 text-orange-500 mr-2" />
-                <h2 className="text-xl font-semibold text-white">Billing History</h2>
-              </div>
-              <div className="flex items-center">
-                {loadingBillingHistory && (
-                  <div className="mr-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-orange-500"></div>
-                  </div>
-                )}
-                {!backendError && !usingMockData && subscription.plan !== 'Free' && billingHistoryError && (
-                  <span className="text-xs text-gray-400 mr-2">Using demo data - Could not fetch real history</span>
-                )}
-                {!backendError && !usingMockData && subscription.plan !== 'Free' && !billingHistoryError && (
-                  <button 
-                    onClick={() => {
-                      toast.promise(
-                        fetchBillingHistory(),
-                        {
-                          loading: 'Refreshing billing history...',
-                          success: 'Billing history refreshed',
-                          error: 'Failed to refresh billing history'
-                        }
-                      );
-                    }}
-                    className="text-xs text-orange-500 hover:text-orange-400 focus:outline-none"
-                    title="Refresh billing history"
-                  >
-                    Refresh
-                  </button>
-                )}
-              </div>
-            </div>
-            
-            <div className="overflow-x-auto">
-              {billingHistory.length > 0 ? (
-                <table className="min-w-full divide-y divide-gray-800">
+
+            {/* Subscription Details Table */}
+            <div className="mt-8">
+              <h4 className="text-sm font-medium text-gray-400 mb-3">Subscription Details</h4>
+              <div className="overflow-x-auto bg-gray-800/50 rounded-lg">
+                <table className="min-w-full divide-y divide-gray-700">
                   <thead>
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Description</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Amount</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Plan</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Receipt</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Price</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Billing Cycle</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Next Renewal</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-800">
-                    {billingHistory.map((invoice) => (
-                      <tr key={invoice.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                          {new Date(invoice.date).toLocaleDateString()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                          {invoice.description}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                          {invoice.amount}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            invoice.status === 'paid' || invoice.status === 'succeeded' 
-                              ? 'bg-green-100 text-green-800' 
-                              : invoice.status === 'pending' 
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : 'bg-gray-100 text-gray-800'
-                          }`}>
-                            {invoice.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300 text-right">
-                          {invoice.downloadUrl && invoice.downloadUrl !== '#' ? (
-                            <a 
-                              href={invoice.downloadUrl} 
-                              className="text-orange-500 hover:text-orange-400"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              Download
-                            </a>
-                          ) : (
-                            <span className="text-gray-500">N/A</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                  <tbody className="divide-y divide-gray-700">
+                    <tr>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <span className="font-medium text-white">{subscription.plan}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          subscription.status === 'active' 
+                            ? 'bg-green-100 text-green-800' 
+                            : subscription.status === 'trialing' 
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {subscription.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                        {subscription.price}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300 capitalize">
+                        {subscription.billingCycle}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                        {typeof subscription.renewalDate === 'string' 
+                          ? new Date(subscription.renewalDate).toLocaleDateString() 
+                          : 'N/A'}
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-gray-400">No billing history available.</p>
-                </div>
-              )}
+              </div>
             </div>
           </div>
         </div>
